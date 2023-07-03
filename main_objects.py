@@ -19,14 +19,17 @@ class FemtoSat:
         self.mass = 0.1
         self.power_signal_full = 0.01
         self.length_signal_full = 0.001
+        self.ellipsoidal_signal = 0.4
 
         # Индивидуальные параметры
         self.r_orf = [np.array([uniform(-r_spread, r_spread) for _ in range(3)]) for _ in range(self.n)]
         self.v_orf = [np.array([uniform(-v_spread, v_spread) for _ in range(3)]) for _ in range(self.n)]
+        self.c_hkw = [[] for i in range(self.n)]
         self.q = [np.array([uniform(-1, 1) for _ in range(4)]) for _ in range(self.n)]
         for i in range(self.n):
             self.q[i] /= np.linalg.norm(self.q[i])
         self.line = [[] for _ in range(self.n)]
+        self.signal_power = [[[] for _ in range(self.n)] for _ in range(self.n)]
 
     def get_gain(self, r: Union[float, np.ndarray], mode: str = 'isotropic'):
         gain_modes = ['ellipsoid']
@@ -35,7 +38,7 @@ class FemtoSat:
         # print(f"Диаграмма антенн фемтосатов: {mode}")
         r1 = r / np.linalg.norm(r)
         if mode == gain_modes[0]:
-            return np.linalg.norm([r1[0] * 1, r1[1] * 0.5, r1[2] * 0.5])
+            return np.linalg.norm([r1[0] * 1, r1[1] * self.ellipsoidal_signal, r1[2] * self.ellipsoidal_signal])
         return 1
 
 class CubeSat:
@@ -61,6 +64,7 @@ class CubeSat:
         # Индивидуальные параметры
         self.r_orf = [np.array([uniform(-r_spread, r_spread) for _ in range(3)]) for _ in range(self.n)]
         self.v_orf = [np.array([uniform(-v_spread, v_spread) for _ in range(3)]) for _ in range(self.n)]
+        self.c_hkw = [[] for i in range(self.n)]
         self.q = [np.array([uniform(-1, 1) for _ in range(4)]) for _ in range(self.n)]
         for i in range(self.n):
             self.q[i] /= np.linalg.norm(self.q[i])
@@ -75,14 +79,13 @@ class CubeSat:
         gain_modes = ['ellipsoid']
         if mode not in gain_modes:
             mode = 'isotropic'
-        # print(f"Диаграмма антенн кубсатов: {mode}")
         r1 = r / np.linalg.norm(r)
         if mode == gain_modes[0]:
             return np.linalg.norm([r1[0] * 1, r1[1] * 0.5, r1[2] * 0.5])
         return 1
 
 class PhysicModel:
-    def __init__(self, f: FemtoSat, c: CubeSat, dt: float = 1., is_aero: bool = True, is_complex_aero: bool = False,
+    def __init__(self, f: FemtoSat, c: CubeSat, dt: float = 1., is_aero: bool = False, is_complex_aero: bool = False,
                  is_hkw: bool = True, show_rate: int = 1):
         self.dt = dt
         self.h_orb = 600e3
@@ -99,9 +102,8 @@ class PhysicModel:
         self.v_orb = np.sqrt(self.mu / self.r_orb)
         self.c = c
         self.f = f
-        self.C_c = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], self.w_orb) for i in range(self.c.n)]  # Рудимент
-        self.C_f = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], self.w_orb) for i in range(self.f.n)]  # Рудимент
         self.c.signal_power = [[[] for _ in range(self.f.n)] for _ in range(self.c.n)]
+        self.f.signal_power = [[[] for _ in range(self.f.n)] for _ in range(self.f.n)]
 
         # Параметры типа bool
         self.is_aero = is_aero
@@ -113,6 +115,8 @@ class PhysicModel:
             for i in range(obj.n):
                 obj.q[i] /= np.linalg.norm(obj.q[i])
                 obj.v_orf[i][0] = - 2 * obj.r_orf[i][2] * self.w_orb
+        self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], self.w_orb) for i in range(self.c.n)]  # Рудимент
+        self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], self.w_orb) for i in range(self.f.n)]  # Рудимент
 
     # Интегрирование движения
     def time_step(self):
@@ -124,21 +128,26 @@ class PhysicModel:
         # Поступательное движение
         for obj in [self.c, self.f]:
             for i in range(obj.n):
-                S = quart2dcm(obj.q[i])
-                cos_alpha = clip((np.trace(S) - 1) / 2, -1, 1)
-                # alpha = 180 / np.pi * np.arccos(cos_alpha)
-                rho = self.get_atm_params(self.h_orb)[0]
-                if obj is self.c:
-                    c_resist = 1.05
-                    square = obj.size[0] * obj.size[1]
+                if self.is_aero:
+                    S = quart2dcm(obj.q[i])
+                    cos_alpha = clip((np.trace(S) - 1) / 2, -1, 1)
+                    # alpha = 180 / np.pi * np.arccos(cos_alpha)
+                    rho = self.get_atm_params(self.h_orb)[0]
+                    if obj is self.c:
+                        c_resist = 1.05
+                        square = obj.size[0] * obj.size[1]
+                    else:
+                        c_resist = 1.17
+                        square = obj.size[0] * obj.size[1] * abs(cos_alpha)
+                    obj.r_orf[i], obj.v_orf[i] = self.rk4_translate(obj.r_orf[i], obj.v_orf[i],
+                                                                    self.get_full_acceleration(c_resist=c_resist, rho=rho,
+                                                                                               square=square, m=obj.mass,
+                                                                                               r=obj.r_orf[i],
+                                                                                               v=obj.v_orf[i]))
                 else:
-                    c_resist = 1.17
-                    square = obj.size[0] * obj.size[1] * abs(cos_alpha)
-                obj.r_orf[i], obj.v_orf[i] = self.rk4_translate(obj.r_orf[i], obj.v_orf[i],
-                                                                self.get_full_acceleration(c_resist=c_resist, rho=rho,
-                                                                                           square=square, m=obj.mass,
-                                                                                           r=obj.r_orf[i],
-                                                                                           v=obj.v_orf[i]))
+                    obj.r_orf[i] = r_hkw(obj.c_hkw[i], self.w_orb, self.t)
+                    obj.v_orf[i] = v_hkw(obj.c_hkw[i], self.w_orb, self.t)
+
                 if self.iter % self.show_rate == 0:
                     obj.line[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
 
@@ -148,11 +157,21 @@ class PhysicModel:
                 S_c = quart2dcm(self.c.q[i_c])
                 for i_f in range(self.f.n):
                     S_f = quart2dcm(self.f.q[i_f])
-                    r_tmp = self.f.r_orf[i_c] - self.c.r_orf[i_c]
+                    r_tmp = self.f.r_orf[i_f] - self.c.r_orf[i_c]
                     self.c.signal_power[i_c][i_f] += [self.c.get_gain(r=S_c @ r_tmp, mode='isotropic') *
                                                       self.f.get_gain(r=S_f @ r_tmp, mode='ellipsoid') *
                                                       self.f.power_signal_full / self.f.length_signal_full**2 /
                                                       np.linalg.norm(r_tmp)**2]
+            for i_f1 in range(self.f.n):
+                S_f1 = quart2dcm(self.f.q[i_f1])
+                for i_f2 in range(self.f.n):
+                    if i_f1 != i_f2:
+                        S_f2 = quart2dcm(self.f.q[i_f2])
+                        r_tmp = self.f.r_orf[i_f1] - self.f.r_orf[i_f2]
+                        self.f.signal_power[i_f1][i_f2] += [self.f.get_gain(r=S_f1 @ r_tmp, mode='ellipsoid') *
+                                                            self.f.get_gain(r=S_f2 @ r_tmp, mode='ellipsoid') *
+                                                            self.f.power_signal_full / self.f.length_signal_full**2 /
+                                                            np.linalg.norm(r_tmp)**2]
 
     def integrate(self, t: float):
         for _ in range(int(t//self.dt)):

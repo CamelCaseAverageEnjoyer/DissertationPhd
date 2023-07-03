@@ -126,3 +126,17 @@ def plot_signals(o):
         plt.title(f"График сигналов от фемтоспутников, получаемых кубсатом № {i_c + 1}")
         plt.legend()
         plt.show()
+    tmp = plt.subplots(o.f.n, 1)
+    fig = tmp[0]
+    fig.suptitle(f"График сигналов от фемтоспутников, получаемых фемто № {[i + 1 for i in range(o.f.n)]}")
+    axes = tmp[1:o.f.n][0]
+    colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
+    for i_f1 in range(o.f.n):
+        print(i_f1)
+        for i_f2 in range(o.f.n):
+            if i_f1 != i_f2:
+                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.signal_power[i_f1][i_f2]))]
+                axes[i_f1].plot(x, o.f.signal_power[i_f1][i_f2], c=colors[i_f2])
+        axes[i_f1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+        axes[i_f1].set_ylabel("?", fontsize=CAPTION_SIZE)
+    plt.show()
