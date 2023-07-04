@@ -24,6 +24,10 @@ def clip(a, bot, top):
         return top
     return a
 
+def flatten(lst):
+    """Функция берёт 2D массив, делает 1D"""
+    return [item for sublist in lst for item in sublist]
+
 # РУДИМЕНТЫ
 def get_c_hkw(r, v, w):  # Рудимент
     """Возвращает константы C[0]..C[5] движения Хилла-Клохесси-Уилтштира"""

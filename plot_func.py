@@ -128,15 +128,60 @@ def plot_signals(o):
         plt.show()
     tmp = plt.subplots(o.f.n, 1)
     fig = tmp[0]
-    fig.suptitle(f"График сигналов от фемтоспутников, получаемых фемто № {[i + 1 for i in range(o.f.n)]}")
+    fig.suptitle(f"График сигналов от фемтоспутников, получаемых фемтосатом № {[i + 1 for i in range(o.f.n)]}")
     axes = tmp[1:o.f.n][0]
     colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
     for i_f1 in range(o.f.n):
-        print(i_f1)
         for i_f2 in range(o.f.n):
             if i_f1 != i_f2:
                 x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.signal_power[i_f1][i_f2]))]
                 axes[i_f1].plot(x, o.f.signal_power[i_f1][i_f2], c=colors[i_f2])
         axes[i_f1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
         axes[i_f1].set_ylabel("?", fontsize=CAPTION_SIZE)
+    plt.show()
+
+def plot_distance(o):
+    global TITLE_SIZE, CAPTION_SIZE
+    tmp = plt.subplots(o.f.n + 1, 1)
+    fig = tmp[0]
+    fig.suptitle(f"Графики расстояний по сигналам фемтосатов")
+    axes = tmp[1:o.f.n][0]
+    colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
+    for i_c in range(o.c.n):
+        for i_f in range(o.f.n):
+            x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+            axes[i_c].plot(x, o.c.real_dist[i_c][i_f], c=colors[i_f])
+            axes[i_c].plot(x, o.c.calc_dist[i_c][i_f], c=colors[i_f])
+        axes[i_c].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+        axes[i_c].set_ylabel(f"К №{i_c+1}", fontsize=CAPTION_SIZE)
+    for i_f1 in range(o.f.n):
+        for i_f2 in range(o.f.n):
+            if i_f1 != i_f2:
+                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.real_dist[i_f1][i_f2]))]
+                axes[i_f1+1].plot(x, o.f.real_dist[i_f1][i_f2], c=colors[i_f2])
+                axes[i_f1+1].plot(x, o.f.calc_dist[i_f1][i_f2], c=colors[i_f2])
+        axes[i_f1+1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+        axes[i_f1+1].set_ylabel(f"Ф №{i_f1+1}", fontsize=CAPTION_SIZE)
+    plt.show()
+
+    tmp = plt.subplots(o.f.n + 1, 1)
+    fig = tmp[0]
+    fig.suptitle(f"Ошибка в подсчёте графиков")
+    colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
+    axes = tmp[1:o.f.n][0]
+    for i_c in range(o.c.n):
+        for i_f in range(o.f.n):
+            x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+            axes[i_c].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
+                           c=colors[0])
+        axes[i_c].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+        axes[i_c].set_ylabel(f"К №{i_c+1}", fontsize=CAPTION_SIZE)
+    for i_f1 in range(o.f.n):
+        for i_f2 in range(o.f.n):
+            if i_f1 != i_f2:
+                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.real_dist[i_f1][i_f2]))]
+                axes[i_f1+1].plot(x, np.abs(np.array(o.f.real_dist[i_f1][i_f2]) - np.array(o.f.calc_dist[i_f1][i_f2])),
+                                  c=colors[0])
+        axes[i_f1+1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+        axes[i_f1+1].set_ylabel(f"Ф №{i_f1+1}", fontsize=CAPTION_SIZE)
     plt.show()
