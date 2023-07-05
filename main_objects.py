@@ -136,10 +136,10 @@ class PhysicModel:
                             [0., 0., 0.],
                             [1., 0., 0.],
                             [0., 1., 0.],
-                            [0., 0., 1.]]) * 1e-6  # оптимальное e-2
+                            [0., 0., 1.]]) * 1e-2  # оптимальное e-2 или e0, не помню
         self.q_ = np.eye(3) * 1e-12  # оптимальное e-12
-        self.p_ = [np.vstack([np.hstack([np.eye(3) * 1e-10, np.zeros((3, 3))]),
-                             np.hstack([np.zeros((3, 3)), np.eye(3) * 1e-14])])
+        self.p_ = [np.vstack([np.hstack([np.eye(3) * 1e-6, np.zeros((3, 3))]),
+                             np.hstack([np.zeros((3, 3)), np.eye(3) * 1e-10])])
                    for _ in range(self.f.n)]
 
         # Подгон чтобы не разлеталися
