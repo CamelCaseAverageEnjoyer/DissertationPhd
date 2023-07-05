@@ -1,6 +1,6 @@
-import plotly.express as px
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
+# import plotly.express as px
 
 from tiny_functions import *
 FEMTO_RATE = 1e2
@@ -26,7 +26,13 @@ def show_chipsat(o, j, clr, opacity):
         xl += [o.f.line[j][i * 3 + 0]]
         yl += [o.f.line[j][i * 3 + 1]]
         zl += [o.f.line[j][i * 3 + 2]]
-    return [go.Mesh3d(x=x, y=y, z=z, color=clr, opacity=opacity), go.Scatter3d(x=xl, y=yl, z=zl, mode='lines')]
+    xk, yk, zk = ([], [], [])
+    for i in range(int(len(o.f.line_kalman[j])//3)):
+        xk += [o.f.line_kalman[j][i * 3 + 0]]
+        yk += [o.f.line_kalman[j][i * 3 + 1]]
+        zk += [o.f.line_kalman[j][i * 3 + 2]]
+    return [go.Mesh3d(x=x, y=y, z=z, color=clr, opacity=opacity), go.Scatter3d(x=xl, y=yl, z=zl, mode='lines'),
+            go.Scatter3d(x=xk, y=yk, z=zk, mode='lines')]
 
 def show_cubesat(o, j):
     global CUBE_RATE
@@ -103,7 +109,7 @@ def show_cubesat(o, j):
     anw += [go.Scatter3d(x=xl, y=yl, z=zl, mode='lines')]
     return anw
 
-def show_chipsats(o, clr: str = 'lightpink', opacity: float = 1):
+def show_chipsats_and_cubesats(o, clr: str = 'lightpink', opacity: float = 1):
     data = []
     for i in range(o.f.n):
         data += show_chipsat(o, i, clr, opacity)
@@ -112,7 +118,7 @@ def show_chipsats(o, clr: str = 'lightpink', opacity: float = 1):
     return go.Figure(data=data, layout=go.Layout(autosize=False, width=900, height=700))
 
 def plot_all(o):
-    f = show_chipsats(o)
+    f = show_chipsats_and_cubesats(o, clr='black')
     f.show()
 
 def plot_signals(o):
@@ -142,46 +148,53 @@ def plot_signals(o):
 
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
-    tmp = plt.subplots(o.f.n + 1, 1)
-    fig = tmp[0]
-    fig.suptitle(f"Графики расстояний по сигналам фемтосатов")
-    axes = tmp[1:o.f.n][0]
-    colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
-    for i_c in range(o.c.n):
-        for i_f in range(o.f.n):
-            x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-            axes[i_c].plot(x, o.c.real_dist[i_c][i_f], c=colors[i_f])
-            axes[i_c].plot(x, o.c.calc_dist[i_c][i_f], c=colors[i_f])
-        axes[i_c].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-        axes[i_c].set_ylabel(f"К №{i_c+1}", fontsize=CAPTION_SIZE)
-    for i_f1 in range(o.f.n):
-        for i_f2 in range(o.f.n):
-            if i_f1 != i_f2:
-                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.real_dist[i_f1][i_f2]))]
-                axes[i_f1+1].plot(x, o.f.real_dist[i_f1][i_f2], c=colors[i_f2])
-                axes[i_f1+1].plot(x, o.f.calc_dist[i_f1][i_f2], c=colors[i_f2])
-        axes[i_f1+1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-        axes[i_f1+1].set_ylabel(f"Ф №{i_f1+1}", fontsize=CAPTION_SIZE)
-    plt.show()
+    if o.f.n > 1:
+        tmp = plt.subplots(o.f.n + 1, 1)
+        fig = tmp[0]
+        fig.suptitle(f"Графики расстояний по сигналам фемтосатов")
+        axes = tmp[1:o.f.n][0]
+        colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
+        for i_c in range(o.c.n):
+            for i_f in range(o.f.n):
+                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+                axes[i_c].plot(x, o.c.real_dist[i_c][i_f], c=colors[i_f])
+                axes[i_c].plot(x, o.c.calc_dist[i_c][i_f], c=colors[i_f])
+            axes[i_c].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+            axes[i_c].set_ylabel(f"К №{i_c+1}", fontsize=CAPTION_SIZE)
+        for i_f1 in range(o.f.n):
+            for i_f2 in range(o.f.n):
+                if i_f1 != i_f2:
+                    x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.real_dist[i_f1][i_f2]))]
+                    axes[i_f1+1].plot(x, o.f.real_dist[i_f1][i_f2], c=colors[i_f2])
+                    axes[i_f1+1].plot(x, o.f.calc_dist[i_f1][i_f2], c=colors[i_f2])
+            axes[i_f1+1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+            axes[i_f1+1].set_ylabel(f"Ф №{i_f1+1}", fontsize=CAPTION_SIZE)
+        plt.show()
 
-    tmp = plt.subplots(o.f.n + 1, 1)
-    fig = tmp[0]
+    fig, axes = plt.subplots(1, 1)
     fig.suptitle(f"Ошибка в подсчёте графиков")
-    colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
-    axes = tmp[1:o.f.n][0]
+    colors = ['violet', 'blueviolet', 'forestgreen', 'cornflowerblue', 'peru', 'teal']
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
-            x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-            axes[i_c].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
-                           c=colors[0])
-        axes[i_c].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-        axes[i_c].set_ylabel(f"К №{i_c+1}", fontsize=CAPTION_SIZE)
-    for i_f1 in range(o.f.n):
-        for i_f2 in range(o.f.n):
-            if i_f1 != i_f2:
-                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.real_dist[i_f1][i_f2]))]
-                axes[i_f1+1].plot(x, np.abs(np.array(o.f.real_dist[i_f1][i_f2]) - np.array(o.f.calc_dist[i_f1][i_f2])),
-                                  c=colors[0])
-        axes[i_f1+1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-        axes[i_f1+1].set_ylabel(f"Ф №{i_f1+1}", fontsize=CAPTION_SIZE)
+            labels = ["Ошибка расстояния до фемтоспутника", "Ошибка определения положения",
+                      "Расстояние до фемтоспутника", "Оценка расстояние до фемтоспутника"] \
+                if i_f == 0 else [None for _ in range(100)]
+            x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+            # axes.plot(x, np.abs(o.c.real_dist[i_c][i_f]), c=colors[2], label=labels[2])
+            # axes.plot(x, np.abs(o.c.kalm_dist[i_c][i_f]), c=colors[3], label=labels[3])
+            axes.plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
+                      c=colors[0], label=labels[0])
+            r1 = [np.array([o.f.line[i_f][3 * j + 0],
+                            o.f.line[i_f][3 * j + 1],
+                            o.f.line[i_f][3 * j + 2]]) for j in range(int(len(o.f.line[i_f]) // 3))]
+            if o.p.kalman_single_search:
+                x = [o.p.show_rate * o.p.dt * i for i in range(int(len(o.f.line[i_f]) // 3))]
+                r2 = [np.array([o.f.line_kalman[i_f][3 * j + 0],
+                                o.f.line_kalman[i_f][3 * j + 1],
+                                o.f.line_kalman[i_f][3 * j + 2]]) for j in range(int(len(o.f.line[i_f]) // 3))]
+                tmp = [np.linalg.norm(r1[j] - r2[j]) for j in range(int(len(o.f.line[i_f]) // 3))]
+                axes.plot(x, tmp, c=colors[1], label=labels[1])
+        axes.set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+        axes.set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
+    plt.legend()
     plt.show()
