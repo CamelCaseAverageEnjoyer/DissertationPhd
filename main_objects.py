@@ -10,11 +10,13 @@ from tiny_functions import *
 
 
 class FemtoSat:
-    def __init__(self, n: int = 10, r_spread: float = 1e2, v_spread: float = 1e-1):
+    def __init__(self, n: int = 10, r_spread: float = 1e2, v_spread: float = 1e-1, start_navigation: str = 'near',
+                 start_navigation_tolerance: float = 0.9):
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
         # Предопределённые параметры
         self.gain_modes = ['isotropic', 'ellipsoid']
+        self.navigations = ['perfect', 'near', 'random']
 
         # Общие параметры
         self.n = n
@@ -29,19 +31,29 @@ class FemtoSat:
         # Индивидуальные параметры
         self.r_orf = [np.array([uniform(-r_spread, r_spread) for _ in range(3)]) for _ in range(self.n)]
         self.v_orf = [np.array([uniform(-v_spread, v_spread) for _ in range(3)]) for _ in range(self.n)]
-        self.rv_orf_calc = [np.array([uniform(-r_spread, r_spread) for _ in range(3)] +
-                                     [uniform(-v_spread, v_spread) for _ in range(3)]) for _ in range(self.n)]
-        # self.rv_orf_calc = [np.array([self.r_orf[i][0], self.r_orf[i][1], self.r_orf[i][2],
-        #                               self.v_orf[i][0], self.v_orf[i][1], self.v_orf[i][2]]) for i in range(self.n)]
         self.c_hkw = [[] for _ in range(self.n)]
-        self.q = [np.array([uniform(-1, 1) for _ in range(4)]) for _ in range(self.n)]
+        self.q = [[uniform(-1, 1) for _ in range(4)] for _ in range(self.n)]
+        self.q_ = [[uniform(-1, 1) for _ in range(4)] for _ in range(self.n)]
         for i in range(self.n):
             self.q[i] /= np.linalg.norm(self.q[i])
+            self.q_[i] /= np.linalg.norm(self.q_[i])
         self.line = [[] for _ in range(self.n)]
         self.line_kalman = [[] for _ in range(self.n)]
         self.signal_power = [[[] for _ in range(self.n)] for _ in range(self.n)]
         self.real_dist = [[[] for _ in range(self.n)] for _ in range(self.n)]
         self.calc_dist = [[[] for _ in range(self.n)] for _ in range(self.n)]
+        tmp_poor = [np.array([uniform(-r_spread, r_spread) for _ in range(3)] +
+                             [uniform(-v_spread, v_spread) for _ in range(3)] +
+                             list(self.q_[i][1:4])) for i in range(self.n)]
+        tmp_good = [np.append(np.append(self.r_orf[i], self.v_orf[i]), list(self.q[i][1:4])) for i in range(self.n)]
+        # Параметры начального приближения
+        if start_navigation == self.navigations[0]:
+            self.rv_orf_calc = tmp_good
+        elif start_navigation == self.navigations[1]:
+            self.rv_orf_calc = [tmp_good[i] * start_navigation_tolerance +
+                                tmp_poor[i] * (1 - start_navigation_tolerance) for i in range(self.n)]
+        else:
+            self.rv_orf_calc = tmp_poor
 
     def get_gain(self, r: Union[float, np.ndarray]):
         r1 = r / np.linalg.norm(r)
@@ -97,9 +109,85 @@ class CubeSat:
             return np.linalg.norm([r1[0] * 1, r1[1] * self.ellipsoidal_signal, r1[2] * self.ellipsoidal_signal])
         return 1
 
+class KalmanFilter:
+    def __init__(self, f: FemtoSat, c: CubeSat, dt: float, w_orb: float, kalman_coef: list, orientation: bool = False):
+        self.f = f
+        self.c = c
+        self.dt = dt
+        self.d_coef = kalman_coef[0]
+        self.q_coef = kalman_coef[1]
+        self.p_coef_0 = kalman_coef[2]
+        self.p_coef_1 = kalman_coef[3]
+        self.p_coef_2 = kalman_coef[4]
+        self.r_matrix = kalman_coef[5]
+        self.orientation = orientation
+        if not orientation:
+            self.r_orf_estimation = np.array([f.rv_orf_calc[i][0:6] for i in range(f.n)])
+            self.phi_ = np.array([[1, 0, 0, dt, 0, 0],
+                                  [0, 1, 0, 0, dt, 0],
+                                  [0, 0, 1, 0, 0, dt],
+                                  [0, 0, 0, 1, 0, -2 * w_orb * dt],
+                                  [0, - w_orb ** 2 * dt, 0, 0, 1, 0],
+                                  [0, 0, 3 * w_orb ** 2 * dt,  2 * w_orb * dt, 0, 1]])
+            self.d_ = np.array([[0., 0., 0.],
+                                [0., 0., 0.],
+                                [0., 0., 0.],
+                                [1., 0., 0.],
+                                [0., 1., 0.],
+                                [0., 0., 1.]]) * self.d_coef
+            self.q_ = np.eye(3) * self.q_coef
+            self.p_ = [np.diag([self.p_coef_0]*3 + [self.p_coef_1]*3) for _ in range(f.n)]
+        else:  # 'rvq'
+            self.r_orf_estimation = np.array(f.rv_orf_calc)
+            self.phi_ = np.array([[1, 0, 0, dt, 0, 0, 0, 0, 0],
+                                  [0, 1, 0, 0, dt, 0, 0, 0, 0],
+                                  [0, 0, 1, 0, 0, dt, 0, 0, 0],
+                                  [0, 0, 0, 1, 0, -2 * w_orb * dt, 0, 0, 0],
+                                  [0, -w_orb ** 2 * dt, 0, 0, 1, 0, 0, 0, 0],
+                                  [0, 0, 3 * w_orb ** 2 * dt,  2 * w_orb * dt, 0, 1, 0, 0, 0],
+                                  [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                  [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                  [0, 0, 0, 0, 0, 0, 0, 0, 0]])
+            self.d_ = np.array([[0., 0., 0.],
+                                [0., 0., 0.],
+                                [0., 0., 0.],
+                                [1., 0., 0.],
+                                [0., 1., 0.],
+                                [0., 0., 1.],
+                                [0., 0., 0.],
+                                [0., 0., 0.],
+                                [0., 0., 0.]]) * self.d_coef
+            self.q_ = np.eye(3) * self.q_coef
+            self.p_ = [np.diag([self.p_coef_0]*3 + [self.p_coef_1]*3 + [self.p_coef_2]*3) for _ in range(f.n)]
+
+    def calc(self, i: int) -> None:
+        z_ = self.c.calc_dist[0][i][len(self.c.calc_dist[0][i]) - 1]
+        if not self.orientation:
+            tmp = np.append(self.c.r_orf[0], self.c.v_orf[0])
+        else:  # rvq
+            tmp = np.append(np.append(self.c.r_orf[0], self.c.v_orf[0]), np.zeros(3))
+        r_ = self.r_orf_estimation[i] - tmp  # ШАМАНСТВО
+        z_model = np.linalg.norm(self.c.r_orf[0] - r_[0:3])
+        if not self.orientation:
+            h_ = np.array([r_[j]/np.linalg.norm(r_) for j in range(3)] + 3 * [0.])
+        else:
+            h_ = np.array([r_[j]/np.linalg.norm(r_) for j in range(3)] + 6 * [0.])
+        q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt
+
+        r_m = self.phi_ @ r_
+        p_m = self.phi_ @ self.p_[i] @ self.phi_.T + q_tilda
+
+        k_ = p_m @ h_ / (h_ @ p_m @ h_ + self.r_matrix)
+        self.r_orf_estimation[i] = r_m + k_ * (z_ - z_model) + tmp  # ШАМАНСТВО
+        if not self.orientation:
+            self.p_[i] = (np.eye(6) - np.outer(k_, h_)) @ p_m
+        else:
+            self.p_[i] = (np.eye(9) - np.outer(k_, h_)) @ p_m
+
 class PhysicModel:
-    def __init__(self, f: FemtoSat, c: CubeSat, dt: float = 1., is_aero: bool = True, is_complex_aero: bool = False,
-                 is_hkw: bool = True, kalman_single_search: bool = False):
+    def __init__(self, f: FemtoSat, c: CubeSat, kalman_coef: list, method_navigation: str, dt: float = 1.,
+                 is_aero: bool = True, is_complex_aero: bool = False, is_hkw: bool = True,
+                 kalman_single_search: bool = True):
         self.dt = dt
         self.h_orb = 600e3
         self.show_rate = 1
@@ -115,7 +203,7 @@ class PhysicModel:
         self.v_orb = np.sqrt(self.mu / self.r_orb)
         self.c = c
         self.f = f
-        self.r_matrix = 1e-4
+        self.r_matrix = kalman_coef[5]
 
         # Параметры типа bool
         self.is_aero = is_aero
@@ -124,31 +212,17 @@ class PhysicModel:
         self.kalman_single_search = kalman_single_search
 
         # Параметры фильтров
-        self.r_orf_estimation = np.array(self.f.rv_orf_calc)
-        self.phi_ = np.array([[1, 0, 0, self.dt, 0, 0],
-                              [0, 1, 0, 0, self.dt, 0],
-                              [0, 0, 1, 0, 0, self.dt],
-                              [0, 0, 0, 1, 0, -2 * self.w_orb * self.dt],
-                              [0, -self.w_orb ** 2 * self.dt, 0, 0, 1, 0],
-                              [0, 0, 3 * self.w_orb ** 2 * self.dt,  2 * self.w_orb * self.dt, 0, 1]])
-        self.d_ = np.array([[0., 0., 0.],
-                            [0., 0., 0.],
-                            [0., 0., 0.],
-                            [1., 0., 0.],
-                            [0., 1., 0.],
-                            [0., 0., 1.]]) * 1e-2  # оптимальное e-2 или e0, не помню
-        self.q_ = np.eye(3) * 1e-12  # оптимальное e-12
-        self.p_ = [np.vstack([np.hstack([np.eye(3) * 1e-6, np.zeros((3, 3))]),
-                             np.hstack([np.zeros((3, 3)), np.eye(3) * 1e-10])])
-                   for _ in range(self.f.n)]
+        self.navigation = method_navigation.split()
+        self.k = KalmanFilter(f=f, c=c, dt=self.dt, w_orb=self.w_orb, kalman_coef=kalman_coef,
+                              orientation='rvq' in self.navigation)
 
-        # Подгон чтобы не разлеталися
+        # Подгон чтобы не разлеталися (C_1=0 у всех)
         for obj in [self.c, self.f]:
             for i in range(obj.n):
                 obj.q[i] /= np.linalg.norm(obj.q[i])
                 obj.v_orf[i][0] = - 2 * obj.r_orf[i][2] * self.w_orb
-        self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], self.w_orb) for i in range(self.c.n)]  # Рудимент
-        self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], self.w_orb) for i in range(self.f.n)]  # Рудимент
+        self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], self.w_orb) for i in range(self.c.n)]
+        self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], self.w_orb) for i in range(self.f.n)]
 
     # Интегрирование движения
     def time_step(self):
@@ -161,10 +235,12 @@ class PhysicModel:
                 else ""
             tmp2 = f", сферичность={int(self.f.ellipsoidal_signal*100)}%" if self.f.gain_mode == self.f.gain_modes[1] \
                 else ""
+            tmp = ", ориентации" if 'rvq' in self.navigation else ""
             print(f"Диаграмма антенн кубсата: {self.c.gain_mode}{tmp1}\n"
                   f"Диаграмма антенн фемтосатов: {self.f.gain_mode}{tmp2}\n\n"
                   f"Учёт аэродинамики: {self.is_aero}\n"
-                  f"Навигация единчичная фильтром Калмана: {self.kalman_single_search}")
+                  f"Навигация единчичная фильтром Калмана: {self.kalman_single_search}\n"
+                  f"Применяется фильтр Калмана для поправки: положений, скоростей" + tmp)
 
         # Вращательное движение
         # -----его нет
@@ -209,14 +285,23 @@ class PhysicModel:
                 signal *= (uniform(-np.sqrt(self.r_matrix), np.sqrt(self.r_matrix)) + 1)
                 self.c.real_dist[i_c][i_f] += [np.linalg.norm(r_tmp)]
                 self.c.signal_power[i_c][i_f] += [signal]
-                self.c.calc_dist[i_c][i_f] += [np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2
-                                                       / signal)]
+                if 'rv' in self.navigation:
+                    calc_dist = np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal)
+                else:
+                    q = np.array(self.k.r_orf_estimation[i_f][6:9])
+                    q = np.append(1 - np.linalg.norm(q)**2, q) if np.linalg.norm(q) <= 1 else \
+                        np.append(0, q / np.linalg.norm(q))
+                    S_tmp = quart2dcm(q)
+                    calc_dist = np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal *
+                                        self.f.get_gain(r=S_tmp @ r_tmp))
+                    # self.f.get_gain(r=S_f @ r_tmp)
+                self.c.calc_dist[i_c][i_f] += [calc_dist]
                 if self.kalman_single_search:
-                    self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] - self.r_orf_estimation[i_f][0:3])]
+                    self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] - self.k.r_orf_estimation[i_f][0:3])]
                     if self.iter % self.show_rate == 0:
-                        self.f.line_kalman[i_f] += [self.r_orf_estimation[i_f][0],
-                                                    self.r_orf_estimation[i_f][1],
-                                                    self.r_orf_estimation[i_f][2]]
+                        self.f.line_kalman[i_f] += [self.k.r_orf_estimation[i_f][0],
+                                                    self.k.r_orf_estimation[i_f][1],
+                                                    self.k.r_orf_estimation[i_f][2]]
                         # self.f.line_kalman[i_f] = flatten(self.f.line_kalman[i_f])
         for i_f1 in range(self.f.n):
             S_f1 = quart2dcm(self.f.q[i_f1])
@@ -234,43 +319,7 @@ class PhysicModel:
         # Оценка положения фемтоспутников
         if self.kalman_single_search:
             for i in range(self.f.n):
-                '''if self.is_aero:
-                    S = quart2dcm(obj.q[i])
-                    cos_alpha = clip((np.trace(S) - 1) / 2, -1, 1)
-                    rho = self.get_atm_params(obj.r_orf[i][2])[0]
-                    c_resist = 1.17
-                    square = obj.size[0] * obj.size[1] * abs(cos_alpha)
-                    tmp = 2 * self.v_orb * c_resist * rho * square / 2 / self.f.mass
-                    self.phi_ = np.array([[1, 0, 0, self.dt, 0, 0],
-                                          [0, 1, 0, 0, self.dt, 0],
-                                          [0, 0, 1, 0, 0, self.dt],
-                                          [0, 0, 0, 1 - tmp, 0, -2 * self.w_orb * self.dt],
-                                          [0, -self.w_orb ** 2 * self.dt, 0, 0, 1, 0],
-                                          [0, 0, 3 * self.w_orb ** 2 * self.dt, 2 * self.w_orb * self.dt, 0, 1]])'''
-                z_ = self.c.calc_dist[0][i][len(self.c.calc_dist[0][i]) - 1]
-                tmp = np.append(self.c.r_orf[0], self.c.v_orf[0])
-                r_ = self.r_orf_estimation[i] - tmp  # ШАМАНСТВО
-                z_model = np.linalg.norm(self.c.r_orf[0] - r_[0:3])
-                h_ = np.array([r_[j]/np.linalg.norm(r_) for j in range(3)] + 3 * [0.])
-                q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt
-
-                r_m = self.phi_ @ r_
-                p_m = self.phi_ @ self.p_[i] @ self.phi_.T + q_tilda
-
-                k_ = p_m @ h_ / (h_ @ p_m @ h_ + self.r_matrix)
-                self.r_orf_estimation[i] = r_m + k_ * (z_ - z_model) + tmp  # ШАМАНСТВО
-                self.p_[i] = (np.eye(6) - np.outer(k_, h_)) @ p_m
-                # print(f'R {np.linalg.norm((k_ * (z_ - z_model))[0:3]) / np.linalg.norm(r_m[0:3])}')
-                # print(f'V {np.linalg.norm((k_ * (z_ - z_model))[3:6]) / np.linalg.norm(r_m[3:6])}')
-
-            '''if i == 0:
-                print(f"q : {np.linalg.det(self.q_)}\nk : {np.linalg.norm(k_)}"
-                      f"\np-: {np.linalg.det(p_m)}\np : {np.linalg.det(self.p_)}\n"
-                      f"? : {h_ @ r_m}\nh : {h_}\nrv: {self.r_orf_estimation[i]}\n"
-                      f"k : {k_}")
-                print(f"shapes:\n--------------\nr={r_.shape}\nr-={r_m.shape}\nP={self.p_.shape}"
-                      f"\nP-={p_m.shape}\nH={h_.shape}\nQ={self.q_.shape}\nK={k_.shape}"
-                      f"\nR=() {self.r_matrix}\nz={z_.shape} {z_}\n--------------")'''
+                self.k.calc(i)
 
     def integrate(self, t: float):
         n = int(t//self.dt)
@@ -320,7 +369,9 @@ class PhysicModel:
         return rv[0:3] + r, rv[3:6] + v
 
 class Objects:
-    def __init__(self, dt: float = 1, n_c: int = 1, n_f: int = 5, model_c: str = '1U', if_any_print: bool = True):
+    def __init__(self, method_navigation: str, kalman_coef: list, dt: float = 1, n_c: int = 1, n_f: int = 5,
+                 model_c: str = '1U', if_any_print: bool = True, start_navigation: str = 'perfect',
+                 start_navigation_tolerance: float = 0.9):
         """Класс содержит информацию о n_c кубсатах и n_f фемтосатах. \n
         Размер n_c кубсатов определяется моделью model_c"""
         # Проверки на вшивость
@@ -334,8 +385,9 @@ class Objects:
 
         # Классы
         self.c = CubeSat(n=n_c, n_f=n_f, model=model_c)
-        self.f = FemtoSat(n=n_f)
-        self.p = PhysicModel(c=self.c, f=self.f, dt=dt)
+        self.f = FemtoSat(n=n_f, start_navigation_tolerance=start_navigation_tolerance,
+                          start_navigation=start_navigation)
+        self.p = PhysicModel(c=self.c, f=self.f, dt=dt, method_navigation=method_navigation, kalman_coef=kalman_coef)
 
         # Косметика
         self.if_any_print = if_any_print
