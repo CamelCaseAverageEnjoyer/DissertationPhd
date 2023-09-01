@@ -110,18 +110,20 @@ class CubeSat:
         return 1
 
 class KalmanFilter:
-    def __init__(self, f: FemtoSat, c: CubeSat, dt: float, w_orb: float, kalman_coef: list, orientation: bool = False):
+    def __init__(self, f: FemtoSat, c: CubeSat, dt: float, w_orb: float, kalman_coef: list, orientation: bool = False,
+                 single_femto_filter: bool = True):
         self.f = f
         self.c = c
         self.dt = dt
-        self.d_coef = kalman_coef[0]
-        self.q_coef = kalman_coef[1]
-        self.p_coef_0 = kalman_coef[2]
-        self.p_coef_1 = kalman_coef[3]
-        self.p_coef_2 = kalman_coef[4]
-        self.r_matrix = kalman_coef[5]
+        self.d_coef = kalman_coef[0][kalman_coef[1].index('d')]
+        self.q_coef = kalman_coef[0][kalman_coef[1].index('q')]
+        self.p_coef_0 = kalman_coef[0][kalman_coef[1].index('p1')]
+        self.p_coef_1 = kalman_coef[0][kalman_coef[1].index('p2')]
+        self.p_coef_2 = kalman_coef[0][kalman_coef[1].index('p3')]
+        self.r_matrix = kalman_coef[0][kalman_coef[1].index('r')]
         self.orientation = orientation
-        if not orientation:
+        self.single_femto_filter = single_femto_filter
+        if not self.orientation:
             self.r_orf_estimation = np.array([f.rv_orf_calc[i][0:6] for i in range(f.n)])
             self.phi_ = np.array([[1, 0, 0, dt, 0, 0],
                                   [0, 1, 0, 0, dt, 0],
@@ -135,7 +137,6 @@ class KalmanFilter:
                                 [1., 0., 0.],
                                 [0., 1., 0.],
                                 [0., 0., 1.]]) * self.d_coef
-            self.q_ = np.eye(3) * self.q_coef
             self.p_ = [np.diag([self.p_coef_0]*3 + [self.p_coef_1]*3) for _ in range(f.n)]
         else:  # 'rvq'
             self.r_orf_estimation = np.array(f.rv_orf_calc)
@@ -157,10 +158,21 @@ class KalmanFilter:
                                 [0., 0., 0.],
                                 [0., 0., 0.],
                                 [0., 0., 0.]]) * self.d_coef
-            self.q_ = np.eye(3) * self.q_coef
             self.p_ = [np.diag([self.p_coef_0]*3 + [self.p_coef_1]*3 + [self.p_coef_2]*3) for _ in range(f.n)]
+        self.q_ = np.eye(3) * self.q_coef
+
+        if not self.single_femto_filter:  # Расширешние на учёт несколько аппаратов а фильтре
+            tmp = 9 if self.orientation else 6
+            self.phi_ = np.bmat([[np.zeros([tmp, tmp])] * i + [self.phi_] +
+                                 [np.zeros([tmp, tmp])] * (self.f.n - i - 1) for i in range(self.f.n)])
+            # self.q_ = np.bmat([[np.zeros([3, 3])] * i + [self.q_] +
+            #                    [np.zeros([3, 3])] * (self.f.n - i - 1) for i in range(self.f.n)])
+            self.p_ = np.bmat([[np.zeros([tmp, tmp])] * i + [self.p_[0]] +
+                               [np.zeros([tmp, tmp])] * (self.f.n - i - 1) for i in range(self.f.n)])
+            self.d_ = np.bmat([[self.d_] for i in range(self.f.n)])
 
     def calc(self, i: int) -> None:
+        t = 9 if self.orientation else 6
         z_ = self.c.calc_dist[0][i][len(self.c.calc_dist[0][i]) - 1]
         if not self.orientation:
             tmp = np.append(self.c.r_orf[0], self.c.v_orf[0])
@@ -168,21 +180,47 @@ class KalmanFilter:
             tmp = np.append(np.append(self.c.r_orf[0], self.c.v_orf[0]), np.zeros(3))
         r_ = self.r_orf_estimation[i] - tmp  # ШАМАНСТВО
         z_model = np.linalg.norm(self.c.r_orf[0] - r_[0:3])
-        if not self.orientation:
-            h_ = np.array([r_[j]/np.linalg.norm(r_) for j in range(3)] + 3 * [0.])
-        else:
-            h_ = np.array([r_[j]/np.linalg.norm(r_) for j in range(3)] + 6 * [0.])
+        h_ = np.array([r_[j]/np.linalg.norm(r_) for j in range(3)] + (t - 3) * [0.])
         q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt
 
         r_m = self.phi_ @ r_
         p_m = self.phi_ @ self.p_[i] @ self.phi_.T + q_tilda
 
-        k_ = p_m @ h_ / (h_ @ p_m @ h_ + self.r_matrix)
+        k_ = p_m @ h_.T / (h_ @ p_m @ h_.T + self.r_matrix)
         self.r_orf_estimation[i] = r_m + k_ * (z_ - z_model) + tmp  # ШАМАНСТВО
+        self.p_ = (np.eye(t) - np.outer(k_, h_)) @ p_m
+
+    def calc_all(self) -> None:
+        t = 9 if self.orientation else 6
+        z_ = [self.c.calc_dist[0][i][len(self.c.calc_dist[0][i]) - 1] for i in range(self.f.n)] + flatten([
+            [self.f.calc_dist[j][i][len(self.f.calc_dist[j][i]) - 1] for i in range(self.f.n)]
+            for j in range(self.f.n)])
         if not self.orientation:
-            self.p_[i] = (np.eye(6) - np.outer(k_, h_)) @ p_m
-        else:
-            self.p_[i] = (np.eye(9) - np.outer(k_, h_)) @ p_m
+            tmp = np.array(flatten([np.append(self.c.r_orf[0], self.c.v_orf[0])
+                                    for _ in range(self.f.n)]))
+        else:  # rvq
+            tmp = np.array(flatten([np.append(np.append(self.c.r_orf[0], self.c.v_orf[0]), np.zeros(3))
+                                    for _ in range(self.f.n)]))
+        r_ = np.array(flatten(self.r_orf_estimation)) - tmp  # ШАМАНСТВО
+        z_model = np.array([np.linalg.norm(self.c.r_orf[0] - r_[0+t*i:3+t*i]) for i in range(self.f.n)] + flatten([
+            [np.linalg.norm(r_[0+t*j:3+t*j] - r_[0+t*i:3+t*i]) for i in range(self.f.n)]
+            for j in range(self.f.n)]))
+        h_ = np.array(flatten([[r_[i + t*j]/np.linalg.norm(r_) for i in range(3)] + (t - 3) * [0.]
+                               for j in range(self.f.n)]))  # nt
+        q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt  # nt_nt
+
+        r_m = self.phi_ @ r_  # 6t_6t @ 6t -> 6t
+        p_m = self.phi_ @ self.p_ @ self.phi_.T + q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
+
+        k_ = p_m @ h_.T / (h_ @ p_m @ h_.T + self.r_matrix)  # nt_nt @ nt / c -> nt
+        self.p_ = (np.eye(t * self.f.n) - np.outer(k_, h_)) @ p_m
+        print(f"tmp {tmp}")
+        print(f"k {k_}")
+        print(f"z {z_}")
+        print(f"-=+++ {k_.T @ np.array([(z_ - z_model)])}")
+        r_orf_estimation = r_m + k_.dot(z_ - z_model) + tmp  # ШАМАНСТВО
+        for i in range(self.f.n):
+            self.r_orf_estimation[i] = r_orf_estimation[0+i*t:t+i*t]
 
 class PhysicModel:
     def __init__(self, f: FemtoSat, c: CubeSat, kalman_coef: list, method_navigation: str, dt: float = 1.,
@@ -203,7 +241,7 @@ class PhysicModel:
         self.v_orb = np.sqrt(self.mu / self.r_orb)
         self.c = c
         self.f = f
-        self.r_matrix = kalman_coef[5]
+        self.r_matrix = kalman_coef[0][kalman_coef[1].index('r')]
 
         # Параметры типа bool
         self.is_aero = is_aero
@@ -214,7 +252,7 @@ class PhysicModel:
         # Параметры фильтров
         self.navigation = method_navigation.split()
         self.k = KalmanFilter(f=f, c=c, dt=self.dt, w_orb=self.w_orb, kalman_coef=kalman_coef,
-                              orientation='rvq' in self.navigation)
+                              orientation='rvq' in self.navigation, single_femto_filter='all' not in self.navigation)
 
         # Подгон чтобы не разлеталися (C_1=0 у всех)
         for obj in [self.c, self.f]:
@@ -235,12 +273,13 @@ class PhysicModel:
                 else ""
             tmp2 = f", сферичность={int(self.f.ellipsoidal_signal*100)}%" if self.f.gain_mode == self.f.gain_modes[1] \
                 else ""
-            tmp = ", ориентации" if 'rvq' in self.navigation else ""
+            tmp = ", ориентации\n" if 'rvq' in self.navigation else "\n"
             print(f"Диаграмма антенн кубсата: {self.c.gain_mode}{tmp1}\n"
                   f"Диаграмма антенн фемтосатов: {self.f.gain_mode}{tmp2}\n\n"
                   f"Учёт аэродинамики: {self.is_aero}\n"
                   f"Навигация единчичная фильтром Калмана: {self.kalman_single_search}\n"
-                  f"Применяется фильтр Калмана для поправки: положений, скоростей" + tmp)
+                  f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}" 
+                  f"Фильтр Калмана основан на: {'одном чипсате' if self.k.single_femto_filter else 'всех чипсатах'}")
 
         # Вращательное движение
         # -----его нет
@@ -315,11 +354,16 @@ class PhysicModel:
                     self.f.signal_power[i_f1][i_f2] += [signal]
                     self.f.calc_dist[i_f1][i_f2] += [np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2
                                                              / signal)]
+                else:
+                    self.f.calc_dist[i_f1][i_f2] += [0]
 
         # Оценка положения фемтоспутников
         if self.kalman_single_search:
-            for i in range(self.f.n):
-                self.k.calc(i)
+            if self.k.single_femto_filter:
+                for i in range(self.f.n):
+                    self.k.calc(i)
+            else:
+                self.k.calc_all()
 
     def integrate(self, t: float):
         n = int(t//self.dt)
