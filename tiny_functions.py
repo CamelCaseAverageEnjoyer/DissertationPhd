@@ -1,5 +1,9 @@
 import numpy as np
 
+def real_workload_time(n: int, n_total: int, time_begin, time_now):
+    n_remain = n_total - n
+    return f"время: {time_now - time_begin}, оставшееся время: {(time_now - time_begin) * n_remain / n}"
+
 def quart2dcm(L):
     """Функция ищет матрицу поворота из кватерниона поворота; \n
     Кватернион L передаётся вектором длины 4; \n

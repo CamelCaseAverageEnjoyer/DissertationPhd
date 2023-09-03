@@ -1,12 +1,35 @@
 from colorama import Fore, Style
 from typing import Union
 from random import uniform
+from datetime import datetime
 # import random
 # import scipy
 # import numpy as np
 # import kiam_astro
 
 from tiny_functions import *
+
+
+class Cosmetic:
+        def __init__(self, if_any_print: bool):
+            self.if_any_print = if_any_print
+
+    def my_print(self, txt, color=None) -> None:
+        if self.if_any_print:
+            if color is None:
+                print(Style.RESET_ALL + txt)
+            if color == "b":
+                print(Fore.BLUE + txt + Style.RESET_ALL)
+            if color == "g":
+                print(Fore.GREEN + txt + Style.RESET_ALL)
+            if color == "y":
+                print(Fore.YELLOW + txt + Style.RESET_ALL)
+            if color == "r":
+                print(Fore.RED + txt + Style.RESET_ALL)
+            if color == "c":
+                print(Fore.CYAN + txt + Style.RESET_ALL)
+            if color == "m":
+                print(Fore.MAGENTA + txt + Style.RESET_ALL)
 
 
 class FemtoSat:
@@ -110,10 +133,11 @@ class CubeSat:
         return 1
 
 class KalmanFilter:
-    def __init__(self, f: FemtoSat, c: CubeSat, dt: float, w_orb: float, kalman_coef: list, orientation: bool = False,
-                 single_femto_filter: bool = True):
+    def __init__(self, f: FemtoSat, c: CubeSat, s: Cosmetic, dt: float, w_orb: float, kalman_coef: list,
+                 orientation: bool = False, single_femto_filter: bool = True):
         self.f = f
         self.c = c
+        self.s = s
         self.dt = dt
         self.d_coef = kalman_coef[0][kalman_coef[1].index('d')]
         self.q_coef = kalman_coef[0][kalman_coef[1].index('q')]
@@ -186,9 +210,9 @@ class KalmanFilter:
         r_m = self.phi_ @ r_
         p_m = self.phi_ @ self.p_[i] @ self.phi_.T + q_tilda
 
-        k_ = p_m @ h_.T / (h_ @ p_m @ h_.T + self.r_matrix)
+        k_ = p_m @ h_ / (h_ @ p_m @ h_ + self.r_matrix)
         self.r_orf_estimation[i] = r_m + k_ * (z_ - z_model) + tmp  # ШАМАНСТВО
-        self.p_ = (np.eye(t) - np.outer(k_, h_)) @ p_m
+        self.p_[i] = (np.eye(t) - np.outer(k_, h_)) @ p_m
 
     def calc_all(self) -> None:
         t = 9 if self.orientation else 6
@@ -213,17 +237,17 @@ class KalmanFilter:
         p_m = self.phi_ @ self.p_ @ self.phi_.T + q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
 
         k_ = p_m @ h_.T / (h_ @ p_m @ h_.T + self.r_matrix)  # nt_nt @ nt / c -> nt
+        # print(f"1 {self.p_}")
         self.p_ = (np.eye(t * self.f.n) - np.outer(k_, h_)) @ p_m
-        print(f"tmp {tmp}")
-        print(f"k {k_}")
-        print(f"z {z_}")
-        print(f"-=+++ {k_.T @ np.array([(z_ - z_model)])}")
-        r_orf_estimation = r_m + k_.dot(z_ - z_model) + tmp  # ШАМАНСТВО
+        # print(f"2 {self.p_}")
+        r_orf_estimation = r_m + k_ * np.linalg.norm(z_ - z_model) + tmp  # ШАМАНСТВО
         for i in range(self.f.n):
-            self.r_orf_estimation[i] = r_orf_estimation[0+i*t:t+i*t]
+            '''print(np.array(r_orf_estimation)[0][0+i*t:t+i*t])
+            print(self.r_orf_estimation[i])'''
+            self.r_orf_estimation[i] = np.array(r_orf_estimation)[0][0+i*t:t+i*t]
 
 class PhysicModel:
-    def __init__(self, f: FemtoSat, c: CubeSat, kalman_coef: list, method_navigation: str, dt: float = 1.,
+    def __init__(self, f: FemtoSat, c: CubeSat, s: Cosmetic, kalman_coef: list, method_navigation: str, dt: float = 1.,
                  is_aero: bool = True, is_complex_aero: bool = False, is_hkw: bool = True,
                  kalman_single_search: bool = True):
         self.dt = dt
@@ -239,6 +263,7 @@ class PhysicModel:
         self.r_orb = self.r_earth + self.h_orb
         self.w_orb = np.sqrt(self.mu / self.r_orb ** 3)
         self.v_orb = np.sqrt(self.mu / self.r_orb)
+        self.s = s
         self.c = c
         self.f = f
         self.r_matrix = kalman_coef[0][kalman_coef[1].index('r')]
@@ -251,7 +276,7 @@ class PhysicModel:
 
         # Параметры фильтров
         self.navigation = method_navigation.split()
-        self.k = KalmanFilter(f=f, c=c, dt=self.dt, w_orb=self.w_orb, kalman_coef=kalman_coef,
+        self.k = KalmanFilter(f=f, c=c, s=s, dt=self.dt, w_orb=self.w_orb, kalman_coef=kalman_coef,
                               orientation='rvq' in self.navigation, single_femto_filter='all' not in self.navigation)
 
         # Подгон чтобы не разлеталися (C_1=0 у всех)
@@ -274,12 +299,13 @@ class PhysicModel:
             tmp2 = f", сферичность={int(self.f.ellipsoidal_signal*100)}%" if self.f.gain_mode == self.f.gain_modes[1] \
                 else ""
             tmp = ", ориентации\n" if 'rvq' in self.navigation else "\n"
-            print(f"Диаграмма антенн кубсата: {self.c.gain_mode}{tmp1}\n"
-                  f"Диаграмма антенн фемтосатов: {self.f.gain_mode}{tmp2}\n\n"
-                  f"Учёт аэродинамики: {self.is_aero}\n"
-                  f"Навигация единчичная фильтром Калмана: {self.kalman_single_search}\n"
-                  f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}" 
-                  f"Фильтр Калмана основан на: {'одном чипсате' if self.k.single_femto_filter else 'всех чипсатах'}")
+            self.s.my_print(f"Диаграмма антенн кубсата: {self.c.gain_mode}{tmp1}\n"
+                            f"Диаграмма антенн фемтосатов: {self.f.gain_mode}{tmp2}\n\n"
+                            f"Учёт аэродинамики: {self.is_aero}\n"
+                            f"Навигация единчичная фильтром Калмана: {self.kalman_single_search}\n"
+                            f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}" 
+                            f"Фильтр Калмана основан на: "
+                            f"{'одном чипсате' if self.k.single_femto_filter else 'всех чипсатах'}", color='c')
 
         # Вращательное движение
         # -----его нет
@@ -372,7 +398,7 @@ class PhysicModel:
             if i / n > (flag + 0.1):
                 flag += 0.1
                 per = int(10 * i / n)
-                print(f"{10 * per}% [{'#' * per + ' ' * (10 - per)}]")
+                self.s.my_print(f"{10 * per}% [{'#' * per + ' ' * (10 - per)}]", color='m')
             self.time_step()
 
     # Функции возврата
@@ -428,27 +454,9 @@ class Objects:
         self.model_c = model_c
 
         # Классы
+        self.s = Cosmetic(if_any_print=if_any_print)
         self.c = CubeSat(n=n_c, n_f=n_f, model=model_c)
         self.f = FemtoSat(n=n_f, start_navigation_tolerance=start_navigation_tolerance,
                           start_navigation=start_navigation)
-        self.p = PhysicModel(c=self.c, f=self.f, dt=dt, method_navigation=method_navigation, kalman_coef=kalman_coef)
-
-        # Косметика
-        self.if_any_print = if_any_print
-
-    def my_print(self, txt, color=None) -> None:
-        if self.if_any_print:
-            if color is None:
-                print(Style.RESET_ALL + txt)
-            if color == "b":
-                print(Fore.BLUE + txt + Style.RESET_ALL)
-            if color == "g":
-                print(Fore.GREEN + txt + Style.RESET_ALL)
-            if color == "y":
-                print(Fore.YELLOW + txt + Style.RESET_ALL)
-            if color == "r":
-                print(Fore.RED + txt + Style.RESET_ALL)
-            if color == "c":
-                print(Fore.CYAN + txt + Style.RESET_ALL)
-            if color == "m":
-                print(Fore.MAGENTA + txt + Style.RESET_ALL)
+        self.p = PhysicModel(c=self.c, f=self.f, s=self.s, dt=dt, method_navigation=method_navigation,
+                             kalman_coef=kalman_coef)
