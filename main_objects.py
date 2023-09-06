@@ -11,8 +11,8 @@ from tiny_functions import *
 
 
 class Cosmetic:
-        def __init__(self, if_any_print: bool):
-            self.if_any_print = if_any_print
+    def __init__(self, if_any_print: bool = False):
+        self.if_any_print = if_any_print
 
     def my_print(self, txt, color=None) -> None:
         if self.if_any_print:
@@ -38,7 +38,7 @@ class FemtoSat:
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
         # Предопределённые параметры
-        self.gain_modes = ['isotropic', 'ellipsoid']
+        self.gain_modes = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas']
         self.navigations = ['perfect', 'near', 'random']
 
         # Общие параметры
@@ -82,6 +82,10 @@ class FemtoSat:
         r1 = r / np.linalg.norm(r)
         if self.gain_mode == self.gain_modes[1]:
             return np.linalg.norm([r1[0] * 1, r1[1] * self.ellipsoidal_signal, r1[2] * self.ellipsoidal_signal])
+        if self.gain_mode == self.gain_modes[2]:
+            return 1 - np.dot(r1, np.array([0, 0, 1]))**2
+        if self.gain_mode == self.gain_modes[3]:
+            return 2 - np.dot(r1, np.array([1, 0, 0]))**2 - np.dot(r1, np.array([0, 1, 0]))**2
         return 1
 
 class CubeSat:
@@ -89,7 +93,7 @@ class CubeSat:
         """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.\n
         Все величны представлены в СИ."""
         # Предопределённые параметры
-        self.gain_modes = ['isotropic', 'ellipsoid']
+        self.gain_modes = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas']
         models = ['1U', '1.5U', '2U', '3U', '6U', '12U']
         masses = [2., 3., 4., 6., 12., 24.]
         mass_center_errors = [[0.02, 0.02, 0.02], [0.02, 0.02, 0.03], [0.02, 0.02, 0.045],
@@ -130,6 +134,10 @@ class CubeSat:
         r1 = r / np.linalg.norm(r)
         if self.gain_mode == self.gain_modes[1]:
             return np.linalg.norm([r1[0] * 1, r1[1] * self.ellipsoidal_signal, r1[2] * self.ellipsoidal_signal])
+        if self.gain_mode == self.gain_modes[2]:
+            return 1 - np.dot(r1, np.array([0, 0, 1]))**2
+        if self.gain_mode == self.gain_modes[3]:
+            return 2 - np.dot(r1, np.array([1, 0, 0]))**2 - np.dot(r1, np.array([0, 1, 0]))**2
         return 1
 
 class KalmanFilter:
@@ -147,6 +155,7 @@ class KalmanFilter:
         self.r_matrix = kalman_coef[0][kalman_coef[1].index('r')]
         self.orientation = orientation
         self.single_femto_filter = single_femto_filter
+        self.sequence_under_diagonal = flatten([[[i, j] for i in range(j)] for j in range(self.f.n)])
         if not self.orientation:
             self.r_orf_estimation = np.array([f.rv_orf_calc[i][0:6] for i in range(f.n)])
             self.phi_ = np.array([[1, 0, 0, dt, 0, 0],
@@ -161,6 +170,12 @@ class KalmanFilter:
                                 [1., 0., 0.],
                                 [0., 1., 0.],
                                 [0., 0., 1.]]) * self.d_coef
+            '''self.d_ = np.array([[1., 0., 0.],
+                                [0., 1., 0.],
+                                [0., 0., 1.],
+                                [1., 0., 0.],
+                                [0., 1., 0.],
+                                [0., 0., 1.]]) * self.d_coef'''
             self.p_ = [np.diag([self.p_coef_0]*3 + [self.p_coef_1]*3) for _ in range(f.n)]
         else:  # 'rvq'
             self.r_orf_estimation = np.array(f.rv_orf_calc)
@@ -186,14 +201,16 @@ class KalmanFilter:
         self.q_ = np.eye(3) * self.q_coef
 
         if not self.single_femto_filter:  # Расширешние на учёт несколько аппаратов а фильтре
-            tmp = 9 if self.orientation else 6
-            self.phi_ = np.bmat([[np.zeros([tmp, tmp])] * i + [self.phi_] +
-                                 [np.zeros([tmp, tmp])] * (self.f.n - i - 1) for i in range(self.f.n)])
-            # self.q_ = np.bmat([[np.zeros([3, 3])] * i + [self.q_] +
-            #                    [np.zeros([3, 3])] * (self.f.n - i - 1) for i in range(self.f.n)])
-            self.p_ = np.bmat([[np.zeros([tmp, tmp])] * i + [self.p_[0]] +
-                               [np.zeros([tmp, tmp])] * (self.f.n - i - 1) for i in range(self.f.n)])
-            self.d_ = np.bmat([[self.d_] for i in range(self.f.n)])
+            t = 9 if self.orientation else 6
+            self.phi_ = np.bmat([[np.zeros([t, t])] * i + [self.phi_] +
+                                 [np.zeros([t, t])] * (self.f.n - i - 1) for i in range(self.f.n)])
+            self.q_ = np.bmat([[np.zeros([3, 3])] * i + [self.q_] +
+                               [np.zeros([3, 3])] * (self.f.n - i - 1) for i in range(self.f.n)])
+            self.p_ = np.bmat([[np.zeros([t, t])] * i + [self.p_[0]] +
+                               [np.zeros([t, t])] * (self.f.n - i - 1) for i in range(self.f.n)])
+            self.d_ = np.bmat([[np.zeros([t, 3])] * i + [self.d_] +
+                               [np.zeros([t, 3])] * (self.f.n - i - 1) for i in range(self.f.n)])
+            # self.d_ = np.bmat([[self.d_] for i in range(self.f.n)])
 
     def calc(self, i: int) -> None:
         t = 9 if self.orientation else 6
@@ -216,31 +233,57 @@ class KalmanFilter:
 
     def calc_all(self) -> None:
         t = 9 if self.orientation else 6
+        l = int(self.f.n + self.f.n*(self.f.n - 1)/2)
         z_ = [self.c.calc_dist[0][i][len(self.c.calc_dist[0][i]) - 1] for i in range(self.f.n)] + flatten([
-            [self.f.calc_dist[j][i][len(self.f.calc_dist[j][i]) - 1] for i in range(self.f.n)]
+            [self.f.calc_dist[j][i][len(self.f.calc_dist[j][i]) - 1] for i in range(j)]  # for i in range(self.f.n)
             for j in range(self.f.n)])
+        # print(f"z  ={len(z_)}")
         if not self.orientation:
             tmp = np.array(flatten([np.append(self.c.r_orf[0], self.c.v_orf[0])
                                     for _ in range(self.f.n)]))
         else:  # rvq
             tmp = np.array(flatten([np.append(np.append(self.c.r_orf[0], self.c.v_orf[0]), np.zeros(3))
                                     for _ in range(self.f.n)]))
+
+        # print(f"1 {self.r_orf_estimation}")
+        # print(f"2 {flatten(self.r_orf_estimation)}")
         r_ = np.array(flatten(self.r_orf_estimation)) - tmp  # ШАМАНСТВО
         z_model = np.array([np.linalg.norm(self.c.r_orf[0] - r_[0+t*i:3+t*i]) for i in range(self.f.n)] + flatten([
-            [np.linalg.norm(r_[0+t*j:3+t*j] - r_[0+t*i:3+t*i]) for i in range(self.f.n)]
+            [np.linalg.norm(r_[0+t*j:3+t*j] - r_[0+t*i:3+t*i]) for i in range(j)]  # for i in range(self.f.n)
             for j in range(self.f.n)]))
-        h_ = np.array(flatten([[r_[i + t*j]/np.linalg.norm(r_) for i in range(3)] + (t - 3) * [0.]
-                               for j in range(self.f.n)]))  # nt
+        # print(f"z_m={len(z_model)}")
+
+        def local_h_func(i: int, j: int) -> list:
+            """Функция для построения матрицы H:
+            i - строка из n + n(n-1)/2
+            j - столбец из n (6 строк выдаёт как блок в return)"""
+            r_k = r_[t*j:t*j+3]
+            if (i < self.f.n and i == j) or (i >= self.f.n and j in self.sequence_under_diagonal[i - self.f.n]):
+                return [r_k[j] / np.linalg.norm(r_k) for j in range(3)] + (t - 3) * [0.]
+            else:
+                return t * [0.]
+
+        # print(f"FFFFFFFFFFFFFFFFFFFFFFFFUCCKKKKKKKKKK {self.f.n}+{l}")
+        # for j in range(l):
+        #     print(f"j={j} -> {flatten([local_h_func(i, j) for i in range(self.f.n)])}")
+        # h_ = np.bmat([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(l)])
+        h_ = np.vstack([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(l)])
+        # print(f"{self.phi_.shape}-{self.d_.shape}-{self.q_.shape}-{self.d_.T.shape}-{self.phi_.T.shape}")
         q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt  # nt_nt
 
         r_m = self.phi_ @ r_  # 6t_6t @ 6t -> 6t
         p_m = self.phi_ @ self.p_ @ self.phi_.T + q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
 
-        k_ = p_m @ h_.T / (h_ @ p_m @ h_.T + self.r_matrix)  # nt_nt @ nt / c -> nt
+        r_ = np.eye(l) * self.r_matrix  # n + n(n-1)/2
+        # print(f"заебало {p_m.shape}-{h_.T.shape}")
+        # print(f"в конец {h_.shape}-{p_m.shape}-{h_.T.shape} + {r_.shape}")
+        k_ = p_m @ h_.T @ np.linalg.inv(h_ @ p_m @ h_.T + r_)  # nt_nt @ nt_lt @ l_l -> nt_l
         # print(f"1 {self.p_}")
-        self.p_ = (np.eye(t * self.f.n) - np.outer(k_, h_)) @ p_m
+        # print(f"---+++++++++++++++ {(k_ @ h_).shape}")
+        self.p_ = (np.eye(t * self.f.n) - k_ @ h_) @ p_m
         # print(f"2 {self.p_}")
-        r_orf_estimation = r_m + k_ * np.linalg.norm(z_ - z_model) + tmp  # ШАМАНСТВО
+        # print(f"r={r_m.shape} k={k_.shape}, z={(z_ - z_model).shape}")
+        r_orf_estimation = r_m + k_ @ (z_ - z_model) + tmp  # ШАМАНСТВО
         for i in range(self.f.n):
             '''print(np.array(r_orf_estimation)[0][0+i*t:t+i*t])
             print(self.r_orf_estimation[i])'''
@@ -267,6 +310,7 @@ class PhysicModel:
         self.c = c
         self.f = f
         self.r_matrix = kalman_coef[0][kalman_coef[1].index('r')]
+        self.time_begin = datetime.now()
 
         # Параметры типа bool
         self.is_aero = is_aero
@@ -348,6 +392,8 @@ class PhysicModel:
                 signal = self.c.get_gain(r=S_c @ r_tmp) * self.f.get_gain(r=S_f @ r_tmp) \
                     * self.f.power_signal_full / self.f.length_signal_full**2 / np.linalg.norm(r_tmp)**2
                 signal *= (uniform(-np.sqrt(self.r_matrix), np.sqrt(self.r_matrix)) + 1)
+                # signal *= (uniform(-self.r_matrix**2, self.r_matrix**2) + 1)
+                # signal *= (uniform(-self.r_matrix, self.r_matrix) + 1)
                 self.c.real_dist[i_c][i_f] += [np.linalg.norm(r_tmp)]
                 self.c.signal_power[i_c][i_f] += [signal]
                 if 'rv' in self.navigation:
@@ -357,6 +403,8 @@ class PhysicModel:
                     q = np.append(1 - np.linalg.norm(q)**2, q) if np.linalg.norm(q) <= 1 else \
                         np.append(0, q / np.linalg.norm(q))
                     S_tmp = quart2dcm(q)
+                    if signal == 0:
+                        signal = 1e4
                     calc_dist = np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal *
                                         self.f.get_gain(r=S_tmp @ r_tmp))
                     # self.f.get_gain(r=S_f @ r_tmp)
@@ -376,6 +424,7 @@ class PhysicModel:
                     r_tmp = self.f.r_orf[i_f1] - self.f.r_orf[i_f2]
                     signal = self.f.get_gain(r=S_f1 @ r_tmp) * self.f.get_gain(r=S_f2 @ r_tmp) * \
                         self.f.power_signal_full / self.f.length_signal_full**2 / np.linalg.norm(r_tmp)**2
+                    signal *= (uniform(-np.sqrt(self.r_matrix), np.sqrt(self.r_matrix)) + 1)
                     self.f.real_dist[i_f1][i_f2] += [np.linalg.norm(r_tmp)]
                     self.f.signal_power[i_f1][i_f2] += [signal]
                     self.f.calc_dist[i_f1][i_f2] += [np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2
@@ -398,7 +447,9 @@ class PhysicModel:
             if i / n > (flag + 0.1):
                 flag += 0.1
                 per = int(10 * i / n)
-                self.s.my_print(f"{10 * per}% [{'#' * per + ' ' * (10 - per)}]", color='m')
+                self.s.my_print(f"{10 * per}% [{'#' * per + ' ' * (10 - per)}]"
+                                + real_workload_time(n=per, n_total=10, time_begin=self.time_begin,
+                                                     time_now=datetime.now()), color='m')
             self.time_step()
 
     # Функции возврата

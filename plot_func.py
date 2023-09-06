@@ -119,6 +119,7 @@ def show_chipsats_and_cubesats(o, clr: str = 'lightpink', opacity: float = 1):
 
 def plot_all(o):
     f = show_chipsats_and_cubesats(o, clr='black')
+    # f.update_traces(scatter3d=dict(width=3))
     f.show()
 
 def plot_signals(o):
@@ -153,7 +154,9 @@ def plot_distance(o):
         fig = tmp[0]
         fig.suptitle(f"Графики расстояний по сигналам фемтосатов")
         axes = tmp[1:o.f.n][0]
-        colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
+        colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
+                  'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
+                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy']
         for i_c in range(o.c.n):
             for i_f in range(o.f.n):
                 x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
