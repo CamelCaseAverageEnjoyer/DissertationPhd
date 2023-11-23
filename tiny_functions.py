@@ -4,6 +4,15 @@ def real_workload_time(n: int, n_total: int, time_begin, time_now):
     n_remain = n_total - n
     return f"время: {time_now - time_begin}, оставшееся время: {(time_now - time_begin) * n_remain / n}"
 
+def vec2quat(v):
+    """Перевод вектор-часть кватерниона в кватернион"""
+    if len(v) != 3:
+        raise ValueError(f"Подаётся вектор длинны {len(v)}, требуется длинна 3!")
+    if np.linalg.norm(v) > 1:
+        return [0] + list(np.array(v)/np.linalg.norm(v))
+    else:
+        return [np.sqrt(1 - np.linalg.norm(v)**2), v[0], v[1], v[2]]
+
 def quart2dcm(L):
     """Функция ищет матрицу поворота из кватерниона поворота; \n
     Кватернион L передаётся вектором длины 4; \n

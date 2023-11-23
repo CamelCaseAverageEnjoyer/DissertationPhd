@@ -220,7 +220,11 @@ class KalmanFilter:
         else:  # rvq
             tmp = np.append(np.append(self.c.r_orf[0], self.c.v_orf[0]), np.zeros(3))
         r_ = self.r_orf_estimation[i] - tmp  # ШАМАНСТВО
-        z_model = np.linalg.norm(self.c.r_orf[0] - r_[0:3])
+
+        signal_rate = self.f.get_gain(quart2dcm(vec2quat(r_[6:9])) @ np.array(r_[0:3])) if self.orientation else 1
+        # print(f"1 {quart2dcm(vec2quat(r_[6:9]))}")
+        z_model = np.linalg.norm(self.c.r_orf[0] - r_[0:3]) * signal_rate
+        # print(signal_rate)
         h_ = np.array([r_[j]/np.linalg.norm(r_) for j in range(3)] + (t - 3) * [0.])
         q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt
 
@@ -233,11 +237,10 @@ class KalmanFilter:
 
     def calc_all(self) -> None:
         t = 9 if self.orientation else 6
-        l = int(self.f.n + self.f.n*(self.f.n - 1)/2)
+        ll = int(self.f.n + self.f.n*(self.f.n - 1)/2)
         z_ = [self.c.calc_dist[0][i][len(self.c.calc_dist[0][i]) - 1] for i in range(self.f.n)] + flatten([
             [self.f.calc_dist[j][i][len(self.f.calc_dist[j][i]) - 1] for i in range(j)]  # for i in range(self.f.n)
             for j in range(self.f.n)])
-        # print(f"z  ={len(z_)}")
         if not self.orientation:
             tmp = np.array(flatten([np.append(self.c.r_orf[0], self.c.v_orf[0])
                                     for _ in range(self.f.n)]))
@@ -245,13 +248,24 @@ class KalmanFilter:
             tmp = np.array(flatten([np.append(np.append(self.c.r_orf[0], self.c.v_orf[0]), np.zeros(3))
                                     for _ in range(self.f.n)]))
 
-        # print(f"1 {self.r_orf_estimation}")
-        # print(f"2 {flatten(self.r_orf_estimation)}")
         r_ = np.array(flatten(self.r_orf_estimation)) - tmp  # ШАМАНСТВО
+
+        if self.orientation:  # ВЕРНУТЬСЯ СЮДА
+            signal_rate = np.array([self.f.get_gain(quart2dcm(vec2quat(r_[9*i+6:9*i+9])) @ np.array(r_[9*i+0:9*i+3]))
+                                    for i in range(self.f.n)] +
+                                   flatten([[self.f.get_gain(quart2dcm(vec2quat(r_[9*i+6:9*i+9]))
+                                                             @ (np.array(r_[9*i+0:9*i+3]) -
+                                                                np.array(r_[9*j+0:9*j+3])))
+                                             * self.f.get_gain(quart2dcm(vec2quat(r_[9*j+6:9*j+9]))
+                                                               @ (np.array(r_[9*i+0:9*i+3]) -
+                                                                  np.array(r_[9*j+0:9*j+3]))) for i in range(j)]
+                                            for j in range(self.f.n)]))
+        else:
+            signal_rate = 1
         z_model = np.array([np.linalg.norm(self.c.r_orf[0] - r_[0+t*i:3+t*i]) for i in range(self.f.n)] + flatten([
             [np.linalg.norm(r_[0+t*j:3+t*j] - r_[0+t*i:3+t*i]) for i in range(j)]  # for i in range(self.f.n)
             for j in range(self.f.n)]))
-        # print(f"z_m={len(z_model)}")
+        z_model *= signal_rate
 
         def local_h_func(i: int, j: int) -> list:
             """Функция для построения матрицы H:
@@ -263,18 +277,13 @@ class KalmanFilter:
             else:
                 return t * [0.]
 
-        # print(f"FFFFFFFFFFFFFFFFFFFFFFFFUCCKKKKKKKKKK {self.f.n}+{l}")
-        # for j in range(l):
-        #     print(f"j={j} -> {flatten([local_h_func(i, j) for i in range(self.f.n)])}")
-        # h_ = np.bmat([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(l)])
-        h_ = np.vstack([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(l)])
-        # print(f"{self.phi_.shape}-{self.d_.shape}-{self.q_.shape}-{self.d_.T.shape}-{self.phi_.T.shape}")
+        h_ = np.vstack([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(ll)])
         q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt  # nt_nt
 
         r_m = self.phi_ @ r_  # 6t_6t @ 6t -> 6t
         p_m = self.phi_ @ self.p_ @ self.phi_.T + q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
 
-        r_ = np.eye(l) * self.r_matrix  # n + n(n-1)/2
+        r_ = np.eye(ll) * self.r_matrix  # n + n(n-1)/2
         # print(f"заебало {p_m.shape}-{h_.T.shape}")
         # print(f"в конец {h_.shape}-{p_m.shape}-{h_.T.shape} + {r_.shape}")
         k_ = p_m @ h_.T @ np.linalg.inv(h_ @ p_m @ h_.T + r_)  # nt_nt @ nt_lt @ l_l -> nt_l
@@ -383,7 +392,6 @@ class PhysicModel:
                     obj.line[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
 
         # Расчёт связи
-        # if self.iter % self.show_rate == 0:
         for i_c in range(self.c.n):
             S_c = quart2dcm(self.c.q[i_c])
             for i_f in range(self.f.n):
@@ -392,8 +400,6 @@ class PhysicModel:
                 signal = self.c.get_gain(r=S_c @ r_tmp) * self.f.get_gain(r=S_f @ r_tmp) \
                     * self.f.power_signal_full / self.f.length_signal_full**2 / np.linalg.norm(r_tmp)**2
                 signal *= (uniform(-np.sqrt(self.r_matrix), np.sqrt(self.r_matrix)) + 1)
-                # signal *= (uniform(-self.r_matrix**2, self.r_matrix**2) + 1)
-                # signal *= (uniform(-self.r_matrix, self.r_matrix) + 1)
                 self.c.real_dist[i_c][i_f] += [np.linalg.norm(r_tmp)]
                 self.c.signal_power[i_c][i_f] += [signal]
                 if 'rv' in self.navigation:
@@ -407,15 +413,14 @@ class PhysicModel:
                         signal = 1e4
                     calc_dist = np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal *
                                         self.f.get_gain(r=S_tmp @ r_tmp))
-                    # self.f.get_gain(r=S_f @ r_tmp)
                 self.c.calc_dist[i_c][i_f] += [calc_dist]
                 if self.kalman_single_search:
-                    self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] - self.k.r_orf_estimation[i_f][0:3])]
+                    self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] -
+                                                                  self.k.r_orf_estimation[i_f][0:3])]
                     if self.iter % self.show_rate == 0:
                         self.f.line_kalman[i_f] += [self.k.r_orf_estimation[i_f][0],
                                                     self.k.r_orf_estimation[i_f][1],
                                                     self.k.r_orf_estimation[i_f][2]]
-                        # self.f.line_kalman[i_f] = flatten(self.f.line_kalman[i_f])
         for i_f1 in range(self.f.n):
             S_f1 = quart2dcm(self.f.q[i_f1])
             for i_f2 in range(self.f.n):
@@ -441,6 +446,8 @@ class PhysicModel:
                 self.k.calc_all()
 
     def integrate(self, t: float):
+        self.s.my_print(f"Оборотов вокруг Земли: {round(10 * t / (3600 * 1.5)) / 10}\n"
+                        f"Дней: {round(100 * t / (3600 * 24)) / 100}", color='b')
         n = int(t//self.dt)
         flag = 0.
         for i in range(n):

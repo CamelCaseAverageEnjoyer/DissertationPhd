@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 from tiny_functions import *
 FEMTO_RATE = 1e2
 CUBE_RATE = 1e2
-TITLE_SIZE = 15
-CAPTION_SIZE = 13
+TITLE_SIZE = 15  # 15
+CAPTION_SIZE = 13  # 13
 
 def show_chipsat(o, j, clr, opacity):
     global FEMTO_RATE
@@ -131,11 +131,12 @@ def plot_signals(o):
         plt.xlabel("Время, с", fontsize=CAPTION_SIZE)
         plt.ylabel("Мощность сигнала, ?", fontsize=CAPTION_SIZE)
         plt.title(f"График сигналов от фемтоспутников, получаемых кубсатом № {i_c + 1}")
-        plt.legend()
+        plt.legend(fontsize=CAPTION_SIZE)
         plt.show()
     tmp = plt.subplots(o.f.n, 1)
     fig = tmp[0]
-    fig.suptitle(f"График сигналов от фемтоспутников, получаемых фемтосатом № {[i + 1 for i in range(o.f.n)]}")
+    fig.suptitle(f"График сигналов от фемтоспутников, получаемых фемтосатом № {[i + 1 for i in range(o.f.n)]}",
+                 fontsize=TITLE_SIZE)
     axes = tmp[1:o.f.n][0]
     colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
     for i_f1 in range(o.f.n):
@@ -152,9 +153,18 @@ def plot_distance(o):
     if o.f.n > 1:
         tmp = plt.subplots(o.f.n + 1, 1)
         fig = tmp[0]
-        fig.suptitle(f"Графики расстояний по сигналам фемтосатов")
+        fig.suptitle(f"Графики расстояний по сигналам фемтосатов", fontsize=TITLE_SIZE)
         axes = tmp[1:o.f.n][0]
         colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
+                  'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
+                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy',
+                  'violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
+                  'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
+                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy',
+                  'violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
+                  'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
+                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy',
+                  'violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
                   'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
                   'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy']
         for i_c in range(o.c.n):
@@ -175,7 +185,7 @@ def plot_distance(o):
         plt.show()
 
     fig, axes = plt.subplots(1, 1)
-    fig.suptitle(f"Ошибка в подсчёте графиков")
+    fig.suptitle(f"Ошибка в подсчёте графиков", fontsize=TITLE_SIZE)
     colors = ['violet', 'blueviolet', 'forestgreen', 'cornflowerblue', 'peru', 'teal']
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
@@ -199,5 +209,5 @@ def plot_distance(o):
                 axes.plot(x, tmp, c=colors[1], label=labels[1])
         axes.set_xlabel("Время, с", fontsize=CAPTION_SIZE)
         axes.set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
-    plt.legend()
+    plt.legend(fontsize=CAPTION_SIZE)
     plt.show()
