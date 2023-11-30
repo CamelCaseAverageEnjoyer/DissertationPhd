@@ -200,14 +200,35 @@ def plot_distance(o):
             r1 = [np.array([o.f.line[i_f][3 * j + 0],
                             o.f.line[i_f][3 * j + 1],
                             o.f.line[i_f][3 * j + 2]]) for j in range(int(len(o.f.line[i_f]) // 3))]
-            if o.p.kalman_single_search:
-                x = [o.p.show_rate * o.p.dt * i for i in range(int(len(o.f.line[i_f]) // 3))]
-                r2 = [np.array([o.f.line_kalman[i_f][3 * j + 0],
-                                o.f.line_kalman[i_f][3 * j + 1],
-                                o.f.line_kalman[i_f][3 * j + 2]]) for j in range(int(len(o.f.line[i_f]) // 3))]
-                tmp = [np.linalg.norm(r1[j] - r2[j]) for j in range(int(len(o.f.line[i_f]) // 3))]
-                axes.plot(x, tmp, c=colors[1], label=labels[1])
+            x = [o.p.show_rate * o.p.dt * i for i in range(int(len(o.f.line[i_f]) // 3))]
+            r2 = [np.array([o.f.line_kalman[i_f][3 * j + 0],
+                            o.f.line_kalman[i_f][3 * j + 1],
+                            o.f.line_kalman[i_f][3 * j + 2]]) for j in range(int(len(o.f.line[i_f]) // 3))]
+            tmp = [np.linalg.norm(r1[j] - r2[j]) for j in range(int(len(o.f.line[i_f]) // 3))]
+            axes.plot(x, tmp, c=colors[1], label=labels[1])
         axes.set_xlabel("Время, с", fontsize=CAPTION_SIZE)
         axes.set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
     plt.legend(fontsize=CAPTION_SIZE)
+    plt.show()
+
+def plot_sigmas(o):
+    """
+    Функция берёт преобразованные диагональные элементы матрицы P и делает по ним выводы.
+    Гордая такая.
+    """
+    fig, axes = plt.subplots(2, 1)
+    fig.suptitle(f"Погрешности, оцениваемые фильтром Калмана", fontsize=TITLE_SIZE)
+    colors = ['forestgreen', 'cornflowerblue', 'teal', 'peru']
+    x = [o.p.dt * i for i in range(len(o.p.k.sigmas[0]))]
+    t = 9 if o.p.k.orientation else 6
+    for n in range(o.f.n):
+        for i in range(t):
+            j = int((i // 3) % 2 == 0)
+            axes[j].plot(x, o.p.k.sigmas[n * t + i], c=colors[j])
+            # axes[j].plot(x, o.p.k.real_sigmas[n * t + i], c=colors[j+2])
+    '''for i in [0, 4]:
+        j = int((i // 3) % 2 == 0)
+        axes[j].plot(x, o.p.k.sigmas[i], c=colors[j], label="")
+        # axes[j].plot(x, o.p.k.real_sigmas[i], c=colors[j+2])'''
+    # plt.legend(fontsize=CAPTION_SIZE)
     plt.show()
