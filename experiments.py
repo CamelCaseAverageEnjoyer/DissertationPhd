@@ -1,7 +1,65 @@
 from main_objects import *
 
+def do_tolerance_table(t_integrate: float = 1e5, dt: float = 10., aero: bool = False, repeat: int = 1):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import pandas as pd
+    import math
+    kalman_coef = {'q': 1e-12, 'p': [1e-12, 1e-12, 1e-10], 'r': 1e-2}
+    tolerance_list = [0.7, 0.8, 0.9, 1.]
+    n_f_list = [5, 10, 15, 20]
+    counter = 0
+    time_begin = datetime.now()
+    n_total = len(tolerance_list) * len(tolerance_list) * repeat
+    res_mean = [[0. for _ in range(len(n_f_list))] for _ in range(len(tolerance_list))]
+    res_std = [[0. for _ in range(len(n_f_list))] for _ in range(len(tolerance_list))]
+
+    for i_t in range(len(tolerance_list)):
+        for i_n in range(len(n_f_list)):
+            for _ in range(repeat):
+                # Отображение процесса
+                counter += 1
+                per = int(math.ceil(30 * counter / n_total))
+                real_per = int(math.ceil(100 * counter / n_total))
+                print(f"{real_per}% [{'#' * per + ' ' * (30 - per)}], время: {datetime.now() - time_begin}")
+
+                # Сам процесс
+                o = Objects(n_c=1, n_f=n_f_list[i_n], kalman_coef=kalman_coef,
+                            model_c='1U', dt=dt, start_navigation='near', if_any_print=False,
+                            start_navigation_tolerance=tolerance_list[i_t], method_navigation='kalman_filter rvq all')
+                o.f.gain_mode = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas'][3]
+                o.c.gain_mode = o.f.gain_mode
+                o.p.k.gain_mode = o.f.gain_mode
+                o.p.is_aero = aero
+                o.p.integrate(t=t_integrate)
+
+                tmp_mean = 0.
+                tmp_std = 0.
+                for i in range(n_f_list[i_n]):
+                    tmp_mean += np.array(o.f.line_difference[i]).mean()
+                    tmp_std += np.array(o.f.line_difference[i]).std()
+                res_mean[i_t][i_n] += tmp_mean / n_f_list[i_n] / repeat
+                res_std[i_t][i_n] += tmp_std / n_f_list[i_n] / repeat
+
+    '''tmp_col = {i: f"Точность {int(tolerance_list[i] * 100)}%" for i in range(len(tolerance_list))}
+    tmp_row = {i: f"{n_f_list[i]} аппаратов" for i in range(len(n_f_list))}'''
+    tmp_col = {i: f"{int(tolerance_list[i] * 100)}%" for i in range(len(tolerance_list))}
+    tmp_row = {i: n_f_list[i] for i in range(len(n_f_list))}
+    res_mean_df = pd.DataFrame(res_mean).rename(columns=tmp_col, index=tmp_row)
+    res_std_df = pd.DataFrame(res_std).rename(columns=tmp_col, index=tmp_row)
+    print(f"Средние средние: \n{res_mean_df}\nСредние отклонения: \n{res_std_df}")
+    fig, axs = plt.subplots(1, 2, figsize=(13, 5))
+    sns.heatmap(res_mean_df, annot=True, fmt=".1f", ax=axs[0])
+    sns.heatmap(res_std_df, annot=True, fmt=".1f", ax=axs[1])
+    axs[0].set_title("Ошибка определения положения")
+    axs[1].set_title("Дисперсия ошибки навигации")
+    for i in range(2):
+        axs[i].set_xlabel("Точность приорной информации")
+        axs[i].set_ylabel("Количество чипсатов")
+    plt.show()
+
 def params_search(method_navigation: str = 'kalman_filter rv', t_integrate: float = 1e5, dt: float = 10.,
-                  aero: bool = False,):
+                  aero: bool = False):
     min_discrepancy = 1e10
     count = 0
     best_params = []
@@ -45,4 +103,5 @@ def params_search(method_navigation: str = 'kalman_filter rv', t_integrate: floa
     return best_params
 
 
-params_search()
+# params_search()
+do_tolerance_table()

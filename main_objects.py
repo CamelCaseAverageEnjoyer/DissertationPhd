@@ -63,9 +63,11 @@ class FemtoSat:
             self.q_[i] /= np.linalg.norm(self.q_[i])
         self.line = [[] for _ in range(self.n)]
         self.line_kalman = [[] for _ in range(self.n)]
+        self.line_difference = [[] for _ in range(self.n)]
         self.signal_power = [[[] for _ in range(self.n)] for _ in range(self.n)]
         self.real_dist = [[[] for _ in range(self.n)] for _ in range(self.n)]
         self.calc_dist = [[[] for _ in range(self.n)] for _ in range(self.n)]
+        self.calc_dist_ = [[[] for _ in range(self.n)] for _ in range(self.n)]
         tmp_poor = [np.array([uniform(-r_spread, r_spread) for _ in range(3)] +
                              [uniform(-v_spread, v_spread) for _ in range(3)] +
                              list(self.q_[i][1:4])) for i in range(self.n)]
@@ -131,6 +133,7 @@ class CubeSat:
         self.signal_power = [[[] for _ in range(n_f)] for _ in range(self.n)]
         self.real_dist = [[[] for _ in range(n_f)] for _ in range(self.n)]
         self.calc_dist = [[[] for _ in range(n_f)] for _ in range(self.n)]
+        self.calc_dist_ = [[[] for _ in range(n_f)] for _ in range(self.n)]
         self.kalm_dist = [[[] for _ in range(n_f)] for _ in range(self.n)]
 
         # Прорисовка ножек
@@ -214,17 +217,38 @@ class KalmanFilter:
         else:
             r_m = self.phi_ @ r_
 
-        signal_rate = self.c.get_gain(quart2dcm(vec2quat(np.zeros(3))) @ np.array(self.c.r_orf[i] - r_m[0:3])) * \
-            self.f.get_gain(quart2dcm(vec2quat(r_m[6:9])) @ np.array(self.c.r_orf[i] - r_m[0:3])) \
-            if self.orientation else 1
-        z_model = np.linalg.norm(r_m[0:3] - self.c.r_orf[0]) / np.sqrt(signal_rate)
+        if self.c.gain_mode == self.c.gain_modes[4]:
+            if self.orientation:
+                tmp1 = self.c.get_gain(quart2dcm(vec2quat(np.zeros(3))) @ np.array(self.c.r_orf[i] - r_m[0:3]))
+                tmp2 = self.f.get_gain(quart2dcm(vec2quat(r_m[6:9])) @ np.array(self.c.r_orf[i] - r_m[0:3]), mode3=True)
+                signal_rate = [tmp1[ii] * tmp2 for ii in range(2)]
+                z_model = np.array([np.linalg.norm(r_m[0:3] - self.c.r_orf[0]) / np.sqrt(signal_rate[i])
+                                    for i in range(2)])
+            else:
+                z_model = np.array([1., 1.])
+            z_ = self.c.calc_dist_[0][i]
 
-        h_ = np.array([(r_m[j] - self.c.r_orf[0][j]) / z_model for j in range(3)] + (t - 3) * [0.])
-        q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt
-        p_m = self.phi_ @ self.p_[i] @ self.phi_.T + q_tilda
-        k_ = p_m @ h_.T / (h_ @ p_m @ h_.T + self.r_matrix)
-        self.r_orf_estimation[i] = r_m + k_ * (z_ - z_model)
-        self.p_[i] = (np.eye(t) - np.outer(k_, h_)) @ p_m
+            h_ = np.array([[(r_m[j] - self.c.r_orf[0][j]) / z_model[ii] for j in range(3)] + (t - 3) * [0.]
+                           for ii in range(2)])
+            q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt
+            p_m = self.phi_ @ self.p_[i] @ self.phi_.T + q_tilda
+            # print(h_ @ p_m @ h_.T + np.eye(2) * self.r_matrix)
+            k_ = p_m @ h_.T @ np.linalg.pinv(h_ @ p_m @ h_.T + np.eye(2) * self.r_matrix)
+            self.r_orf_estimation[i] = r_m + k_ @ (z_ - z_model)
+            # print(k_ @ (z_ - z_model))
+            self.p_[i] = (np.eye(t) - k_ @ h_) @ p_m
+        else:
+            signal_rate = self.c.get_gain(quart2dcm(vec2quat(np.zeros(3))) @ np.array(self.c.r_orf[i] - r_m[0:3])) * \
+                self.f.get_gain(quart2dcm(vec2quat(r_m[6:9])) @ np.array(self.c.r_orf[i] - r_m[0:3])) \
+                if self.orientation else 1
+            z_model = np.linalg.norm(r_m[0:3] - self.c.r_orf[0]) / np.sqrt(signal_rate)
+
+            h_ = np.array([(r_m[j] - self.c.r_orf[0][j]) / z_model for j in range(3)] + (t - 3) * [0.])
+            q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt
+            p_m = self.phi_ @ self.p_[i] @ self.phi_.T + q_tilda
+            k_ = p_m @ h_.T / (h_ @ p_m @ h_.T + self.r_matrix)
+            self.r_orf_estimation[i] = r_m + k_ * (z_ - z_model)
+            self.p_[i] = (np.eye(t) - np.outer(k_, h_)) @ p_m
 
     def calc_all(self) -> None:
         t = 9 if self.orientation else 6
@@ -391,7 +415,13 @@ class PhysicModel:
                         signal = 1e4
                     calc_dist = np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal *
                                         self.f.get_gain(r=S_tmp @ r_tmp, mode3=True))
+                    if self.c.gain_mode == self.c.gain_modes[4]:
+                        tmp = self.f.get_gain(r=S_tmp @ r_tmp)
+                        calc_dist_ = np.array([np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal
+                                                       * tmp[ii]) for ii in range(2)])
                 # calc_dist *= 1 + np.random.normal(0, np.sqrt(self.r_matrix))
+                if self.c.gain_mode == self.c.gain_modes[4]:
+                    self.c.calc_dist_[i_c][i_f] = calc_dist_
                 calc_dist += np.random.normal(0, np.sqrt(self.r_matrix))
                 self.c.calc_dist[i_c][i_f] += [calc_dist]
                 self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] -
@@ -400,6 +430,8 @@ class PhysicModel:
                     self.f.line_kalman[i_f] += [self.k.r_orf_estimation[i_f][0],
                                                 self.k.r_orf_estimation[i_f][1],
                                                 self.k.r_orf_estimation[i_f][2]]
+                    self.f.line_difference[i_f] += \
+                        [np.linalg.norm(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
         for i_f1 in range(self.f.n):
             S_f1 = quart2dcm(self.f.q[i_f1])
             for i_f2 in range(self.f.n):
@@ -419,23 +451,25 @@ class PhysicModel:
 
         # Оценка положения фемтоспутников
         t = 9 if self.k.orientation else 6
-        # self.sigmas = [[p[i][i]] for i in range(t * self.f.n)]
         if self.k.single_femto_filter:
             for i in range(self.f.n):
                 self.k.calc(i)
-                for j_n in range(self.f.n):
-                    for j_t in range(t):
-                        tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
-                        # tmp2 = np.abs(tmp - np.array(self.k.r_orf_estimation[j_n][j_t]))
-                        self.k.sigmas[j_n * t + j_t] += [np.sqrt(self.k.p_[j_n][j_t][j_t]) * tmp[t]]
+                if self.c.gain_mode != self.c.gain_modes[4]:  # 3
+                    for j_n in range(self.f.n):
+                        for j_t in range(t):
+                            tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
+                            # tmp2 = np.abs(tmp - np.array(self.k.r_orf_estimation[j_n][j_t]))
+                            self.k.sigmas[j_n * t + j_t] += [np.sqrt(self.k.p_[j_n][j_t][j_t]) * tmp[j_t]]
         else:
             self.k.calc_all()
-            for j in range(t * self.f.n):
-                self.k.sigmas[j] += [np.sqrt(self.k.p_[j][j])]
-        for j_n in range(self.f.n):
-            for j_t in range(t):
-                tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
-                self.k.real_sigmas[j_n * t + j_t] += [np.abs(tmp - np.array(self.k.r_orf_estimation[j_n][j_t]))]
+            if False:  # self.c.gain_mode != self.c.gain_modes[4]:  # грёбаных
+                for j in range(t * self.f.n):
+                    self.k.sigmas[j] += [np.sqrt(self.k.p_[j][j])]
+        if False:  # self.c.gain_mode != self.c.gain_modes[4]:  # раза
+            for j_n in range(self.f.n):
+                for j_t in range(t):
+                    tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
+                    self.k.real_sigmas[j_n * t + j_t] += [np.abs(tmp - np.array(self.k.r_orf_estimation[j_n][j_t]))]
 
     def integrate(self, t: float):
         self.s.my_print(f"Оборотов вокруг Земли: {round(10 * t / (3600 * 1.5)) / 10}\n"

@@ -193,10 +193,10 @@ def plot_distance(o):
                       "Расстояние до фемтоспутника", "Оценка расстояние до фемтоспутника"] \
                 if i_f == 0 else [None for _ in range(100)]
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-            # axes.plot(x, np.abs(o.c.real_dist[i_c][i_f]), c=colors[2], label=labels[2])
-            # axes.plot(x, np.abs(o.c.kalm_dist[i_c][i_f]), c=colors[3], label=labels[3])
             axes.plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
                       c=colors[0], label=labels[0])
+            '''# axes.plot(x, np.abs(o.c.real_dist[i_c][i_f]), c=colors[2], label=labels[2])
+            # axes.plot(x, np.abs(o.c.kalm_dist[i_c][i_f]), c=colors[3], label=labels[3])
             r1 = [np.array([o.f.line[i_f][3 * j + 0],
                             o.f.line[i_f][3 * j + 1],
                             o.f.line[i_f][3 * j + 2]]) for j in range(int(len(o.f.line[i_f]) // 3))]
@@ -205,7 +205,8 @@ def plot_distance(o):
                             o.f.line_kalman[i_f][3 * j + 1],
                             o.f.line_kalman[i_f][3 * j + 2]]) for j in range(int(len(o.f.line[i_f]) // 3))]
             tmp = [np.linalg.norm(r1[j] - r2[j]) for j in range(int(len(o.f.line[i_f]) // 3))]
-            axes.plot(x, tmp, c=colors[1], label=labels[1])
+            axes.plot(x, tmp, c=colors[1], label=labels[1])'''
+            axes.plot(x, o.f.line_difference[i_f], c=colors[2], label=labels[1])
         axes.set_xlabel("Время, с", fontsize=CAPTION_SIZE)
         axes.set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
     plt.legend(fontsize=CAPTION_SIZE)
