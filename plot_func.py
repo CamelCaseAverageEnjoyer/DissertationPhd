@@ -150,7 +150,7 @@ def plot_signals(o):
 
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
-    if o.f.n > 1:
+    '''if o.f.n > 1:
         tmp = plt.subplots(o.f.n + 1, 1)
         fig = tmp[0]
         fig.suptitle(f"Графики расстояний по сигналам фемтосатов", fontsize=TITLE_SIZE)
@@ -182,31 +182,22 @@ def plot_distance(o):
                     axes[i_f1+1].plot(x, o.f.calc_dist[i_f1][i_f2], c=colors[i_f2])
             axes[i_f1+1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
             axes[i_f1+1].set_ylabel(f"Ф №{i_f1+1}", fontsize=CAPTION_SIZE)
-        plt.show()
+        plt.show()'''
 
     fig, axes = plt.subplots(1, 1)
-    fig.suptitle(f"Ошибка в подсчёте графиков", fontsize=TITLE_SIZE)
+    fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
     colors = ['violet', 'blueviolet', 'forestgreen', 'cornflowerblue', 'peru', 'teal']
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
-            labels = ["Ошибка расстояния до фемтоспутника", "Ошибка определения положения",
-                      "Расстояние до фемтоспутника", "Оценка расстояние до фемтоспутника"] \
+            labels = ["Ошибка дистанции (реальная)",
+                      "Ошибка дистанции (оцениваемая)",
+                      "Ошибка определения положения"] \
                 if i_f == 0 else [None for _ in range(100)]
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             axes.plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
                       c=colors[0], label=labels[0])
-            '''# axes.plot(x, np.abs(o.c.real_dist[i_c][i_f]), c=colors[2], label=labels[2])
-            # axes.plot(x, np.abs(o.c.kalm_dist[i_c][i_f]), c=colors[3], label=labels[3])
-            r1 = [np.array([o.f.line[i_f][3 * j + 0],
-                            o.f.line[i_f][3 * j + 1],
-                            o.f.line[i_f][3 * j + 2]]) for j in range(int(len(o.f.line[i_f]) // 3))]
-            x = [o.p.show_rate * o.p.dt * i for i in range(int(len(o.f.line[i_f]) // 3))]
-            r2 = [np.array([o.f.line_kalman[i_f][3 * j + 0],
-                            o.f.line_kalman[i_f][3 * j + 1],
-                            o.f.line_kalman[i_f][3 * j + 2]]) for j in range(int(len(o.f.line[i_f]) // 3))]
-            tmp = [np.linalg.norm(r1[j] - r2[j]) for j in range(int(len(o.f.line[i_f]) // 3))]
-            axes.plot(x, tmp, c=colors[1], label=labels[1])'''
-            axes.plot(x, o.f.line_difference[i_f], c=colors[2], label=labels[1])
+            axes.plot(x, o.f.z_difference[i_f], c=colors[3], label=labels[1])
+            axes.plot(x, o.f.line_difference[i_f], c=colors[2], label=labels[2])
         axes.set_xlabel("Время, с", fontsize=CAPTION_SIZE)
         axes.set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
     plt.legend(fontsize=CAPTION_SIZE)

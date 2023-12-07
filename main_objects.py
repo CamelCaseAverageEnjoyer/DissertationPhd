@@ -64,6 +64,7 @@ class FemtoSat:
         self.line = [[] for _ in range(self.n)]
         self.line_kalman = [[] for _ in range(self.n)]
         self.line_difference = [[] for _ in range(self.n)]
+        self.z_difference = [[] for _ in range(self.n)]
         self.signal_power = [[[] for _ in range(self.n)] for _ in range(self.n)]
         self.real_dist = [[[] for _ in range(self.n)] for _ in range(self.n)]
         self.calc_dist = [[[] for _ in range(self.n)] for _ in range(self.n)]
@@ -218,7 +219,8 @@ class KalmanFilter:
             r_m = self.phi_ @ r_
 
         if self.c.gain_mode == self.c.gain_modes[4]:
-            if self.orientation:
+            pass
+            '''if self.orientation:
                 tmp1 = self.c.get_gain(quart2dcm(vec2quat(np.zeros(3))) @ np.array(self.c.r_orf[i] - r_m[0:3]))
                 tmp2 = self.f.get_gain(quart2dcm(vec2quat(r_m[6:9])) @ np.array(self.c.r_orf[i] - r_m[0:3]), mode3=True)
                 signal_rate = [tmp1[ii] * tmp2 for ii in range(2)]
@@ -232,16 +234,16 @@ class KalmanFilter:
                            for ii in range(2)])
             q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt
             p_m = self.phi_ @ self.p_[i] @ self.phi_.T + q_tilda
-            # print(h_ @ p_m @ h_.T + np.eye(2) * self.r_matrix)
             k_ = p_m @ h_.T @ np.linalg.pinv(h_ @ p_m @ h_.T + np.eye(2) * self.r_matrix)
             self.r_orf_estimation[i] = r_m + k_ @ (z_ - z_model)
-            # print(k_ @ (z_ - z_model))
-            self.p_[i] = (np.eye(t) - k_ @ h_) @ p_m
+            self.p_[i] = (np.eye(t) - k_ @ h_) @ p_m'''
         else:
-            signal_rate = self.c.get_gain(quart2dcm(vec2quat(np.zeros(3))) @ np.array(self.c.r_orf[i] - r_m[0:3])) * \
+            signal_rate = self.c.get_gain(np.array(self.c.r_orf[i] - r_m[0:3])) * \
                 self.f.get_gain(quart2dcm(vec2quat(r_m[6:9])) @ np.array(self.c.r_orf[i] - r_m[0:3])) \
                 if self.orientation else 1
-            z_model = np.linalg.norm(r_m[0:3] - self.c.r_orf[0]) / np.sqrt(signal_rate)
+            z_model = np.linalg.norm(r_m[0:3] - self.c.r_orf[0])
+            z_ *= np.sqrt(signal_rate)
+            self.f.z_difference[i] += [abs(z_model - z_)]
 
             h_ = np.array([(r_m[j] - self.c.r_orf[0][j]) / z_model for j in range(3)] + (t - 3) * [0.])
             q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt
@@ -268,20 +270,21 @@ class KalmanFilter:
 
         if self.orientation:  # ВЕРНУТЬСЯ СЮДА
             signal_rate = np.array([self.f.get_gain(quart2dcm(vec2quat(r_m[9*i+6:9*i+9])) @
-                                                    (r_m[9*i+0:9*i+3] - self.c.r_orf[0]))
+                                                    (r_m[9*i+0:9*i+3] - self.c.r_orf[0])) *
+                                    self.c.get_gain(r_m[9*i+0:9*i+3] - self.c.r_orf[0])
                                     for i in range(self.f.n)] +
                                    flatten([[self.f.get_gain(quart2dcm(vec2quat(r_m[9*i+6:9*i+9]))
-                                                             @ ((r_m[9*i+0:9*i+3] - self.c.r_orf[0]) -
-                                                                (r_m[9*j+0:9*j+3] - self.c.r_orf[0])))
-                                             * self.f.get_gain(quart2dcm(vec2quat(r_m[9*j+6:9*j+9]))
-                                                               @ ((r_m[9*i+0:9*i+3] - self.c.r_orf[0]) -
-                                                                  (r_m[9*j+0:9*j+3] - self.c.r_orf[0])))
+                                                             @ (r_m[9*i+0:9*i+3] - r_m[9*j+0:9*j+3])) *
+                                             self.f.get_gain(quart2dcm(vec2quat(r_m[9*j+6:9*j+9]))
+                                                             @ (r_m[9*i+0:9*i+3] - r_m[9*j+0:9*j+3]))
                                              for i in range(j)] for j in range(self.f.n)]))
         else:
-            signal_rate = 1
+            signal_rate = np.array([1] * int(self.f.n * (self.f.n + 1) // 2))
         z_model = np.array([np.linalg.norm(r_m[0+t*i:3+t*i] - self.c.r_orf[0]) for i in range(self.f.n)] + flatten([
             [np.linalg.norm(r_m[0+t*j:3+t*j] - r_m[0+t*i:3+t*i]) for i in range(j)] for j in range(self.f.n)]))
-        z_model /= np.sqrt(signal_rate)
+        z_ *= np.sqrt(signal_rate)
+        for i in range(self.f.n):
+            self.f.z_difference[i] += [abs(z_model[i] - z_[i])]
 
         def local_h_func(i: int, j: int) -> list:
             """Функция для построения матрицы H:
@@ -393,36 +396,30 @@ class PhysicModel:
 
         # Расчёт связи
         for i_c in range(self.c.n):
-            S_c = quart2dcm(self.c.q[i_c])
+            # S_c = quart2dcm(self.c.q[i_c])
             for i_f in range(self.f.n):
-                S_f = quart2dcm(self.f.q[i_f])
                 r_tmp = self.f.r_orf[i_f] - self.c.r_orf[i_c]
-                signal = self.c.get_gain(r=S_c @ r_tmp, mode3=True) * self.f.get_gain(r=S_f @ r_tmp, mode3=True) \
-                    * self.f.power_signal_full / self.f.length_signal_full**2 / np.linalg.norm(r_tmp)**2
-                # signal *= 1 + np.random.normal(0, np.sqrt(self.r_matrix))
-                '''signal += np.random.normal(0, np.sqrt(self.r_matrix)) * \
-                    self.f.power_signal_full / self.f.length_signal_full**2 / np.linalg.norm(r_tmp)**2'''
                 self.c.real_dist[i_c][i_f] += [np.linalg.norm(r_tmp)]
-                self.c.signal_power[i_c][i_f] += [signal]
-                if 'rv' in self.navigation:
-                    calc_dist = np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal)
-                else:
-                    q = np.array(self.k.r_orf_estimation[i_f][6:9])
-                    q = np.append(1 - np.linalg.norm(q)**2, q) if np.linalg.norm(q) <= 1 else \
-                        np.append(0, q / np.linalg.norm(q))
-                    S_tmp = quart2dcm(q)
-                    if signal == 0:
-                        signal = 1e4
-                    calc_dist = np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal *
-                                        self.f.get_gain(r=S_tmp @ r_tmp, mode3=True))
-                    if self.c.gain_mode == self.c.gain_modes[4]:
-                        tmp = self.f.get_gain(r=S_tmp @ r_tmp)
-                        calc_dist_ = np.array([np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal
-                                                       * tmp[ii]) for ii in range(2)])
-                # calc_dist *= 1 + np.random.normal(0, np.sqrt(self.r_matrix))
+                '''
+                S_f = quart2dcm(self.f.q[i_f])
+                signal = self.c.get_gain(r=S_c @ r_tmp, mode3=True) * self.f.get_gain(r=S_f @ r_tmp, mode3=True) \
+                #     * self.f.power_signal_full / self.f.length_signal_full**2 / np.linalg.norm(r_tmp)**2
+                # signal *= 1 + np.random.normal(0, np.sqrt(self.r_matrix))
+                signal += np.random.normal(0, np.sqrt(self.r_matrix)) * \
+                    self.f.power_signal_full / self.f.length_signal_full**2 / np.linalg.norm(r_tmp)**2
+                # self.c.signal_power[i_c][i_f] += [signal]'''
+                S_tmp = quart2dcm(np.array(self.k.f.q[i_f]))
+                calc_dist = np.linalg.norm(r_tmp) / np.sqrt(self.f.get_gain(r=S_tmp @ r_tmp, mode3=True) *
+                                                            self.c.get_gain(r=r_tmp, mode3=True)) + \
+                    np.random.normal(0, np.sqrt(self.r_matrix))
+                """if self.c.gain_mode == self.c.gain_modes[4]:
+                    pass
+                    tmp = self.f.get_gain(r=S_tmp @ r_tmp)
+                    calc_dist_ = np.array([np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2 / signal
+                                                   * tmp[ii]) for ii in range(2)])
+                calc_dist *= 1 + np.random.normal(0, np.sqrt(self.r_matrix))
                 if self.c.gain_mode == self.c.gain_modes[4]:
-                    self.c.calc_dist_[i_c][i_f] = calc_dist_
-                calc_dist += np.random.normal(0, np.sqrt(self.r_matrix))
+                    self.c.calc_dist_[i_c][i_f] = calc_dist_"""
                 self.c.calc_dist[i_c][i_f] += [calc_dist]
                 self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] -
                                                               self.k.r_orf_estimation[i_f][0:3])]
@@ -433,21 +430,19 @@ class PhysicModel:
                     self.f.line_difference[i_f] += \
                         [np.linalg.norm(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
         for i_f1 in range(self.f.n):
-            S_f1 = quart2dcm(self.f.q[i_f1])
             for i_f2 in range(self.f.n):
                 if i_f1 != i_f2:
-                    S_f2 = quart2dcm(self.f.q[i_f2])
                     r_tmp = self.f.r_orf[i_f1] - self.f.r_orf[i_f2]
-                    signal = self.f.get_gain(r=S_f1 @ r_tmp, mode3=True) * \
-                        self.f.get_gain(r=S_f2 @ r_tmp, mode3=True) * \
-                        self.f.power_signal_full / self.f.length_signal_full**2 / np.linalg.norm(r_tmp)**2
-                    signal *= 1 + np.random.normal(0, np.sqrt(self.r_matrix))
                     self.f.real_dist[i_f1][i_f2] += [np.linalg.norm(r_tmp)]
-                    self.f.signal_power[i_f1][i_f2] += [signal]
-                    self.f.calc_dist[i_f1][i_f2] += [np.sqrt(self.f.power_signal_full/self.f.length_signal_full**2
-                                                             / signal)]
+
+                    q1 = self.k.f.q[i_f1]
+                    q2 = self.k.f.q[i_f1]
+                    calc_dist = np.linalg.norm(r_tmp) / np.sqrt(self.f.get_gain(r=quart2dcm(q1) @ r_tmp, mode3=True) *
+                                                                self.f.get_gain(r=quart2dcm(q2) @ r_tmp, mode3=True)) +\
+                        np.random.normal(0, np.sqrt(self.r_matrix))
+                    self.f.calc_dist[i_f1][i_f2] += [calc_dist]
                 else:
-                    self.f.calc_dist[i_f1][i_f2] += [0]
+                    self.f.calc_dist[i_f1][i_f2] += [0.]
 
         # Оценка положения фемтоспутников
         t = 9 if self.k.orientation else 6
@@ -458,18 +453,17 @@ class PhysicModel:
                     for j_n in range(self.f.n):
                         for j_t in range(t):
                             tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
-                            # tmp2 = np.abs(tmp - np.array(self.k.r_orf_estimation[j_n][j_t]))
                             self.k.sigmas[j_n * t + j_t] += [np.sqrt(self.k.p_[j_n][j_t][j_t]) * tmp[j_t]]
         else:
             self.k.calc_all()
-            if False:  # self.c.gain_mode != self.c.gain_modes[4]:  # грёбаных
+            '''if False:  # self.c.gain_mode != self.c.gain_modes[4]:  # грёбаных
                 for j in range(t * self.f.n):
                     self.k.sigmas[j] += [np.sqrt(self.k.p_[j][j])]
         if False:  # self.c.gain_mode != self.c.gain_modes[4]:  # раза
             for j_n in range(self.f.n):
                 for j_t in range(t):
                     tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
-                    self.k.real_sigmas[j_n * t + j_t] += [np.abs(tmp - np.array(self.k.r_orf_estimation[j_n][j_t]))]
+                    self.k.real_sigmas[j_n * t + j_t] += [np.abs(tmp - np.array(self.k.r_orf_estimation[j_n][j_t]))]'''
 
     def integrate(self, t: float):
         self.s.my_print(f"Оборотов вокруг Земли: {round(10 * t / (3600 * 1.5)) / 10}\n"

@@ -1,5 +1,10 @@
 import numpy as np
 
+
+def get_quaternion_from_vecpart(q):
+    return np.append(1 - np.linalg.norm(q) ** 2, q) if np.linalg.norm(q) <= 1 else \
+        np.append(0, q / np.linalg.norm(q))
+
 def real_workload_time(n: int, n_total: int, time_begin, time_now):
     n_remain = n_total - n
     return f"время: {time_now - time_begin}, оставшееся время: {(time_now - time_begin) * n_remain / n}"

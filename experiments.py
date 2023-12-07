@@ -1,13 +1,15 @@
 from main_objects import *
 
-def do_tolerance_table(t_integrate: float = 1e5, dt: float = 10., aero: bool = False, repeat: int = 1):
+def do_tolerance_table(t_integrate: float = 1e4, dt: float = 10., aero: bool = False, repeat: int = 3):
     import matplotlib.pyplot as plt
     import seaborn as sns
     import pandas as pd
     import math
-    kalman_coef = {'q': 1e-12, 'p': [1e-12, 1e-12, 1e-10], 'r': 1e-2}
-    tolerance_list = [0.7, 0.8, 0.9, 1.]
-    n_f_list = [5, 10, 15, 20]
+
+    cmap = sns.color_palette("ch:start=.2,rot=-.3", as_cmap=True)
+    kalman_coef = {'q': 1e-15, 'p': [1e-8] * 3, 'r': 1e0}
+    tolerance_list = [0.8, 0.9, 1.]  # [0.8, 0.85, 0.90, 0.95, 1.]
+    n_f_list = [20, 30, 40]
     counter = 0
     time_begin = datetime.now()
     n_total = len(tolerance_list) * len(tolerance_list) * repeat
@@ -38,8 +40,8 @@ def do_tolerance_table(t_integrate: float = 1e5, dt: float = 10., aero: bool = F
                 for i in range(n_f_list[i_n]):
                     tmp_mean += np.array(o.f.line_difference[i]).mean()
                     tmp_std += np.array(o.f.line_difference[i]).std()
-                res_mean[i_t][i_n] += tmp_mean / n_f_list[i_n] / repeat
-                res_std[i_t][i_n] += tmp_std / n_f_list[i_n] / repeat
+                res_mean[i_t][i_n] += tmp_mean / repeat / n_f_list[i_n]
+                res_std[i_t][i_n] += tmp_std / repeat / n_f_list[i_n]
 
     '''tmp_col = {i: f"Точность {int(tolerance_list[i] * 100)}%" for i in range(len(tolerance_list))}
     tmp_row = {i: f"{n_f_list[i]} аппаратов" for i in range(len(n_f_list))}'''
@@ -49,8 +51,8 @@ def do_tolerance_table(t_integrate: float = 1e5, dt: float = 10., aero: bool = F
     res_std_df = pd.DataFrame(res_std).rename(columns=tmp_col, index=tmp_row)
     print(f"Средние средние: \n{res_mean_df}\nСредние отклонения: \n{res_std_df}")
     fig, axs = plt.subplots(1, 2, figsize=(13, 5))
-    sns.heatmap(res_mean_df, annot=True, fmt=".1f", ax=axs[0])
-    sns.heatmap(res_std_df, annot=True, fmt=".1f", ax=axs[1])
+    sns.heatmap(res_mean_df, annot=True, fmt=".1f", ax=axs[0], cmap=cmap)
+    sns.heatmap(res_std_df, annot=True, fmt=".2f", ax=axs[1], cmap=cmap)
     axs[0].set_title("Ошибка определения положения")
     axs[1].set_title("Дисперсия ошибки навигации")
     for i in range(2):
