@@ -149,7 +149,7 @@ for j in np.linspace(t[0], t[-1]*post_factor, 100):
             R_ = np.linalg.norm(r_[i1]) if i1 == i2 else np.linalg.norm(r_[i1] - r_[i2])
             tmp += (R_ - R)**2
             counter += 1
-    loss += [tmp / counter]
+    loss += [np.sqrt(tmp) / counter]
 for j in t:
     plt.plot([j, j], [np.min(loss), np.max(loss)], c='gray')
 plt.plot([t[0], t[-1]*post_factor], [0, 0], c='gray')
