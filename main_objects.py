@@ -1,8 +1,7 @@
 from colorama import Fore, Style
 from typing import Union
-from random import uniform
+from numpy.random import uniform
 from datetime import datetime
-# import random
 # import scipy
 # import numpy as np
 # import kiam_astro
@@ -33,7 +32,7 @@ class Cosmetic:
 
 class FemtoSat:
     def __init__(self, w_orb: float, n: int = 10, r_spread: float = 1e2, v_spread: float = 1e-1,
-                 start_navigation: str = 'near', start_navigation_tolerance: float = 0.9):
+                 start_navigation: str = 'near', start_navigation_tolerance: float = 0.9, w_spread: float = 1e-3):
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
         # Предопределённые параметры
@@ -51,13 +50,15 @@ class FemtoSat:
         self.gain_mode = self.gain_modes[1]
 
         # Индивидуальные параметры
-        self.r_orf = [np.array([uniform(-r_spread, r_spread) for _ in range(3)]) for _ in range(self.n)]
-        self.v_orf = [np.array([uniform(-v_spread, v_spread) for _ in range(3)]) for _ in range(self.n)]
+        self.r_orf = [uniform(-r_spread, r_spread, 3) for _ in range(self.n)]
+        self.v_orf = [uniform(-v_spread, v_spread, 3) for _ in range(self.n)]
+        self.w_orf = [uniform(-1., 1., 3) for _ in range(self.n)]
+        self.q = [uniform(-1, 1, 4) for _ in range(self.n)]
+        self.q_ = [uniform(-1, 1, 4) for _ in range(self.n)]
         for i in range(self.n):
             self.v_orf[i][0] = - 2 * self.r_orf[i][2] * w_orb
+            self.w_orf[i] *= uniform(-w_spread, w_spread) / np.linalg.norm(self.w_orf[i])
         self.c_hkw = [[] for _ in range(self.n)]
-        self.q = [[uniform(-1, 1) for _ in range(4)] for _ in range(self.n)]
-        self.q_ = [[uniform(-1, 1) for _ in range(4)] for _ in range(self.n)]
         for i in range(self.n):
             self.q[i] /= np.linalg.norm(self.q[i])
             self.q_[i] /= np.linalg.norm(self.q_[i])
@@ -187,9 +188,9 @@ class KalmanFilter:
                                   [0, 0, 0, 1, 0, -2 * w_orb * dt, 0, 0, 0],
                                   [0, -w_orb ** 2 * dt, 0, 0, 1, 0, 0, 0, 0],
                                   [0, 0, 3 * w_orb ** 2 * dt,  2 * w_orb * dt, 0, 1, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0]])
+                                  [0, 0, 0, 0, 0, 0, 1, 0, 0],
+                                  [0, 0, 0, 0, 0, 0, 0, 1, 0],
+                                  [0, 0, 0, 0, 0, 0, 0, 0, 1]])
             self.d_ = np.vstack([np.zeros((3, 3)), np.eye(3), np.eye(3)])
             self.p_ = [np.diag([self.p_coef[0]]*3 + [self.p_coef[1]]*3 + [self.p_coef[2]]*3) for _ in range(f.n)]
         self.q_ = np.eye(3) * self.q_coef
