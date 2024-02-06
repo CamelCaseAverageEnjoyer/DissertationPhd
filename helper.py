@@ -1,4 +1,4 @@
-"""НЕ УДАЛЯТЬ! Функция тестирует солвер ЦЭшек по измерениям"""
+"""Функция тестирует солвер ЦЭшек по измерениям"""
 import scipy
 import matplotlib.pyplot as plt
 from tiny_functions import *
@@ -62,7 +62,7 @@ for j in t:
     for i in range(n):
         r += [np.array(r_hkw(C[i*len_x_res:i*len_x_res+6], w, j))]
     for i1 in range(n):
-        for i2 in range(i1):
+        for i2 in range(i1 + 1):
             dist_real = np.linalg.norm(r[i1]) if i1 == i2 else np.linalg.norm(r[i1] - r[i2])
             if if_quaternion or if_quaternion_but_i_dont_give_a_fuck:
                 g1 = get_gain(euler2rot_matrix(C[i1*9+6] / 30, C[i1*9+7] / 30, C[i1*9+8] / 30) @ ev)
@@ -102,7 +102,7 @@ def local_func(C_):
         for i in range(n):
             r += [np.array(r_hkw(C_[i*len_x_res:i*len_x_res+6], w, j))]
         for i1 in range(n):
-            for i2 in range(i1):
+            for i2 in range(i1 + 1):
                 dist_real = np.linalg.norm(r[i1]) if i1 == i2 else np.linalg.norm(r[i1] - r[i2])
                 if if_quaternion and not if_quaternion_but_i_dont_give_a_fuck:
                     g1 = get_gain(euler2rot_matrix(C_[i1*9+6] / 30, C_[i1*9+7] / 30, C_[i1*9+8] / 30) @ ev)
@@ -202,7 +202,7 @@ for j in np.linspace(t[0], t[-1]*post_factor, 200):
 
             tmp += (R_ - R)**2
             counter += 1
-    loss += [np.sqrt(tmp) / counter]
+    loss += [np.sqrt(tmp / counter)]
 for j in t:
     plt.plot([j, j], [0, max_value], c='gray')
 plt.plot([t[0], t[-1]*post_factor], [0, 0], c='gray')

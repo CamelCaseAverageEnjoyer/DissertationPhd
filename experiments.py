@@ -1,15 +1,24 @@
+from typing import List, Any
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import math
 from main_objects import *
+from tiny_functions import *
 
-def do_tolerance_table(t_integrate: float = 1e4, dt: float = 10., aero: bool = False, repeat: int = 3):
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    import pandas as pd
-    import math
-
-    cmap = sns.color_palette("ch:start=.2,rot=-.3", as_cmap=True)
+def do_tolerance_table(t_integrate: float = 1e4, dt: float = 10., aero: bool = False, repeat: int = 3) -> None:
+    """Богом гонимая таблца точностей при разном количестве аппаратов, при разных точностях
+    :argument:
+    - t_integrate -- время интегрирования уравнений СИ (default 1e4);               \n
+    - dt -- шаг по времени СИ (default 1e1);                                        \n
+    - aero -- флаг учёта аэродинамического сопротивления (default False);           \n
+    - repeat -- количество генераций движения на одну ячейку таблицы (default 3);   \n
+    :return: None
+    """
     kalman_coef = {'q': 1e-15, 'p': [1e-8] * 3, 'r': 1e0}
-    tolerance_list = [0.8, 0.9, 1.]  # [0.8, 0.85, 0.90, 0.95, 1.]
-    n_f_list = [20, 30, 40]
+    tolerance_list = [0.8, 0.9, 1.]
+    n_f_list = [10, 20, 30]
     counter = 0
     time_begin = datetime.now()
     n_total = len(tolerance_list) * len(tolerance_list) * repeat
@@ -43,42 +52,45 @@ def do_tolerance_table(t_integrate: float = 1e4, dt: float = 10., aero: bool = F
                 res_mean[i_t][i_n] += tmp_mean / repeat / n_f_list[i_n]
                 res_std[i_t][i_n] += tmp_std / repeat / n_f_list[i_n]
 
-    '''tmp_col = {i: f"Точность {int(tolerance_list[i] * 100)}%" for i in range(len(tolerance_list))}
-    tmp_row = {i: f"{n_f_list[i]} аппаратов" for i in range(len(n_f_list))}'''
     tmp_col = {i: f"{int(tolerance_list[i] * 100)}%" for i in range(len(tolerance_list))}
     tmp_row = {i: n_f_list[i] for i in range(len(n_f_list))}
     res_mean_df = pd.DataFrame(res_mean).rename(columns=tmp_col, index=tmp_row)
     res_std_df = pd.DataFrame(res_std).rename(columns=tmp_col, index=tmp_row)
     print(f"Средние средние: \n{res_mean_df}\nСредние отклонения: \n{res_std_df}")
+
     fig, axs = plt.subplots(1, 2, figsize=(13, 5))
+    cmap = sns.color_palette("ch:start=.2,rot=-.3", as_cmap=True)
     sns.heatmap(res_mean_df, annot=True, fmt=".1f", ax=axs[0], cmap=cmap)
     sns.heatmap(res_std_df, annot=True, fmt=".2f", ax=axs[1], cmap=cmap)
-    axs[0].set_title("Ошибка определения положения")
-    axs[1].set_title("Дисперсия ошибки навигации")
+    axs[0].set_title("Погрешность определения положения")
+    axs[1].set_title("Отклонение погрешности навигации")
     for i in range(2):
         axs[i].set_xlabel("Точность приорной информации")
         axs[i].set_ylabel("Количество чипсатов")
     plt.show()
 
-def params_search(method_navigation: str = 'kalman_filter rv', t_integrate: float = 1e5, dt: float = 10.,
-                  aero: bool = False):
+def params_search(method_navigation: str = 'kalman_filter rvq', t_integrate: float = 1e4, dt: float = 10.,
+                  aero: bool = False) -> list:
+    """Перебирает параметры фильтра Калмана в святой надежде на светлое будущее
+    :argument:
+    - method_navigation -- метод наблюдения (default 'kalman_filter rvq');  \n
+    - t_integrate -- время интегрирования уравнений СИ (default 1e4);       \n
+    - dt -- шаг по времени СИ (default 1e1);                                \n
+    - aero -- флаг учёта аэродинамического сопротивления (default False);   \n
+    :return: best_params -- [q, p1, p2, p2, r]"""
     min_discrepancy = 1e10
     count = 0
     best_params = []
-    d_list = [1e-5, 1e-4, 3e-4, 1e-3, 3e-3]
     q_list = [1e-12, 1e-11, 1e-10, 1e-9, 1e-8]
     r_list = [1e-4, 1e-2]
     p1_list = [1e-12, 1e-10, 1e-8]
     p2_list = [1e-12, 1e-10, 1e-8]
-    # p3_list = [1e-10, 1e-8]
-    # [1e-12, 1e-10, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
-    N = len(d_list) * len(q_list) * len(r_list) * len(p1_list) * len(p2_list)  # * len(p3_list)
+    N = len(q_list) * len(r_list) * len(p1_list) * len(p2_list)
     time_begin = datetime.now()
     for q in q_list:
         for r in r_list:
             for p1 in p1_list:
                 for p2 in p2_list:
-                    # for p3 in p3_list:
                     tmp = 0
                     count += 1
                     if count % 10 == 0:
@@ -104,6 +116,245 @@ def params_search(method_navigation: str = 'kalman_filter rv', t_integrate: floa
     print(f"best_params={best_params}")
     return best_params
 
+def solve_minimization(aero: bool = False, quaternion: bool = False, quaternion_but_i_dont_give_a_fuck: bool = False,
+                       random_rate: float = 0.1, post_factor: int = 1, n: int = 1, r_noise: float = 0,
+                       dt: float = 1, t_between: float = 20, n_points: int = 5):
+    """Функция берёт и суёт вашу обратную задачу в Scipy"""
+    import scipy
 
-# params_search()
-do_tolerance_table()
+    Radius_orbit = 6800e3
+    mu = 5.972e24 * 6.67408e-11
+    w = np.sqrt(mu / Radius_orbit ** 3)
+    v_orb = np.sqrt(mu / Radius_orbit)
+    h_orb = Radius_orbit - 6371e3
+
+    # Задание параметров
+    show_factor = 1000
+    t = [60 * t_between * i for i in range(n_points)]
+    colors = ["violet", "deepskyblue", "maroon", "gold", "forestgreen", "indigo", "olivedrab",
+              "slategray", "pink", "salmon", "tan", "steelblue", "peru", "aquamarine",
+              "violet", "deepskyblue", "maroon", "gold", "forestgreen", "indigo", "olivedrab",
+              "slategray", "pink", "salmon", "tan", "steelblue", "peru", "aquamarine",
+              "violet", "deepskyblue", "maroon", "gold", "forestgreen", "indigo", "olivedrab",
+              "slategray", "pink", "salmon", "tan", "steelblue", "peru", "aquamarine",
+              "violet", "deepskyblue", "maroon", "gold", "forestgreen", "indigo", "olivedrab",
+              "slategray", "pink", "salmon", "tan", "steelblue", "peru", "aquamarine",
+              "violet", "deepskyblue", "maroon", "gold", "forestgreen", "indigo", "olivedrab",
+              "slategray", "pink", "salmon", "tan", "steelblue", "peru", "aquamarine"]
+
+    # Генерация движения
+    def get_rand_rvs(r_spread: float = 100, v_spread: float = 0.01):
+        r_lcl = np.random.uniform(-r_spread, r_spread, 3)
+        v_lcl = np.random.uniform(-v_spread, v_spread, 3)
+        c_lcl = np.random.uniform(0, 0.05 ** 2, 1)
+        return np.append(np.append(r_lcl, v_lcl), c_lcl).tolist()
+
+    rvs = []
+    C = []
+    ev = np.array([1., 0., 0.])
+    len_x = 9 if quaternion or quaternion_but_i_dont_give_a_fuck else 6
+    len_x_res = 9 if quaternion else 6
+    if aero:
+        rvs_rand = []
+        for i in range(n):
+            rvs += get_rand_rvs()
+            rvs_rand += get_rand_rvs()
+    else:
+        C_real = []
+        C_rand = []
+        for i in range(n):
+            tmp = get_rand_c(w=w, if_quaternion=quaternion or quaternion_but_i_dont_give_a_fuck)
+            C += tmp
+            C_real += tmp[0:len_x_res]
+            C_rand += get_rand_c(if_no=quaternion_but_i_dont_give_a_fuck and not quaternion, w=w,
+                                 if_quaternion=quaternion or quaternion_but_i_dont_give_a_fuck)
+
+    # Расчёт измерений
+    R = []
+    if aero:
+        rvs_copy = rvs.copy()
+        for j in np.linspace(0, t[-1], int(t[-1] // dt), endpoint=False):
+            r = []
+            time = j * dt
+            for i in range(n):
+                rvs_copy[i * 7:(i + 1) * 7] = get_integrate(rvs=rvs_copy[i * 7:(i + 1) * 7], dt=dt, h_orb=h_orb,
+                                                            v_orb=v_orb, w=w)
+            for t1 in t:
+                if time == t1:
+                    for i in range(n):
+                        r += rvs_copy[i * 7:i * 7 + 3]
+                    for i1 in range(n):
+                        for i2 in range(i1):
+                            dist_real = np.linalg.norm(r[i1]) if i1 == i2 else np.linalg.norm(r[i1] - r[i2])
+                            R += [dist_real * (1 + np.random.uniform(-r_noise, r_noise))]
+    else:
+        for j in t:
+            r = []
+            for i in range(n):
+                r += [np.array(r_hkw(C[i * len_x_res:i * len_x_res + 6], w, j))]
+            for i1 in range(n):
+                for i2 in range(i1 + 1):
+                    dist_real = np.linalg.norm(r[i1]) if i1 == i2 else np.linalg.norm(r[i1] - r[i2])
+                    if quaternion or quaternion_but_i_dont_give_a_fuck:
+                        g1 = get_gain(euler2rot_matrix(C[i1 * 9 + 6] / 30, C[i1 * 9 + 7] / 30, C[i1 * 9 + 8] / 30) @ ev)
+                        g2 = get_gain(euler2rot_matrix(C[i2 * 9 + 6] / 30, C[i2 * 9 + 7] / 30, C[i2 * 9 + 8] / 30) @ ev)
+                        signal_rate = g1 if i1 == i2 else g1 * g2
+
+                        dist_calc = dist_real * np.sqrt(signal_rate)
+                    else:
+                        dist_calc = dist_real
+                    R += [dist_calc * (1 + np.random.uniform(-r_noise, r_noise))]
+
+    # Отображение
+    x, y, z = ([], [], [])
+    ax = plt.figure(figsize=(7, 7)).add_subplot(projection='3d')
+    for i in range(n):
+        for j in t:
+            tmp = r_hkw(C[i * len_x:i * len_x + 6], w, j)
+            x += [tmp[0]]
+            y += [tmp[1]]
+            z += [tmp[2]]
+        x_, y_, z_ = ([], [], [])
+        for j in np.linspace(t[0], t[-1], 100):
+            tmp = r_hkw(C[i * len_x:i * len_x + 6], w, j)
+            x_ += [tmp[0]]
+            y_ += [tmp[1]]
+            z_ += [tmp[2]]
+        ax.plot(x_, y_, z_, c=colors[i])
+    ax.scatter(x, y, z)
+    plt.show()
+
+    def local_func(C_):
+        loss = 0
+        counter = 0
+        for j in t:
+            r = []
+            for i in range(n):
+                r += [np.array(r_hkw(C_[i * len_x_res:i * len_x_res + 6], w, j))]
+            for i1 in range(n):
+                for i2 in range(i1 + 1):
+                    dist_real = np.linalg.norm(r[i1]) if i1 == i2 else np.linalg.norm(r[i1] - r[i2])
+                    if quaternion and not quaternion_but_i_dont_give_a_fuck:
+                        g1 = get_gain(
+                            euler2rot_matrix(C_[i1 * 9 + 6] / 30, C_[i1 * 9 + 7] / 30, C_[i1 * 9 + 8] / 30) @ ev)
+                        g2 = get_gain(
+                            euler2rot_matrix(C_[i2 * 9 + 6] / 30, C_[i2 * 9 + 7] / 30, C_[i2 * 9 + 8] / 30) @ ev)
+                        signal_rate = g1 if i1 == i2 else g1 * g2
+                        dist_calc = dist_real * np.sqrt(signal_rate)
+                    else:
+                        dist_calc = dist_real
+                    R_ = dist_calc * (1 + np.random.uniform(-r_noise, r_noise))
+
+                    loss += (R_ - R[counter]) ** 2
+                    counter += 1
+        return loss / counter
+
+    x0 = np.array(C_rand) * random_rate + np.array(C_real) * (1 - random_rate)
+    res = scipy.optimize.minimize(local_func, x0, tol=1e-4, method='trust-constr',
+                                  options={'verbose': 3})
+    print(f"Результатики: {res.x}\nА надо бы {C}\n")
+
+    # Повторное отображение
+    ax = plt.figure(figsize=(7, 7)).add_subplot(projection='3d')
+    # x, y, z = ([], [], [])
+    for i in range(n):
+        '''for j in t:
+            tmp = r_hkw(C[i*len_x:i*len_x+6], w, j)
+            x += [tmp[0]]
+            y += [tmp[1]]
+            z += [tmp[2]]'''
+        x_, y_, z_ = ([], [], [])
+        for j in np.linspace(t[0], t[-1] * post_factor, show_factor):
+            tmp = r_hkw(C[i * len_x:i * len_x + 6], w, j)
+            x_ += [tmp[0]]
+            y_ += [tmp[1]]
+            z_ += [tmp[2]]
+        ax.plot(x_, y_, z_, c=colors[i])
+        x_, y_, z_ = ([], [], [])
+        for j in np.linspace(t[0], t[-1] * post_factor, show_factor):
+            tmp = r_hkw(res.x[i * len_x_res:i * len_x_res + 6], w, j)
+            x_ += [tmp[0]]
+            y_ += [tmp[1]]
+            z_ += [tmp[2]]
+        ax.plot(x_, y_, z_, c=colors[i], ls=":")
+    # ax.scatter(x, y, z)
+    ax.set_title("Траектории дейтвительные и расчитанные")
+    ax.set_xlabel("x, м")
+    ax.set_ylabel("y, м")
+    ax.set_zlabel("z, м")
+    plt.show()
+
+    max_value = 0.
+    for i in range(n):
+        a = []
+        for j in np.linspace(t[0], t[-1] * post_factor, 100):
+            tmp = np.array(r_hkw(C[i * len_x:i * len_x + 6], w, j)) - np.array(
+                r_hkw(res.x[i * len_x_res:i * len_x_res + 6], w, j))
+            a += [np.linalg.norm(tmp)]
+        plt.plot(np.linspace(t[0], t[-1] * post_factor, 100), a, c=colors[i])
+        max_value = max(max_value, np.max(a))
+    plt.title("Реальная ошибка")
+    plt.xlabel("Время, с")
+    plt.ylabel("Ошибка, м")
+    plt.show()
+
+    # Расчёт и отображение измерений ТУТ НЕТ УЧЁТА ПОВОРОТА и ДИАГРАММ НАПРАВЛЕННОСТЕЙ
+    loss = []
+    C_ = res.x.tolist()
+    for j in np.linspace(t[0], t[-1] * post_factor, 200):
+        counter = 0
+        tmp = 0
+        r = []
+        r_ = []
+        for i in range(n):
+            r += [np.array(r_hkw(C[i * len_x:i * len_x + 6], w, j))]
+            r_ += [np.array(r_hkw(res.x[i * len_x_res:i * len_x_res + 6], w, j))]
+        for i1 in range(n):
+            for i2 in range(i1):
+                dist_real = np.linalg.norm(r[i1]) if i1 == i2 else np.linalg.norm(r[i1] - r[i2])
+                if quaternion or quaternion_but_i_dont_give_a_fuck:
+                    g1 = get_gain(euler2rot_matrix(C[i1 * 9 + 6] / 30, C[i1 * 9 + 7] / 30, C[i1 * 9 + 8] / 30) @ ev)
+                    g2 = get_gain(euler2rot_matrix(C[i2 * 9 + 6] / 30, C[i2 * 9 + 7] / 30, C[i2 * 9 + 8] / 30) @ ev)
+                    signal_rate = g1 if i1 == i2 else g1 * g2
+
+                    dist_calc = dist_real * np.sqrt(signal_rate)
+                else:
+                    dist_calc = dist_real
+                R = dist_calc
+
+                dist_real = np.linalg.norm(r_[i1]) if i1 == i2 else np.linalg.norm(r_[i1] - r_[i2])
+                if quaternion and not quaternion_but_i_dont_give_a_fuck:
+                    g1 = get_gain(euler2rot_matrix(C_[i1 * 9 + 6] / 30, C_[i1 * 9 + 7] / 30, C_[i1 * 9 + 8] / 30) @ ev)
+                    g2 = get_gain(euler2rot_matrix(C_[i2 * 9 + 6] / 30, C_[i2 * 9 + 7] / 30, C_[i2 * 9 + 8] / 30) @ ev)
+                    signal_rate = g1 if i1 == i2 else g1 * g2
+                    dist_calc = dist_real * np.sqrt(signal_rate)
+                else:
+                    dist_calc = dist_real
+                R_ = dist_calc
+
+                tmp += (R_ - R) ** 2
+                counter += 1
+        loss += [np.sqrt(tmp / counter)]
+    for j in t:
+        plt.plot([j, j], [0, max_value], c='gray')
+    plt.plot([t[0], t[-1] * post_factor], [0, 0], c='gray')
+    plt.plot(np.linspace(t[0], t[-1] * post_factor, 200), loss)
+    plt.title("Расчётная ошибка")
+    plt.xlabel("Время, с")
+    plt.ylabel("Ошибка, м")
+    plt.show()
+
+    for j in t:
+        plt.plot([j, j], [0, np.max(loss)], c='gray')
+    plt.plot([t[0], t[-1] * post_factor], [0, 0], c='gray')
+    plt.plot(np.linspace(t[0], t[-1] * post_factor, 200), loss)
+    plt.title("Расчётная ошибка")
+    plt.xlabel("Время, с")
+    plt.ylabel("Ошибка, м")
+    plt.show()
+
+
+if __name__ == '__main__':
+    pass
+    params_search()
+    # do_tolerance_table()
