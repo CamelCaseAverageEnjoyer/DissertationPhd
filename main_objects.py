@@ -149,7 +149,9 @@ class CubeSat:
         if self.gain_mode == self.gain_modes[2]:
             return 1 - np.dot(r1, np.array([0, 0, 1]))**2
         if self.gain_mode == self.gain_modes[3] or (mode3 and self.gain_mode == self.gain_modes[4]):
-            return 2 - np.dot(r1, np.array([1, 0, 0]))**2 - np.dot(r1, np.array([0, 1, 0]))**2
+            # return 2 - np.dot(r1, np.array([1, 0, 0]))**2 - np.dot(r1, np.array([0, 1, 0]))**2
+            return 2 - np.linalg.norm(np.dot(r1, np.array([1, 0, 0]))) ** 2 - \
+                np.linalg.norm(np.dot(r1, np.array([0, 1, 0]))) ** 2
         if self.gain_mode == self.gain_modes[4] and not mode3:
             return [1 - np.dot(r1, np.array([1, 0, 0]))**2, 1 - np.dot(r1, np.array([0, 1, 0]))**2]
         return 1

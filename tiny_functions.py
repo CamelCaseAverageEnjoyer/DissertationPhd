@@ -18,6 +18,11 @@ def vec2quat(v):
     else:
         return [np.sqrt(1 - np.linalg.norm(v)**2), v[0], v[1], v[2]]
 
+def euler2rot_matrix(a: float, b: float, g: float):
+    return np.array([[np.cos(a), -np.sin(a), 0], [np.sin(a), np.cos(a), 0], [0, 0, 1]]) @ \
+        np.array([[1, 0, 0], [0, np.cos(b), -np.sin(b)], [0, np.sin(b), np.cos(b)]]) @ \
+        np.array([[np.cos(g), -np.sin(g), 0], [np.sin(g), np.cos(g), 0], [0, 0, 1]])
+
 def quart2dcm(L):
     """Функция ищет матрицу поворота из кватерниона поворота; \n
     Кватернион L передаётся вектором длины 4; \n
