@@ -1,9 +1,6 @@
 from colorama import Fore, Style
-from typing import Union
 from numpy.random import uniform
 from datetime import datetime
-# import scipy
-# import numpy as np
 # import kiam_astro
 
 from tiny_functions import *
@@ -521,9 +518,9 @@ class PhysicModel:
         return rv[0:3] + r, rv[3:6] + v
 
 class Objects:
-    def __init__(self, method_navigation: str, kalman_coef: dict, dt: float = 1, n_c: int = 1, n_f: int = 5,
-                 model_c: str = '1U', if_any_print: bool = True, start_navigation: str = 'perfect',
-                 start_navigation_tolerance: float = 0.9):
+    def __init__(self, method_navigation: str = None, kalman_coef: dict = None, dt: float = 1,
+                 n_c: int = 1, n_f: int = 5, model_c: str = '1U', if_any_print: bool = True,
+                 start_navigation: str = 'perfect', start_navigation_tolerance: float = 0.9):
         """Класс содержит информацию о n_c кубсатах и n_f фемтосатах. \n
         Размер n_c кубсатов определяется моделью model_c"""
         # Проверки на вшивость
