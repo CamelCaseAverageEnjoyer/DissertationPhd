@@ -543,5 +543,7 @@ class Objects:
         self.c = CubeSat(n=n_c, n_f=n_f, model=model_c, w_orb=self.w_orb)
         self.f = FemtoSat(n=n_f, start_navigation_tolerance=start_navigation_tolerance,
                           start_navigation=start_navigation, w_orb=self.w_orb)
-        self.p = PhysicModel(c=self.c, f=self.f, s=self.s, dt=dt, method_navigation=method_navigation,
-                             kalman_coef=kalman_coef, h_orb=self.h_orb)
+        self.p = PhysicModel(c=self.c, f=self.f, s=self.s, dt=dt,
+                             method_navigation='kalman_filter rv' if method_navigation is None else method_navigation,
+                             kalman_coef={'q': 1e-12, 'p': [1e-8] * 3, 'r': 1e-1}
+                             if kalman_coef is None else kalman_coef, h_orb=self.h_orb)
