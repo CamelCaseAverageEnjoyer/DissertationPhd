@@ -1,4 +1,4 @@
-"""НЕ УДАЛЯТЬ! Перебор параметров С по измерениям"""
+"""НЕ УДАЛЯТЬ! Перебор параметров С по измерениям!"""
 import matplotlib.pyplot as plt
 from tiny_functions import *
 from frases import *

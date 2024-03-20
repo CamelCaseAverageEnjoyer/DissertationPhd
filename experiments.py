@@ -1,3 +1,4 @@
+"""Здесь функции расчёта красивых графиков для красивых презентаций"""
 from typing import List, Any
 
 import matplotlib.pyplot as plt

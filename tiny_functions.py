@@ -1,3 +1,4 @@
+"""Функции размеров не столь отдалённых"""
 import numpy as np
 from typing import Union
 
