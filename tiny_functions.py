@@ -65,6 +65,15 @@ def vec2quat(v: Union[list, np.ndarray]) -> list:
     else:
         return [np.sqrt(1 - np.linalg.norm(v)**2), v[0], v[1], v[2]]
 
+def q_dot(L1, L2):
+    """Функция является кватернионным умножением; \n
+    Кватернион L1,L2 передаются векторами длины 4; \n
+    Возвращает кватернион L[0]..L[3]."""
+    return np.array([L1[0] * L2[0] - L1[1] * L2[1] - L1[2] * L2[2] - L1[3] * L2[3],
+                     L1[0] * L2[1] + L1[1] * L2[0] + L1[2] * L2[3] - L1[3] * L2[2],
+                     L1[0] * L2[2] + L1[2] * L2[0] + L1[3] * L2[1] - L1[1] * L2[3],
+                     L1[0] * L2[3] + L1[3] * L2[0] + L1[1] * L2[2] - L1[2] * L2[1]])
+
 def euler2rot_matrix(a: float, b: float, g: float) -> np.ndarray:
     return np.array([[np.cos(a), -np.sin(a), 0], [np.sin(a), np.cos(a), 0], [0, 0, 1]]) @ \
         np.array([[1, 0, 0], [0, np.cos(b), -np.sin(b)], [0, np.sin(b), np.cos(b)]]) @ \

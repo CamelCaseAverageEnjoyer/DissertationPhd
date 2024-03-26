@@ -117,10 +117,13 @@ def show_chipsats_and_cubesats(o, clr: str = 'lightpink', opacity: float = 1):
         data += show_cubesat(o, i)
     return go.Figure(data=data, layout=go.Layout(autosize=False, width=900, height=700))
 
-def plot_all(o):
+def plot_all(o, save: bool = False, count: int = None):
     f = show_chipsats_and_cubesats(o, clr='black')
     # f.update_traces(scatter3d=dict(width=3))
-    f.show()
+    if save:
+        f.write_image('img/' + str('{:04}'.format(count)) + '.jpg')
+    else:
+        f.show()
 
 def plot_signals(o):
     global TITLE_SIZE, CAPTION_SIZE
@@ -157,16 +160,7 @@ def plot_distance(o):
         axes = tmp[1:o.f.n][0]
         colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
                   'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
-                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy',
-                  'violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
-                  'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
-                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy',
-                  'violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
-                  'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
-                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy',
-                  'violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
-                  'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
-                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy']
+                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy'] * 10
         for i_c in range(o.c.n):
             for i_f in range(o.f.n):
                 x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
@@ -184,9 +178,13 @@ def plot_distance(o):
             axes[i_f1+1].set_ylabel(f"Ф №{i_f1+1}", fontsize=CAPTION_SIZE)
         plt.show()'''
 
-    fig, axes = plt.subplots(1, 1)
+    fig, ax = plt.subplots(2, 2 if o.p.k.orientation else 1, figsize=(15 if o.p.k.orientation else 8, 10))
+    axes = ax[0] if o.p.k.orientation else ax
     fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
-    colors = ['violet', 'blueviolet', 'forestgreen', 'cornflowerblue', 'peru', 'teal']
+    colors = ['violet', 'blueviolet', 'forestgreen', 'cornflowerblue', 'peru', 'teal', 'blueviolet', 'deeppink',
+              'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue',
+              'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy'] * 2
+    # line_styles = [':', '-', '--']
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
             labels = ["Ошибка дистанции (реальная)",
@@ -194,13 +192,45 @@ def plot_distance(o):
                       "Ошибка определения положения"] \
                 if i_f == 0 else [None for _ in range(100)]
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-            axes.plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
-                      c=colors[0], label=labels[0])
-            axes.plot(x, o.f.z_difference[i_f], c=colors[3], label=labels[1])
-            axes.plot(x, o.f.line_difference[i_f], c=colors[2], label=labels[2])
-        axes.set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-        axes.set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
-    plt.legend(fontsize=CAPTION_SIZE)
+            axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
+                         c=colors[0], label=labels[0])
+            axes[0].plot(x, o.f.z_difference[i_f], c=colors[3], label=labels[1])
+            axes[0].plot(x, [np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
+                         c=colors[2], label=labels[2])
+    axes[0].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+    axes[0].set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
+    axes[0].legend(fontsize=CAPTION_SIZE)
+    axes[0].grid(True)
+
+    for i_c in range(o.c.n):
+        for i_f in range(o.f.n):
+            labels = ["ΔX", "ΔY", "ΔZ"]
+            x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+            for j in range(3):
+                axes[1].plot(x, [o.f.line_difference[i_f][i][j] for i in range(len(x))],
+                             c=colors[j+3], label=labels[j] if i_f == 0 else None)
+    axes[1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+    axes[1].set_ylabel(f"Компоненты r, м", fontsize=CAPTION_SIZE)
+    axes[1].legend(fontsize=CAPTION_SIZE)
+    axes[1].grid(True)
+
+    if o.p.k.orientation:
+        for i_c in range(o.c.n):
+            for i_f in range(o.f.n):
+                labels_q = ["ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]  # "ΔΛ⁰",
+                labels_w = ["Δωˣ", "Δωʸ", "Δωᶻ"]  # "ΔΛ⁰",
+                x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+                for j in range(3):
+                    ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][j] for i in range(len(x))],
+                                  c=colors[j+3], label=labels_q[j] if i_f == 0 else None)
+                    ax[1][1].plot(x, [o.f.spin_difference[i_f][i][j] for i in range(len(x))],
+                                  c=colors[j+3], label=labels_w[j] if i_f == 0 else None)
+        ax[1][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
+        ax[1][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
+        for j in range(2):
+            ax[1][j].legend(fontsize=CAPTION_SIZE)
+            ax[1][j].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+            ax[1][j].grid(True)
     plt.show()
 
 def plot_sigmas(o):
