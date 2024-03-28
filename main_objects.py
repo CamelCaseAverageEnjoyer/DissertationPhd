@@ -98,7 +98,7 @@ class FemtoSat:
         return 1
 
 class CubeSat:
-    def __init__(self, w_orb: float, n_f: int, n: int = 1, model: str = '1U', r_spread: float = 1e-1,
+    def __init__(self, w_orb: float, n_f: int, n: int = 1, model: str = '1U', r_spread: float = 1e1,
                  v_spread: float = 1e-4):
         """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.\n
         Все величны представлены в СИ."""
@@ -217,12 +217,13 @@ class KalmanFilter:
         if not self.single_femto_filter:  # Расширешние на учёт несколько аппаратов в фильтре
             self.phi_ = np.bmat([[np.zeros([t, t])] * i + [self.phi_] +
                                  [np.zeros([t, t])] * (self.f.n - i - 1) for i in range(self.f.n)])
-            self.q_ = np.bmat([[np.zeros([3, 3])] * i + [self.q_] +
-                               [np.zeros([3, 3])] * (self.f.n - i - 1) for i in range(self.f.n)])
+            tmp = 6 if self.orientation else 3
+            self.q_ = np.bmat([[np.zeros([tmp, tmp])] * i + [self.q_] +
+                               [np.zeros([tmp, tmp])] * (self.f.n - i - 1) for i in range(self.f.n)])
             self.p_ = np.bmat([[np.zeros([t, t])] * i + [self.p_[0]] +
                                [np.zeros([t, t])] * (self.f.n - i - 1) for i in range(self.f.n)])
-            self.d_ = np.bmat([[np.zeros([t, 3])] * i + [self.d_] +
-                               [np.zeros([t, 3])] * (self.f.n - i - 1) for i in range(self.f.n)])
+            self.d_ = np.bmat([[np.zeros([t, tmp])] * i + [self.d_] +
+                               [np.zeros([t, tmp])] * (self.f.n - i - 1) for i in range(self.f.n)])
             # self.d_ = np.bmat([[self.d_] for i in range(self.f.n)])
 
     def calc(self, i: int) -> None:
@@ -292,10 +293,12 @@ class KalmanFilter:
             """
             r_ = self.r_orf_estimation
             rv_m = [self.p.aero_integrate(self.f, i=i, r=r_[i][0:3], v=r_[i][3:6]) for i in range(self.f.n)]
-            thw = [self.p.attitude_integrate(self.f, i=i, th=r_[i][6:10], w=np.zeros(3)) for i in range(self.f.n)]
-            r_m = np.array(flatten([np.append(rv_m[i][0], rv_m[i][1]) if not self.orientation else
-                                    np.append(np.append(np.append(rv_m[i][0], rv_m[i][1]), thw[i][0]), thw[i][1])
-                                    for i in range(self.f.n)]))
+            if self.orientation:
+                thw = [self.p.attitude_integrate(self.f, i=i, th=r_[i][6:10], w=r_[i][10:13]) for i in range(self.f.n)]
+                r_m = np.array(flatten([np.append(np.append(np.append(rv_m[i][0], rv_m[i][1]), thw[i][0]), thw[i][1])
+                                        for i in range(self.f.n)]))
+            else:
+                r_m = np.array(flatten([np.append(rv_m[i][0], rv_m[i][1]) for i in range(self.f.n)]))
         else:
             r_ = np.array(flatten(self.r_orf_estimation))
             r_m = np.array(self.phi_ @ r_)[0]  # 6t_6t @ 6t -> 6t
@@ -307,7 +310,7 @@ class KalmanFilter:
                                     for i in range(self.f.n)] +
                                    flatten([[self.f.get_gain(quart2dcm(r_m[t*i+6:t*i+10])
                                                              @ (r_m[t*i+0:t*i+3] - r_m[t*j+0:t*j+3])) *
-                                             self.f.get_gain(quart2dcm(r_m[t*j+6:t*j+9])
+                                             self.f.get_gain(quart2dcm(r_m[t*j+6:t*j+10])
                                                              @ (r_m[t*i+0:t*i+3] - r_m[t*j+0:t*j+3]))
                                              for i in range(j)] for j in range(self.f.n)]))
         else:
@@ -329,6 +332,7 @@ class KalmanFilter:
                 return t * [0.]
 
         h_ = np.vstack([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(ll)])
+        # print(f"Ф: {self.phi_.shape}, D: {self.d_.shape}, Q: {self.q_.shape}")
         q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt  # nt_nt
         p_m = self.phi_ @ self.p_ @ self.phi_.T + q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
 
