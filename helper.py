@@ -1,7 +1,7 @@
 """НЕ УДАЛЯТЬ! Перебор параметров С по измерениям!"""
 import matplotlib.pyplot as plt
 from tiny_functions import *
-from frases import *
+from cosmetic import *
 
 Radius_orbit = 6800e3
 mu = 5.972e24 * 6.67408e-11

@@ -1,12 +1,16 @@
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
 # import plotly.express as px
-
 from tiny_functions import *
+
+
 FEMTO_RATE = 1e2
 CUBE_RATE = 1e2
 TITLE_SIZE = 15  # 15
 CAPTION_SIZE = 13  # 13
+rcParams["savefig.directory"] = "/home/kodiak/Desktop"
+rcParams["savefig.format"] = "jpg"
 
 def show_chipsat(o, j, clr, opacity):
     global FEMTO_RATE

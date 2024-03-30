@@ -2,8 +2,18 @@ import random
 import os
 from gtts import gTTS
 from playsound import playsound
-from colorama import Fore
+import colorama
 
+
+def my_print(txt: str, color: str = None, if_print: bool = True) -> None:
+    """Функция вывода цветного текста
+    :param txt: Выводимый текст
+    :param color: Цвет текста {b, g, y, r, c, m}
+    :param if_print: Флаг вывода для экономии места"""
+    color_bar = {"b": colorama.Fore.BLUE, "g": colorama.Fore.GREEN, "y": colorama.Fore.YELLOW, "r": colorama.Fore.RED,
+                 "c": colorama.Fore.CYAN, "m": colorama.Fore.MAGENTA, None: colorama.Style.RESET_ALL}
+    if if_print and color in color_bar.keys():
+        print(color_bar[color] + txt + colorama.Style.RESET_ALL)
 
 # noinspection SpellCheckingInspection
 def rand_txt():
