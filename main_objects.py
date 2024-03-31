@@ -6,6 +6,7 @@ from plot_func import *
 from cosmetic import *
 
 SHAMANISM = {"KalmanQuaternionNormalize": True,   # Нормировка кватернионов в фильтре Калмана
+             "KalmanSpinLimit": [True, 1e-3],  # Ограничение скорости вращения
              "ClohessyWiltshireC1=0": True}  # Траектории без дрейфа (без учёта аэродинамики)
 GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas']
 NAVIGATIONS = ['perfect', 'near', 'random']
@@ -23,7 +24,9 @@ def get_dipoles(r, ind: str):
     aside = ((r[1] + r[2]) * int(ind == 'x') +
              (r[0] + r[2]) * int(ind == 'y') +
              r[2] * int(ind == 'z'))
-    return np.cos(cos_a * np.pi / 2) / sin_a + DISTORTION * cos_a ** 2 + DISTORTION * aside
+    if abs(sin_a) > 1e-4:
+        return np.cos(cos_a * np.pi / 2) / sin_a + DISTORTION * cos_a ** 2 + DISTORTION * aside
+    return 1e-4 + DISTORTION * cos_a ** 2 + DISTORTION * aside
 
 def get_gain(o, r: Union[float, np.ndarray], mode3: bool = False):
     r1 = r / np.linalg.norm(r)
@@ -141,7 +144,8 @@ class KalmanFilter:
 
         # Матрицы фильтра в начальный момент времени
         if not self.orientation:
-            self.r_orf_estimation = np.array([f.rv_orf_calc[i][0:6] for i in range(f.n)])
+            self.r_orf_estimation = np.array([np.append(f.rv_orf_calc[i][0:3],
+                                                        f.rv_orf_calc[i][7:10]) for i in range(f.n)])
             self.phi_ = np.array([[1, 0, 0, dt, 0, 0],
                                   [0, 1, 0, 0, dt, 0],
                                   [0, 0, 1, 0, 0, dt],
@@ -196,7 +200,7 @@ class KalmanFilter:
         z_ = self.c.calc_dist[0][i][-1]
         r_ = self.r_orf_estimation[i]
         if self.p.is_aero:
-            rv_m = self.p.aero_integrate(self.f, i=i, r=r_[0:3], v=r_[3:6] if self.orientation else r_[7:10])
+            rv_m = self.p.aero_integrate(self.f, i=i, r=r_[0:3], v=r_[7:10] if self.orientation else r_[3:6])
             if self.orientation:
                 thw = self.p.attitude_integrate(self.f, i=i, th=r_[3:7], w=r_[10:13])
                 r_m = np.append(np.append(np.append(rv_m[0], thw[0]), rv_m[1]), thw[1])
@@ -245,8 +249,11 @@ class KalmanFilter:
             k_ = p_m @ h_.T / (h_ @ p_m @ h_.T + self.r_matrix)
             tmp = r_m + k_ * (z_ - z_model)
             self.p_[i] = (np.eye(self.t) - np.outer(k_, h_)) @ p_m
-        if SHAMANISM["KalmanQuaternionNormalize"]:
+        if SHAMANISM["KalmanQuaternionNormalize"] and self.orientation:
             tmp[3:7] = tmp[3:7] / np.linalg.norm(tmp[3:7])
+        if SHAMANISM["KalmanSpinLimit"][0] and self.orientation and \
+                np.linalg.norm(tmp[10:13]) > SHAMANISM["KalmanSpinLimit"][1]:
+            tmp[10:13] = tmp[10:13] / np.linalg.norm(tmp[10:13]) * SHAMANISM["KalmanSpinLimit"][1]
         self.r_orf_estimation[i] = tmp
 
     def calc_all(self, i_c: int = 0) -> None:
@@ -259,11 +266,11 @@ class KalmanFilter:
                       [self.f.calc_dist[j][i][-1] for i in range(j)] for j in range(self.f.n)]))
         if self.p.is_aero:
             r_ = self.r_orf_estimation
-            rv_m = [self.p.aero_integrate(self.f, i=i, r=r_[i][0:3], v=r_[i][3:6] if self.orientation else r_[i][7:10])
+            rv_m = [self.p.aero_integrate(self.f, i=i, r=r_[i][0:3], v=r_[i][7:10] if self.orientation else r_[i][3:6])
                     for i in range(self.f.n)]
             if self.orientation:
                 thw = [self.p.attitude_integrate(self.f, i=i, th=r_[i][3:7], w=r_[i][10:13]) for i in range(self.f.n)]
-                r_m = np.array(flatten([np.append(np.append(np.append(rv_m[i][0], rv_m[i][1]), thw[i][0]), thw[i][1])
+                r_m = np.array(flatten([np.append(np.append(np.append(rv_m[i][0], thw[i][0]), rv_m[i][1]), thw[i][1])
                                         for i in range(self.f.n)]))
             else:
                 r_m = np.array(flatten([np.append(rv_m[i][0], rv_m[i][1]) for i in range(self.f.n)]))
@@ -277,21 +284,20 @@ class KalmanFilter:
                     thw = self.p.attitude_integrate(self.f, i=i, th=r__[3:7], w=r__[10:13])
                     r_m[self.t*i+3:self.t*i+7], r_m[self.t*i+10:self.t*i+13] = (thw[0], thw[1])
 
-        if self.orientation:
-            signal_rate = np.array([get_gain(self.f, quart2dcm(r_m[self.t*i+3:self.t*i+7]) @
-                                             (r_m[self.t*i+0:self.t*i+3] - self.c.r_orf[i_c])) *
-                                    get_gain(self.c, quart2dcm(self.c.q[i_c]) @
-                                             (r_m[self.t*i+0:self.t*i+3] - self.c.r_orf[i_c]))
-                                    for i in range(self.f.n)] +
-                                   flatten([[get_gain(self.f, quart2dcm(r_m[self.t*i+3:self.t*i+7])
-                                                             @ (r_m[self.t*i+0:self.t*i+3] -
-                                                                r_m[self.t*j+0:self.t*j+3])) *
-                                             get_gain(self.f, quart2dcm(r_m[self.t*j+3:self.t*j+7])
-                                                             @ (r_m[self.t*i+0:self.t*i+3] -
-                                                                r_m[self.t*j+0:self.t*j+3]))
-                                             for i in range(j)] for j in range(self.f.n)]))
-        else:
-            signal_rate = np.array([1] * int(self.f.n * (self.f.n + 1) // 2))
+        signal_rate = np.array([get_gain(self.f, quart2dcm(r_m[self.t*i+3:self.t*i+7]) @
+                                         (r_m[self.t*i+0:self.t*i+3] - self.c.r_orf[i_c])) *
+                                get_gain(self.c, quart2dcm(self.c.q[i_c]) @
+                                         (r_m[self.t*i+0:self.t*i+3] - self.c.r_orf[i_c]))
+                                for i in range(self.f.n)] +
+                               flatten([[get_gain(self.f, quart2dcm(r_m[self.t*i+3:self.t*i+7])
+                                                         @ (r_m[self.t*i+0:self.t*i+3] -
+                                                            r_m[self.t*j+0:self.t*j+3])) *
+                                         get_gain(self.f, quart2dcm(r_m[self.t*j+3:self.t*j+7])
+                                                         @ (r_m[self.t*i+0:self.t*i+3] -
+                                                            r_m[self.t*j+0:self.t*j+3]))
+                                         for i in range(j)] for j in range(self.f.n)])) \
+            if self.orientation else np.array([1] * int(self.f.n * (self.f.n + 1) // 2))
+
         z_model = np.array([np.linalg.norm(r_m[0+self.t*i:3+self.t*i] - self.c.r_orf[0]) for i in range(self.f.n)] +
                            flatten([[np.linalg.norm(r_m[0+self.t*j:3+self.t*j] - r_m[0+self.t*i:3+self.t*i])
                                      for i in range(j)] for j in range(self.f.n)]))
@@ -318,9 +324,11 @@ class KalmanFilter:
         self.p_ = (np.eye(self.t * self.f.n) - k_ @ h_) @ p_m
         r_orf_estimation = np.matrix(r_m) + k_ @ (z_ - z_model)
         for i in range(self.f.n):
-            tmp = np.array(r_orf_estimation)[0][0+i*self.t:self.t+i*self.t]
+            tmp = np.array(r_orf_estimation)[i_c][0+i*self.t:self.t+i*self.t]
             if SHAMANISM["KalmanQuaternionNormalize"]:
                 tmp[3:7] = tmp[3:7] / np.linalg.norm(tmp[3:7])
+            if SHAMANISM["KalmanSpinLimit"][0] and np.linalg.norm(tmp[10:13]) > SHAMANISM["KalmanSpinLimit"][1]:
+                tmp[10:13] = tmp[10:13] / np.linalg.norm(tmp[10:13]) * SHAMANISM["KalmanSpinLimit"][1]
             self.r_orf_estimation[i] = tmp
 
 class PhysicModel:
@@ -458,7 +466,7 @@ class PhysicModel:
         if self.k.single_femto_filter:
             for i in range(self.f.n):
                 self.k.calc(i)
-                if self.c.gain_mode != GAIN_MODES[4]:  # 3
+                if self.c.gain_mode != GAIN_MODES[4]:
                     for j_n in range(self.f.n):
                         for j_t in range(9 if self.k.orientation else 3):  # range(self.k.t)
                             tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
