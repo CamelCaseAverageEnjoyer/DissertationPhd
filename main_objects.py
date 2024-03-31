@@ -55,20 +55,20 @@ class FemtoSat:
         self.r_orf = [uniform(-r_spread, r_spread, 3) for _ in range(self.n)]
         self.v_orf = [uniform(-v_spread, v_spread, 3) for _ in range(self.n)]
         self.w_orf = [uniform(-w_spread, w_spread, 3) for _ in range(self.n)]
-        self.q = [uniform(-1, 1, 4) for _ in range(self.n)]
-        self.q_ = [uniform(-1, 1, 4) for _ in range(self.n)]
+        self.q, self.q_ = [[uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
+        self.c_hkw, self.line, self.line_kalman, self.line_difference, self.attitude_difference, self.spin_difference, \
+            self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
+        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_ = \
+            [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
         for i in range(self.n):
             if SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * w_orb
             self.q[i] /= np.linalg.norm(self.q[i])
             self.q_[i] /= np.linalg.norm(self.q_[i])
-        self.c_hkw, self.line, self.line_kalman, self.line_difference, self.attitude_difference, self.spin_difference, \
-            self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
-        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_ = \
-            [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
-        prm_poor = [np.append(np.append(np.append(uniform(-r_spread, r_spread, 3), uniform(-v_spread, v_spread, 3)),
-                                        self.q_[i]), uniform(-w_spread, w_spread, 3)) for i in range(self.n)]
-        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.v_orf[i]), self.q[i]), self.w_orf[i])
+        prm_poor = [np.append(np.append(np.append(uniform(-r_spread, r_spread, 3), self.q_[i]),
+                                        uniform(-v_spread, v_spread, 3)), uniform(-w_spread, w_spread, 3))
+                    for i in range(self.n)]
+        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_orf[i])
                     for i in range(self.n)]
 
         # Параметры начального приближения
@@ -106,16 +106,15 @@ class CubeSat:
         # Индивидуальные параметры
         self.r_orf = [uniform(-r_spread, r_spread, 3) for _ in range(self.n)]
         self.v_orf = [uniform(-v_spread, v_spread, 3) for _ in range(self.n)]
-        self.c_hkw = [[] for _ in range(self.n)]
         self.w_orf = [uniform(-w_spread, w_spread, 3) for _ in range(self.n)]
         self.q = [np.array([uniform(-1, 1) for _ in range(4)]) for _ in range(self.n)]
+        self.c_hkw, self.line = [[[] for _ in range(self.n)] for _ in range(2)]
+        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_, self.kalm_dist = \
+            [[[[] for _ in range(n_f)] for _ in range(self.n)] for _ in range(5)]
         for i in range(self.n):
             if SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * w_orb
             self.q[i] /= np.linalg.norm(self.q[i])
-        self.line = [[] for _ in range(self.n)]
-        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_, self.kalm_dist = \
-            [[[[] for _ in range(n_f)] for _ in range(self.n)] for _ in range(5)]
 
         # Прорисовка ножек
         self.legs_x = 0.0085
@@ -124,8 +123,6 @@ class CubeSat:
 class KalmanFilter:
     def __init__(self, f: FemtoSat, c: CubeSat, p, dt: float, w_orb: float, kalman_coef: dict,
                  orientation: bool = False, single_femto_filter: bool = True):
-        # Изменяемые параметры
-        self.t = 13 if orientation else 6
 
         # Общие параметры
         self.f = f  # Фемтоспутники
@@ -138,7 +135,9 @@ class KalmanFilter:
         self.r_matrix = kalman_coef['r']
         self.orientation = orientation
         self.single_femto_filter = single_femto_filter
+        self.t = len(f.rv_orf_calc[0]) if orientation else 6
         self.sequence_under_diagonal = flatten([[[i, j] for i in range(j)] for j in range(self.f.n)])
+        self.sigmas, self.real_sigmas = [[[] for _ in range(self.t * self.f.n)] for _ in range(2)]
 
         # Матрицы фильтра в начальный момент времени
         if not self.orientation:
@@ -154,33 +153,29 @@ class KalmanFilter:
             self.q_ = np.diag([self.q_coef[0]]*3)
         else:  # 'rvq'
             self.r_orf_estimation = np.array(f.rv_orf_calc)
-            self.phi_ = np.array([[1, 0, 0, dt, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 1, 0, 0, dt, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 1, 0, 0, dt, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 1, 0, -2 * w_orb * dt, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, -w_orb ** 2 * dt, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 3 * w_orb ** 2 * dt,  2 * w_orb * dt, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+            self.phi_ = np.array([[1, 0, 0, 0, 0, 0, 0, dt, 0, 0, 0, 0, 0],
+                                  [0, 1, 0, 0, 0, 0, 0, 0, dt, 0, 0, 0, 0],
+                                  [0, 0, 1, 0, 0, 0, 0, 0, 0, dt, 0, 0, 0],
+                                  [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                  [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+                                  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
                                   [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+                                  [0, 0, 0, 0, 0, 0, 0, 1, 0, -2 * w_orb * dt, 0, 0, 0],
+                                  [0, -w_orb ** 2 * dt, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                                  [0, 0, 3 * w_orb ** 2 * dt, 0, 0, 0, 0, 2 * w_orb * dt, 0, 1, 0, 0, 0],
                                   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
                                   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
                                   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]])
-            self.d_ = np.vstack([np.hstack([np.zeros((3, 3)), np.zeros((3, 3))]),  # ВЕРНУТЬСЯ СЮДА
-                                 np.hstack([np.zeros((3, 3)), np.eye(3)]),
-                                 np.hstack([np.eye(4), np.zeros((4, 2))]),
-                                 np.hstack([np.zeros((3, 3)), np.eye(3)])])
-            # self.d_ = np.vstack([np.zeros((6, 6)),
-            #                      np.hstack([np.eye(3), np.zeros((3, 3))]),
-            #                      np.hstack([np.zeros((3, 3)), np.eye(3)])])
-            self.p_ = [np.diag([self.p_coef[0]]*3 + [self.p_coef[1]]*3 + [self.p_coef[2]]*4 + [self.p_coef[3]]*3)
+            self.p_ = [np.diag([self.p_coef[0]]*3 + [self.p_coef[2]]*4 + [self.p_coef[1]]*3 + [self.p_coef[3]]*3)
                        for _ in range(f.n)]
+            # self.d_ = np.vstack([np.zeros((10, 6)), np.hstack([np.eye(3), np.eye(3)])])
+            self.d_ = np.vstack([np.zeros((7, 6)),
+                                 np.hstack([np.eye(3), np.zeros((3, 3))]),
+                                 np.hstack([np.eye(3), np.eye(3)])])
             self.q_ = np.diag([self.q_coef[0]]*3 + [self.q_coef[1]]*3)
 
-        self.sigmas = [[] for _ in range(self.t * self.f.n)]
-        self.real_sigmas = [[] for _ in range(self.t * self.f.n)]
-        if not self.single_femto_filter:  # Расширешние на учёт несколько аппаратов в фильтре
+        # Расширешние на учёт несколько аппаратов в фильтре
+        if not self.single_femto_filter:
             self.phi_ = np.bmat([[np.zeros([self.t, self.t])] * i + [self.phi_] +
                                  [np.zeros([self.t, self.t])] * (self.f.n - i - 1) for i in range(self.f.n)])
             tmp = 6 if self.orientation else 3
@@ -192,27 +187,31 @@ class KalmanFilter:
                                [np.zeros([self.t, tmp])] * (self.f.n - i - 1) for i in range(self.f.n)])
             # self.d_ = np.bmat([[self.d_] for i in range(self.f.n)])
 
-    def calc(self, i: int) -> None:
+    def calc(self, i: int, i_c: int = 0) -> None:
         """
-        :param i: ID-номер материнского CubeSat
+        :param i: ID-номер дочернего FemtoSat
+        :param i_c: ID-номер дочернего CubeSat
         :return: None
         """
         z_ = self.c.calc_dist[0][i][-1]
         r_ = self.r_orf_estimation[i]
         if self.p.is_aero:
-            rv_m = self.p.aero_integrate(self.f, i=i, r=r_[0:3], v=r_[3:6])
+            rv_m = self.p.aero_integrate(self.f, i=i, r=r_[0:3], v=r_[3:6] if self.orientation else r_[7:10])
             if self.orientation:
-                thw = self.p.attitude_integrate(self.f, i=i, th=r_[6:10], w=r_[10:13])
-                r_m = np.append(np.append(np.append(rv_m[0], rv_m[1]), thw[0]), thw[1])
+                thw = self.p.attitude_integrate(self.f, i=i, th=r_[3:7], w=r_[10:13])
+                r_m = np.append(np.append(np.append(rv_m[0], thw[0]), rv_m[1]), thw[1])
             else:
                 r_m = np.append(rv_m[0], rv_m[1])
         else:
             r_m = self.phi_ @ r_
+            if self.orientation:
+                thw = self.p.attitude_integrate(self.f, i=i, th=r_[3:7], w=r_[10:13])
+                r_m[3:7], r_m[10:13] = (thw[0], thw[1])
 
         if self.c.gain_mode == GAIN_MODES[4]:
             if self.orientation:
-                tmp1 = get_gain(self.c, quart2dcm(self.c.q) @ np.array(self.c.r_orf[i] - r_m[0:3]))
-                tmp2 = get_gain(self.f, quart2dcm(r_m[6:10]) @ np.array(self.c.r_orf[i] - r_m[0:3]), mode3=True)
+                tmp1 = get_gain(self.c, quart2dcm(self.c.q[i_c]) @ np.array(self.c.r_orf[i] - r_m[0:3]))
+                tmp2 = get_gain(self.f, quart2dcm(r_m[3:7]) @ np.array(self.c.r_orf[i] - r_m[0:3]), mode3=True)
                 signal_rate = [tmp1[ii] * tmp2 for ii in range(2)]
                 z_model = np.array([np.linalg.norm(r_m[0:3] - self.c.r_orf[0]) / np.sqrt(signal_rate[i])
                                     for i in range(2)])
@@ -232,8 +231,9 @@ class KalmanFilter:
             tmp = r_m + k_ @ (z_ - z_model)
             self.p_[i] = (np.eye(self.t) - k_ @ h_) @ p_m
         else:
-            signal_rate = get_gain(self.c, quart2dcm(self.c.q[i]) @ np.array(self.c.r_orf[i] - r_m[0:3])) * \
-                get_gain(self.f, quart2dcm(r_m[6:10]) @ np.array(self.c.r_orf[i] - r_m[0:3])) \
+            # print(f"r_m:{len(r_m)}, c.q:{len(self.c.q)}, r_orf:{len(self.c.r_orf)}, i={i}")
+            signal_rate = get_gain(self.c, quart2dcm(self.c.q[i_c]) @ np.array(self.c.r_orf[i_c] - r_m[0:3])) * \
+                get_gain(self.f, quart2dcm(r_m[3:7]) @ np.array(self.c.r_orf[i_c] - r_m[0:3])) \
                 if self.orientation else 1
             z_model = np.linalg.norm(r_m[0:3] - self.c.r_orf[0])
             z_ *= np.sqrt(signal_rate)
@@ -246,7 +246,7 @@ class KalmanFilter:
             tmp = r_m + k_ * (z_ - z_model)
             self.p_[i] = (np.eye(self.t) - np.outer(k_, h_)) @ p_m
         if SHAMANISM["KalmanQuaternionNormalize"]:
-            tmp[6:10] = tmp[6:10] / np.linalg.norm(tmp[6:10])
+            tmp[3:7] = tmp[3:7] / np.linalg.norm(tmp[3:7])
         self.r_orf_estimation[i] = tmp
 
     def calc_all(self, i_c: int = 0) -> None:
@@ -258,33 +258,35 @@ class KalmanFilter:
         z_ = np.array([self.c.calc_dist[0][i][-1] for i in range(self.f.n)] + flatten([
                       [self.f.calc_dist[j][i][-1] for i in range(j)] for j in range(self.f.n)]))
         if self.p.is_aero:
-            """
-            rv_m = self.p.aero_integrate(self.f, i=i, r=r_[0:3], v=r_[3:6])
-            thw = self.p.attitude_integrate(self.f, i=i, th=r_[6:9], w=np.zeros(3))
-            r_m = np.append(rv_m[0], rv_m[1]) if t == 6 else np.append(np.append(rv_m[0], rv_m[1]), thw[0])
-            """
             r_ = self.r_orf_estimation
-            rv_m = [self.p.aero_integrate(self.f, i=i, r=r_[i][0:3], v=r_[i][3:6]) for i in range(self.f.n)]
+            rv_m = [self.p.aero_integrate(self.f, i=i, r=r_[i][0:3], v=r_[i][3:6] if self.orientation else r_[i][7:10])
+                    for i in range(self.f.n)]
             if self.orientation:
-                thw = [self.p.attitude_integrate(self.f, i=i, th=r_[i][6:10], w=r_[i][10:13]) for i in range(self.f.n)]
+                thw = [self.p.attitude_integrate(self.f, i=i, th=r_[i][3:7], w=r_[i][10:13]) for i in range(self.f.n)]
                 r_m = np.array(flatten([np.append(np.append(np.append(rv_m[i][0], rv_m[i][1]), thw[i][0]), thw[i][1])
                                         for i in range(self.f.n)]))
             else:
                 r_m = np.array(flatten([np.append(rv_m[i][0], rv_m[i][1]) for i in range(self.f.n)]))
         else:
             r_ = np.array(flatten(self.r_orf_estimation))
-            r_m = np.array(self.phi_ @ r_)[0]  # 6t_6t @ 6t -> 6t
+            r_m = np.array(self.phi_ @ r_)[i_c]  # 6t_6t @ 6t -> 6t
+            # r_m = self.phi_ @ r_
+            if self.orientation:
+                for i in range(self.f.n):
+                    r__ = self.r_orf_estimation[i]
+                    thw = self.p.attitude_integrate(self.f, i=i, th=r__[3:7], w=r__[10:13])
+                    r_m[self.t*i+3:self.t*i+7], r_m[self.t*i+10:self.t*i+13] = (thw[0], thw[1])
 
         if self.orientation:
-            signal_rate = np.array([get_gain(self.f, quart2dcm(r_m[self.t*i+6:self.t*i+10]) @
+            signal_rate = np.array([get_gain(self.f, quart2dcm(r_m[self.t*i+3:self.t*i+7]) @
                                              (r_m[self.t*i+0:self.t*i+3] - self.c.r_orf[i_c])) *
                                     get_gain(self.c, quart2dcm(self.c.q[i_c]) @
                                              (r_m[self.t*i+0:self.t*i+3] - self.c.r_orf[i_c]))
                                     for i in range(self.f.n)] +
-                                   flatten([[get_gain(self.f, quart2dcm(r_m[self.t*i+6:self.t*i+10])
+                                   flatten([[get_gain(self.f, quart2dcm(r_m[self.t*i+3:self.t*i+7])
                                                              @ (r_m[self.t*i+0:self.t*i+3] -
                                                                 r_m[self.t*j+0:self.t*j+3])) *
-                                             get_gain(self.f, quart2dcm(r_m[self.t*j+6:self.t*j+10])
+                                             get_gain(self.f, quart2dcm(r_m[self.t*j+3:self.t*j+7])
                                                              @ (r_m[self.t*i+0:self.t*i+3] -
                                                                 r_m[self.t*j+0:self.t*j+3]))
                                              for i in range(j)] for j in range(self.f.n)]))
@@ -308,7 +310,6 @@ class KalmanFilter:
                 return self.t * [0.]
 
         h_ = np.vstack([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(ll)])
-        # print(f"Ф: {self.phi_.shape}, D: {self.d_.shape}, Q: {self.q_.shape}")
         q_tilda = self.phi_ @ self.d_ @ self.q_ @ self.d_.T @ self.phi_.T * self.dt  # nt_nt
         p_m = self.phi_ @ self.p_ @ self.phi_.T + q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
 
@@ -319,7 +320,7 @@ class KalmanFilter:
         for i in range(self.f.n):
             tmp = np.array(r_orf_estimation)[0][0+i*self.t:self.t+i*self.t]
             if SHAMANISM["KalmanQuaternionNormalize"]:
-                tmp[6:10] = tmp[6:10] / np.linalg.norm(tmp[6:10])
+                tmp[3:7] = tmp[3:7] / np.linalg.norm(tmp[3:7])
             self.r_orf_estimation[i] = tmp
 
 class PhysicModel:
@@ -353,7 +354,7 @@ class PhysicModel:
         self.k = KalmanFilter(f=f, c=c, p=self, dt=self.dt, w_orb=self.w_orb, kalman_coef=kalman_coef,
                               orientation='rvq' in self.navigation, single_femto_filter='all' not in self.navigation)
 
-        # Подгон чтобы не разлеталися (C_1=0 у всех)
+        # Расчёт движения Хилла-Клохесси-Уилтшира
         self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], self.w_orb) for i in range(self.c.n)]
         self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], self.w_orb) for i in range(self.f.n)]
 
@@ -416,7 +417,6 @@ class PhysicModel:
 
         # Расчёт связи
         for i_c in range(self.c.n):
-            # S_c = quart2dcm(self.c.q[i_c])
             for i_f in range(self.f.n):
                 r_tmp = self.f.r_orf[i_f] - self.c.r_orf[i_c]
                 self.c.real_dist[i_c][i_f] += [np.linalg.norm(r_tmp)]
@@ -435,9 +435,9 @@ class PhysicModel:
                     self.f.line_difference[i_f] += \
                         [np.array(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
                     if self.k.orientation:
-                        self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][6:9]
-                                                            - np.array(self.f.q[i_f][1:4])]
-                        self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][9:12]
+                        self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:7]
+                                                            - np.array(self.f.q[i_f])]
+                        self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][10:13]
                                                         - np.array(self.f.w_orf[i_f])]
         for i_f1 in range(self.f.n):
             for i_f2 in range(self.f.n):
@@ -460,7 +460,7 @@ class PhysicModel:
                 self.k.calc(i)
                 if self.c.gain_mode != GAIN_MODES[4]:  # 3
                     for j_n in range(self.f.n):
-                        for j_t in range(self.k.t):
+                        for j_t in range(9 if self.k.orientation else 3):  # range(self.k.t)
                             tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
                             self.k.sigmas[j_n * self.k.t + j_t] += [np.sqrt(self.k.p_[j_n][j_t][j_t]) * tmp[j_t]]
         else:
@@ -475,9 +475,9 @@ class PhysicModel:
             if i / n > (flag[0] + 0.1):
                 flag[0] += 0.1
                 per = int(10 * i / n)
-                my_print(f"{10 * per}% [{'#' * per + ' ' * (10 - per)}]"
-                                + real_workload_time(n=per, n_total=10, time_begin=self.time_begin,
-                                                     time_now=datetime.now()), color='m')
+                my_print(f"{10 * per}% [{'#' * per + ' ' * (10 - per)}]" +
+                         real_workload_time(n=per, n_total=10, time_begin=self.time_begin,
+                                            time_now=datetime.now()), color='m')
             if animate and i / n > (flag[1] + 0.01):
                 flag[1] += 0.01
                 plot_all(self, save=True, count=int(flag[1] // 0.01))

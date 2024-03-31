@@ -221,7 +221,7 @@ def plot_distance(o):
     if o.p.k.orientation:
         for i_c in range(o.c.n):
             for i_f in range(o.f.n):
-                labels_q = ["ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]  # "ΔΛ⁰",
+                labels_q = ["ΔΛ⁰", "ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]  # "ΔΛ⁰",
                 labels_w = ["Δωˣ", "Δωʸ", "Δωᶻ"]  # "ΔΛ⁰",
                 x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
                 for j in range(3):
@@ -229,6 +229,8 @@ def plot_distance(o):
                                   c=colors[j+3], label=labels_q[j] if i_f == 0 else None)
                     ax[1][1].plot(x, [o.f.spin_difference[i_f][i][j] for i in range(len(x))],
                                   c=colors[j+3], label=labels_w[j] if i_f == 0 else None)
+                ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][3] for i in range(len(x))],
+                              c=colors[3+3], label=labels_q[3] if i_f == 0 else None)
         ax[1][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
         ax[1][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
         for j in range(2):
