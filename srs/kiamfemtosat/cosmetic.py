@@ -1,8 +1,9 @@
+"""Переделать файл перед отправкой на РИД"""
+from playsound import playsound
+from gtts import gTTS
+import colorama
 import random
 import os
-from gtts import gTTS
-from playsound import playsound
-import colorama
 
 
 def my_print(txt: any, color: str = None, if_print: bool = True) -> None:
@@ -15,8 +16,11 @@ def my_print(txt: any, color: str = None, if_print: bool = True) -> None:
     if if_print and color in color_bar.keys():
         print(color_bar[color] + f"{txt}" + colorama.Style.RESET_ALL)
 
-# noinspection SpellCheckingInspection
-def rand_txt():
+def real_workload_time(n: int, n_total: int, time_begin, time_now) -> str:
+    n_remain = n_total - n
+    return f"время: {time_now - time_begin}, оставшееся время: {(time_now - time_begin) * n_remain / n}"
+
+def rand_txt() -> str:
     return random.choice([
         'Опять работа?!',
         'Да?',
@@ -533,13 +537,13 @@ def get_angry_message():
 
 def talk_aloud(txt):
     s = gTTS(txt, lang='ru')
-    s.save('storage/sample.mp3')
-    playsound('storage/sample.mp3')
-    os.remove('storage/sample.mp3')
+    s.save('talk_file.mp3')
+    playsound('talk_file.mp3')
+    os.remove('talk_file.mp3')
 
 def talk(aloud=True):
     txt = rand_txt()
-    print(Fore.LIGHTCYAN_EX + txt)
+    print(colorama.Fore.LIGHTCYAN_EX + txt)
     if aloud:
         talk_aloud(txt)
 
@@ -554,33 +558,21 @@ def talk_decision(cnd=True):
 
 def talk_notice(cnd=True):
     if cnd:
-        talk_aloud(random.choice(['Вон вон вон он сука!',
-        'Мне показалось?',
-        'Там что-то есть',
-        'Нет, мне не кажется']))
+        talk_aloud(random.choice(['Вон вон вон он сука!', 'Мне показалось?', 'Там что-то есть', 'Нет, мне не кажется']))
 
 def talk_flyby(cnd=True):
     if cnd:
-        talk_aloud(random.choice(['Ты там где?',
-        'Ща найду тебя, и пиздец бля!']))
+        talk_aloud(random.choice(['Ты там где?', 'Ща найду тебя, и пиздец бля!']))
 
-def talk_shoot(cnd=True):
+def talk_success(cnd: bool = True) -> None:
     if cnd:
-        talk_aloud(random.choice(['Всё, приземляйся!',
-        'Присядь.',
-        'Дай бог попадёт']))
+        talk_aloud(random.choice(['Этот перец не такой кривой как я думала', 'Охуеть!', 'Неужели я это вижу?']))
 
-def talk_success(cnd=True):
-    if cnd:
-        talk_aloud(random.choice(['Этот перец не такой кривой как я думала',
-        'Свершилось!',
-        'Неужели я это вижу?']))
-
-def okonchanye(N):
-    if (N % 10) == 1:
+def ending(n: int) -> str:
+    if (n % 10) == 1:
         return " "
-    if ((N % 10) > 1) and ((N % 10) < 5):
+    if ((n % 10) > 1) and ((n % 10) < 5):
         return "а"
-    if ((N % 10) >= 5) or ((N > 9) and (N < 21)):
+    if ((n % 10) >= 5) or ((n > 9) and (n < 21)):
         return "ов"
     return "ов"

@@ -1,8 +1,8 @@
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-# import plotly.express as px
-from tiny_functions import *
+from my_math import *
+from config import *
 
 
 FEMTO_RATE = 1e2
@@ -185,9 +185,6 @@ def plot_distance(o):
     fig, ax = plt.subplots(2, 2 if o.p.k.orientation else 1, figsize=(15 if o.p.k.orientation else 8, 10))
     axes = ax[0] if o.p.k.orientation else ax
     fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
-    colors = ['violet', 'blueviolet', 'forestgreen', 'cornflowerblue', 'peru', 'teal', 'blueviolet', 'deeppink',
-              'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue',
-              'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy'] * 2
     # line_styles = [':', '-', '--']
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
@@ -197,10 +194,10 @@ def plot_distance(o):
                 if i_f == 0 else [None for _ in range(100)]
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
-                         c=colors[0], label=labels[0])
-            axes[0].plot(x, o.f.z_difference[i_f], c=colors[3], label=labels[1])
+                         c=MY_COLORS[0], label=labels[0])
+            axes[0].plot(x, o.f.z_difference[i_f], c=MY_COLORS[3], label=labels[1])
             axes[0].plot(x, [np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
-                         c=colors[2], label=labels[2])
+                         c=MY_COLORS[2], label=labels[2])
     axes[0].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[0].set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
     axes[0].legend(fontsize=CAPTION_SIZE)
@@ -212,7 +209,7 @@ def plot_distance(o):
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             for j in range(3):
                 axes[1].plot(x, [o.f.line_difference[i_f][i][j] for i in range(len(x))],
-                             c=colors[j+3], label=labels[j] if i_f == 0 else None)
+                             c=MY_COLORS[j+3], label=labels[j] if i_f == 0 else None)
     axes[1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[1].set_ylabel(f"Компоненты r, м", fontsize=CAPTION_SIZE)
     axes[1].legend(fontsize=CAPTION_SIZE)
@@ -226,11 +223,11 @@ def plot_distance(o):
                 x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
                 for j in range(3):
                     ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][j] for i in range(len(x))],
-                                  c=colors[j+3], label=labels_q[j] if i_f == 0 else None)
+                                  c=MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
                     ax[1][1].plot(x, [o.f.spin_difference[i_f][i][j] for i in range(len(x))],
-                                  c=colors[j+3], label=labels_w[j] if i_f == 0 else None)
+                                  c=MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
                 ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][3] for i in range(len(x))],
-                              c=colors[3+3], label=labels_q[3] if i_f == 0 else None)
+                              c=MY_COLORS[3+3], label=labels_q[3] if i_f == 0 else None)
         ax[1][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
         ax[1][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
         for j in range(2):

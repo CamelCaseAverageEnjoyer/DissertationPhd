@@ -1,0 +1,19 @@
+[project]
+name = "kiam-femtosat"
+version = "1.0"
+dependencies = [
+  "numpy",
+  "matplotlib",
+  "typing",
+  "plotly",
+  "playsound", "gtts", "colorama", "random", "os"  # Удалить перед отправкой на РИД
+]
+authors = [
+  {name = "Vladislav Orlov", email = "orlov.vv@phystech.edu"},
+]
+description = "Numerical modeling of space mission with using free-flying femto satellites."
+readme = "ReadMe.md"
+keywords = ["navigation", "kalman filter", "chipsat", "femtosatellite", "celestial mechanics", "formation flying"]
+
+[project.urls]
+Repository = "https://github.com/CamelCaseAverageEnjoyer/DissertationPhd.git"

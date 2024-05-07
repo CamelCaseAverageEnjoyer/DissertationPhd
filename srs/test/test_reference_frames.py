@@ -1,4 +1,4 @@
-from main_objects import *
+from ..kiamfemtosat.main import *
 import unittest
 
 
