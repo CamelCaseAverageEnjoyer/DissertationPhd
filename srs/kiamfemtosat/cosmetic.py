@@ -1,5 +1,5 @@
 """Переделать файл перед отправкой на РИД"""
-from playsound import playsound
+from playsound3 import playsound
 from gtts import gTTS
 import colorama
 import random
@@ -549,20 +549,15 @@ def talk(aloud=True):
 
 def talk_decision(cnd=True):
     if cnd:
-        talk_aloud(random.choice(['Давай работай!',
-                                  'Вот хуй!',
-                                  'Ща порву тебя нахуй!',
-                                  'Да йобушки воробушки',
-                                  'Попутного ветра',
-                                  'А то вздумал отлынивать']))
+        talk_aloud(random.choice(['Работай нахуй!', 'Вот хуй!', 'Ща порву тебя нахуй!', 'Йобушки воробушки', 'Пиздец',
+                                  'Ебааать', 'Йоб меня в сраку', 'Ебись вертись', 'Мммм хуита', 'Ля ля бля', 'Нихуясе',
+                                  'Ебать мой хуй', 'Хуё моё', 'Ебучий случай', 'Писос', 'Йоб проёб', 'Ниибёт',
+                                  'Дятел блин', 'Не жопься', 'Сверхебически', 'Мать перемать', 'Не косоёбся',
+                                  'Етись крутись']))
 
 def talk_notice(cnd=True):
     if cnd:
         talk_aloud(random.choice(['Вон вон вон он сука!', 'Мне показалось?', 'Там что-то есть', 'Нет, мне не кажется']))
-
-def talk_flyby(cnd=True):
-    if cnd:
-        talk_aloud(random.choice(['Ты там где?', 'Ща найду тебя, и пиздец бля!']))
 
 def talk_success(cnd: bool = True) -> None:
     if cnd:

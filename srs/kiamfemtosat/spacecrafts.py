@@ -43,28 +43,34 @@ class FemtoSat:
         self.ellipsoidal_signal = 0.9
         self.gain_mode = GAIN_MODES[0]
 
-        # Индивидуальные параметры
+        # Индивидуальные параметры движения
         self.r_orf = [np.random.uniform(-r_spread, r_spread, 3) for _ in range(self.n)]
         self.v_orf = [np.random.uniform(-v_spread, v_spread, 3) for _ in range(self.n)]
         self.w_orf = [np.random.uniform(-w_spread, w_spread, 3) for _ in range(self.n)]
         self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
         self.c_hkw, self.line, self.line_kalman, self.line_difference, self.attitude_difference, self.spin_difference, \
             self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
-        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_ = \
-            [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
         for i in range(self.n):
             if SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * w_orb
             self.q[i] /= np.linalg.norm(self.q[i])
             self.q_[i] /= np.linalg.norm(self.q_[i])
+
+        # Индивидуальные параметры режимов работы
+        self.operating_mode = [OPERATING_MODES[0] for _ in range(self.n)]
+        self.operating_modes = [OPERATING_MODES_CHANGE[1] for _ in range(self.n)]
+
+        # Индивидуальные параметры управления
+        self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
+
+        # Индивидуальные параметры измерений
+        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_ = \
+            [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
         prm_poor = [np.append(np.append(np.append(np.random.uniform(-r_spread, r_spread, 3), self.q_[i]),
                                         np.random.uniform(-v_spread, v_spread, 3)),
-                              np.random.uniform(-w_spread, w_spread, 3))
-                    for i in range(self.n)]
+                              np.random.uniform(-w_spread, w_spread, 3)) for i in range(self.n)]
         prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_orf[i])
                     for i in range(self.n)]
-
-        # Параметры начального приближения
         start_navigation_tolerance = 1 if start_navigation == NAVIGATIONS[0] else start_navigation_tolerance
         start_navigation_tolerance = 0 if start_navigation == NAVIGATIONS[2] else start_navigation_tolerance
         self.rv_orf_calc = [prm_good[i] * start_navigation_tolerance +
@@ -96,18 +102,27 @@ class CubeSat:
         self.ellipsoidal_signal = 0.9
         self.gain_mode = GAIN_MODES[0]
 
-        # Индивидуальные параметры
+        # Индивидуальные параметры движения
         self.r_orf = [np.random.uniform(-r_spread, r_spread, 3) for _ in range(self.n)]
         self.v_orf = [np.random.uniform(-v_spread, v_spread, 3) for _ in range(self.n)]
         self.w_orf = [np.random.uniform(-w_spread, w_spread, 3) for _ in range(self.n)]
         self.q = [np.array([np.random.uniform(-1, 1) for _ in range(4)]) for _ in range(self.n)]
         self.c_hkw, self.line = [[[] for _ in range(self.n)] for _ in range(2)]
-        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_, self.kalm_dist = \
-            [[[[] for _ in range(n_f)] for _ in range(self.n)] for _ in range(5)]
         for i in range(self.n):
             if SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * w_orb
             self.q[i] /= np.linalg.norm(self.q[i])
+
+        # Индивидуальные параметры режимов работы
+        self.operating_mode = [OPERATING_MODES[0] for _ in range(self.n)]
+        self.operating_modes = [OPERATING_MODES_CHANGE[0] for _ in range(self.n)]
+
+        # Индивидуальные параметры управления
+        self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
+
+        # Индивидуальные параметры измерений
+        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_, self.kalm_dist = \
+            [[[[] for _ in range(n_f)] for _ in range(self.n)] for _ in range(5)]
 
         # Прорисовка ножек
         self.legs_x = 0.0085

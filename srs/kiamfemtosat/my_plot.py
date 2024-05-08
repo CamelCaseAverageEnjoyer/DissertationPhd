@@ -157,35 +157,9 @@ def plot_signals(o):
 
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
-    '''if o.f.n > 1:
-        tmp = plt.subplots(o.f.n + 1, 1)
-        fig = tmp[0]
-        fig.suptitle(f"Графики расстояний по сигналам фемтосатов", fontsize=TITLE_SIZE)
-        axes = tmp[1:o.f.n][0]
-        colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet', 'deeppink',
-                  'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'skyblue',
-                  'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy'] * 10
-        for i_c in range(o.c.n):
-            for i_f in range(o.f.n):
-                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-                axes[i_c].plot(x, o.c.real_dist[i_c][i_f], c=colors[i_f])
-                axes[i_c].plot(x, o.c.calc_dist[i_c][i_f], c=colors[i_f])
-            axes[i_c].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-            axes[i_c].set_ylabel(f"К №{i_c+1}", fontsize=CAPTION_SIZE)
-        for i_f1 in range(o.f.n):
-            for i_f2 in range(o.f.n):
-                if i_f1 != i_f2:
-                    x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.real_dist[i_f1][i_f2]))]
-                    axes[i_f1+1].plot(x, o.f.real_dist[i_f1][i_f2], c=colors[i_f2])
-                    axes[i_f1+1].plot(x, o.f.calc_dist[i_f1][i_f2], c=colors[i_f2])
-            axes[i_f1+1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-            axes[i_f1+1].set_ylabel(f"Ф №{i_f1+1}", fontsize=CAPTION_SIZE)
-        plt.show()'''
-
     fig, ax = plt.subplots(2, 2 if o.p.k.orientation else 1, figsize=(15 if o.p.k.orientation else 8, 10))
     axes = ax[0] if o.p.k.orientation else ax
     fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
-    # line_styles = [':', '-', '--']
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
             labels = ["Ошибка дистанции (реальная)",
@@ -195,8 +169,10 @@ def plot_distance(o):
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
                          c=MY_COLORS[0], label=labels[0])
-            axes[0].plot(x, o.f.z_difference[i_f], c=MY_COLORS[3], label=labels[1])
-            axes[0].plot(x, [np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
+            axes[0].plot([o.p.dt * i for i in range(len(o.f.z_difference[i_f]))], o.f.z_difference[i_f],
+                         c=MY_COLORS[3], label=labels[1])
+            axes[0].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][0] == NO_LINE_FLAG else
+                             np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
                          c=MY_COLORS[2], label=labels[2])
     axes[0].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[0].set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
@@ -208,8 +184,9 @@ def plot_distance(o):
             labels = ["ΔX", "ΔY", "ΔZ"]
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             for j in range(3):
-                axes[1].plot(x, [o.f.line_difference[i_f][i][j] for i in range(len(x))],
-                             c=MY_COLORS[j+3], label=labels[j] if i_f == 0 else None)
+                axes[1].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][j] == NO_LINE_FLAG else
+                                 o.f.line_difference[i_f][i][j] for i in range(len(x))], c=MY_COLORS[j+3],
+                             label=labels[j] if i_f == 0 else None)
     axes[1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[1].set_ylabel(f"Компоненты r, м", fontsize=CAPTION_SIZE)
     axes[1].legend(fontsize=CAPTION_SIZE)

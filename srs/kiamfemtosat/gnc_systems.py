@@ -1,5 +1,17 @@
 from spacecrafts import *
 
+# >>>>>>>>>>>> Guidance <<<<<<<<<<<<
+def guidance(c: CubeSat, f: FemtoSat, earth_turn: float) -> None:
+    """Функция обновляет для объектов CubeSat и FemtoSat параметры b_env"""
+    for obj in [c, f]:
+        for i in range(obj.n):
+            if obj.operating_modes[i] == OPERATING_MODES_CHANGE[1]:  # Отсутствие аккумулятора на чипсате
+                if earth_turn % 1 < 0.5 and obj.operating_mode[i] == OPERATING_MODES[-1]:
+                    obj.operating_mode[i] = OPERATING_MODES[0]
+                if earth_turn % 1 > 0.5 and obj.operating_mode[i] != OPERATING_MODES[-1]:
+                    obj.operating_mode[i] = OPERATING_MODES[-1]
+
+# >>>>>>>>>>>> Navigation <<<<<<<<<<<<
 class KalmanFilter:
     def __init__(self, f: FemtoSat, c: CubeSat, p, dt: float, w_orb: float, kalman_coef: dict,
                  orientation: bool = False, single_femto_filter: bool = True):
@@ -207,3 +219,5 @@ class KalmanFilter:
             if SHAMANISM["KalmanSpinLimit"][0] and np.linalg.norm(tmp[10:13]) > SHAMANISM["KalmanSpinLimit"][1]:
                 tmp[10:13] = tmp[10:13] / np.linalg.norm(tmp[10:13]) * SHAMANISM["KalmanSpinLimit"][1]
             self.r_orf_estimation[i] = tmp
+
+# >>>>>>>>>>>> Control <<<<<<<<<<<<

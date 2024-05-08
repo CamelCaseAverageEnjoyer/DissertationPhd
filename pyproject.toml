@@ -6,7 +6,7 @@ dependencies = [
   "matplotlib",
   "typing",
   "plotly",
-  "playsound", "gtts", "colorama", "random", "os"  # Удалить перед отправкой на РИД
+  "playsound3", "gtts", "colorama", "random", "os"  # Удалить перед отправкой на РИД
 ]
 authors = [
   {name = "Vladislav Orlov", email = "orlov.vv@phystech.edu"},

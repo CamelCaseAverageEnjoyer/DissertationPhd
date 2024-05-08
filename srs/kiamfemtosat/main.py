@@ -1,8 +1,4 @@
 from dynamics import *
-# from navigation import *
-# from guidance import *
-# from control import *
-
 
 class Objects:
     def __init__(self, navigation_method: str = None, kalman_coef: dict = None, dt: float = 1,
@@ -34,13 +30,29 @@ class Objects:
                              kalman_coef={'q': 1e-12, 'p': [1e-8] * 3, 'r': 1e-1}
                              if kalman_coef is None else kalman_coef, h_orb=self.h_orb)
 
+    def integrate(self, t: float, animate: bool = False) -> None:
+        my_print(f"Оборотов вокруг Земли: {round(10 * t / (3600 * 1.5)) / 10}  "
+                 f"(дней: {round(100 * t / (3600 * 24)) / 100})", color='b')
+        n = int(t // self.p.dt)
+        flag = [0., 0.]
+        for i in range(n):
+            if i / n > (flag[0] + 0.1):
+                flag[0] += 0.1
+                per = int(10 * i / n)
+                my_print(f"{10 * per}% [{'#' * per + ' ' * (10 - per)}]" +
+                         real_workload_time(n=per, n_total=10, time_begin=self.p.time_begin,
+                                            time_now=datetime.now()), color='m')
+            if animate and i / n > (flag[1] + 0.01):
+                flag[1] += 0.01
+                plot_all(self, save=True, count=int(flag[1] // 0.01))
+            self.p.time_step()
 
 if __name__ == '__main__':
     # Инициализация
-    t_integrate = 1e5
+    t_integrate = 1e4
     o = Objects(n_c=1, n_f=1, dt=1., start_navigation_tolerance=0.9,
                 navigation_method='kalman_filter rv' + 'q' * 0 + ' all' * 0,
-                kalman_coef={'q': [1e-10, 1e-15], 'p': [1e-8]*4, 'r': 1e1},
+                kalman_coef={'q': [1e-8, 1e-15], 'p': [1e-8]*4, 'r': 1e-1},
                 model_c=['1U', '1.5U', '2U', '3U', '6U', '12U'][0],
                 start_navigation=['perfect', 'near', 'random'][1])
     o.f.gain_mode = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas'][0]
@@ -50,11 +62,12 @@ if __name__ == '__main__':
     o.p.show_rate = 1
 
     # Интегрирование
-    o.p.integrate(t=t_integrate, animate=False)
+    o.integrate(t=t_integrate, animate=False)
 
-    # Результаты
+    # Вывод результатов
     tmp = np.array([np.linalg.norm(o.f.line_difference[0][i]) for i in range(len(o.f.line_difference[0]))])
     print(f"Математическое ожидание: {tmp.mean()}, Среднее отклонение: {tmp.std()}")
+    talk_decision()
     # plot_all(o)
     plot_distance(o)
     # plot_sigmas(o)

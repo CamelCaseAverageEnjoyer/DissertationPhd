@@ -1,6 +1,7 @@
 from datetime import datetime
 import kiam_astro
-from navigation import *
+from primary_info import *
+from gnc_systems import *
 from cosmetic import *
 from my_plot import *
 
@@ -133,7 +134,7 @@ class PhysicModel:
         self.iter += 1
         self.t = self.iter * self.dt
 
-        # Утверждение параметров
+        # Вывод основных параметров
         if self.iter == 1:
             tmp1 = f", сферичность={int(self.c.ellipsoidal_signal*100)}%" if self.c.gain_mode == GAIN_MODES[1] \
                 else ""
@@ -164,73 +165,53 @@ class PhysicModel:
                 if self.iter % self.show_rate == 0:
                     obj.line[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
 
-        # Расчёт связи
-        for i_c in range(self.c.n):
-            for i_f in range(self.f.n):
-                r_tmp = self.f.r_orf[i_f] - self.c.r_orf[i_c]
-                self.c.real_dist[i_c][i_f] += [np.linalg.norm(r_tmp)]
-                A_f = quart2dcm(np.array(self.f.q[i_f]))
-                A_c = quart2dcm(np.array(self.c.q[i_c]))
-                calc_dist = np.linalg.norm(r_tmp) / np.sqrt(get_gain(self.f, r=A_f @ r_tmp, mode3=True) *
-                                                            get_gain(self.c, r=A_c @ r_tmp, mode3=True)) + \
-                    np.random.normal(0, np.sqrt(self.r_matrix))
-                self.c.calc_dist[i_c][i_f] += [calc_dist]
-                self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] -
-                                                              self.k.r_orf_estimation[i_f][0:3])]
-                if self.iter % self.show_rate == 0:
-                    self.f.line_kalman[i_f] += [self.k.r_orf_estimation[i_f][0],
-                                                self.k.r_orf_estimation[i_f][1],
-                                                self.k.r_orf_estimation[i_f][2]]
-                    self.f.line_difference[i_f] += \
-                        [np.array(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
-                    if self.k.orientation:
-                        self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:7]
-                                                            - np.array(self.f.q[i_f])]
-                        self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][10:13]
-                                                        - np.array(self.f.w_orf[i_f])]
-        for i_f1 in range(self.f.n):
-            for i_f2 in range(self.f.n):
-                if i_f1 != i_f2:
-                    r_tmp = self.f.r_orf[i_f1] - self.f.r_orf[i_f2]
-                    self.f.real_dist[i_f1][i_f2] += [np.linalg.norm(r_tmp)]
+        # Комплекс первичной информации
+        measure_antennas_power(c=self.c, f=self.f, noise=np.sqrt(self.r_matrix))
+        measure_magnetic_field(c=self.c, f=self.f, noise=np.sqrt(self.r_matrix))
 
-                    q1 = self.f.q[i_f1]
-                    q2 = self.f.q[i_f1]
-                    calc_dist = np.linalg.norm(r_tmp) / np.sqrt(get_gain(self.f, r=quart2dcm(q1) @ r_tmp, mode3=True) *
-                                                                get_gain(self.f, r=quart2dcm(q2) @ r_tmp, mode3=True)) \
-                                + np.random.normal(0, np.sqrt(self.r_matrix))
-                    self.f.calc_dist[i_f1][i_f2] += [calc_dist]
-                else:
-                    self.f.calc_dist[i_f1][i_f2] += [0.]
+        # Изменение режимов работы
+        guidance(c=self.c, f=self.f, earth_turn=self.t * self.w_orb / 2 / np.pi)
 
-        # Оценка положения фемтоспутников
+        # Запись параметров
+        if self.iter % self.show_rate == 0:
+            for i_c in range(self.c.n):
+                for i_f in range(self.f.n):
+                    if self.f.operating_mode[i_f] != OPERATING_MODES[-1]:
+                        self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] -
+                                                                      self.k.r_orf_estimation[i_f][0:3])]
+                        self.f.line_kalman[i_f] += [self.k.r_orf_estimation[i_f][0],
+                                                    self.k.r_orf_estimation[i_f][1],
+                                                    self.k.r_orf_estimation[i_f][2]]
+                        self.f.line_difference[i_f] += \
+                            [np.array(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
+                        if self.k.orientation:
+                            self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:7]
+                                                                - np.array(self.f.q[i_f])]
+                            self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][10:13]
+                                                            - np.array(self.f.w_orf[i_f])]
+                    else:
+                        self.c.kalm_dist[i_c][i_f] += [NO_LINE_FLAG]
+                        self.f.line_kalman[i_f] += [NO_LINE_FLAG] * 3
+                        self.f.line_difference[i_f] += [NO_LINE_FLAG * np.ones(3)]
+                        if self.k.orientation:
+                            self.f.attitude_difference[i_f] += [NO_LINE_FLAG * np.ones(4)]
+                            self.f.spin_difference[i_f] += [NO_LINE_FLAG * np.ones(3)]
+
+        # Навигация чипсатов
         if self.k.single_femto_filter:
             for i in range(self.f.n):
-                self.k.calc(i)
+                if self.f.operating_mode[i] != OPERATING_MODES[-1]:
+                    self.k.calc(i)
+                else:
+                    self.f.z_difference[i] += [NO_LINE_FLAG]
                 if self.c.gain_mode != GAIN_MODES[4]:
                     for j_n in range(self.f.n):
                         for j_t in range(9 if self.k.orientation else 3):  # range(self.k.t)
                             tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
+                            tmp = np.zeros(9) if self.f.operating_mode[j_n] != OPERATING_MODES[-1] else tmp
                             self.k.sigmas[j_n * self.k.t + j_t] += [np.sqrt(self.k.p_[j_n][j_t][j_t]) * tmp[j_t]]
         else:
-            self.k.calc_all()
-
-    def integrate(self, t: float, animate: bool = False) -> None:
-        my_print(f"Оборотов вокруг Земли: {round(10 * t / (3600 * 1.5)) / 10}  "
-                 f"(дней: {round(100 * t / (3600 * 24)) / 100})", color='b')
-        n = int(t // self.dt)
-        flag = [0., 0.]
-        for i in range(n):
-            if i / n > (flag[0] + 0.1):
-                flag[0] += 0.1
-                per = int(10 * i / n)
-                my_print(f"{10 * per}% [{'#' * per + ' ' * (10 - per)}]" +
-                         real_workload_time(n=per, n_total=10, time_begin=self.time_begin,
-                                            time_now=datetime.now()), color='m')
-            if animate and i / n > (flag[1] + 0.01):
-                flag[1] += 0.01
-                plot_all(self, save=True, count=int(flag[1] // 0.01))
-            self.time_step()
+            self.k.calc_all()  # Пока что при любом OPERATING_MODES (если весь рой выпал)
 
     # Функции возврата
     def get_full_acceleration(self, c_resist: float, rho: float, square: float, r: Union[float, np.ndarray],
