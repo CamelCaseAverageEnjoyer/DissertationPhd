@@ -1,5 +1,5 @@
 """Комплекс первичной информации"""
-from spacecrafts import *
+from srs.kiamfemtosat.spacecrafts import *
 
 
 def measure_antennas_power(c: CubeSat, f: FemtoSat, noise: float) -> None:
@@ -11,7 +11,7 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, noise: float) -> None:
             A_f = quart2dcm(np.array(f.q[i_f]))
             A_c = quart2dcm(np.array(c.q[i_c]))
             calc_dist = np.random.normal(0, noise) + np.linalg.norm(dr) / \
-                np.sqrt(get_gain(f, r=A_f @ dr, mode3=True) * get_gain(c, r=A_c @ dr, mode3=True))
+                np.sqrt(get_gain(f, r=A_f @ dr, mode3=True)[0] * get_gain(c, r=A_c @ dr, mode3=True)[0])
 
             c.calc_dist[i_c][i_f] += [calc_dist]
 
@@ -24,7 +24,8 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, noise: float) -> None:
                 q1 = f.q[i_f1]
                 q2 = f.q[i_f1]
                 calc_dist = np.random.normal(0, noise) + np.linalg.norm(dr) / \
-                    np.sqrt(get_gain(f, r=quart2dcm(q1)@dr, mode3=True) * get_gain(f, r=quart2dcm(q2)@dr, mode3=True))
+                    np.sqrt(get_gain(f, r=quart2dcm(q1)@dr, mode3=True)[0] *
+                            get_gain(f, r=quart2dcm(q2)@dr, mode3=True)[0])
                 f.calc_dist[i_f1][i_f2] += [calc_dist]
             else:
                 f.calc_dist[i_f1][i_f2] += [0.]

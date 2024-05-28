@@ -1,9 +1,9 @@
 from datetime import datetime
 import kiam_astro
-from primary_info import *
-from gnc_systems import *
-from cosmetic import *
-from my_plot import *
+from srs.kiamfemtosat.primary_info import *
+from srs.kiamfemtosat.gnc_systems import *
+from srs.kiamfemtosat.cosmetic import *
+from srs.kiamfemtosat.my_plot import *
 
 # >>>>>>>>>>>> Небольшие функции <<<<<<<<<<<<
 def get_atm_params(h: float, h_orb: float) -> tuple:
@@ -135,7 +135,7 @@ class PhysicModel:
         self.t = self.iter * self.dt
 
         # Вывод основных параметров
-        if self.iter == 1:
+        if self.iter == 1 and IF_ANY_PRINT:
             tmp1 = f", сферичность={int(self.c.ellipsoidal_signal*100)}%" if self.c.gain_mode == GAIN_MODES[1] \
                 else ""
             tmp2 = f", сферичность={int(self.f.ellipsoidal_signal*100)}%" if self.f.gain_mode == GAIN_MODES[1] \

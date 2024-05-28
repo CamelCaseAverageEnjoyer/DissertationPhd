@@ -1,4 +1,4 @@
-from spacecrafts import *
+from srs.kiamfemtosat.spacecrafts import *
 
 # >>>>>>>>>>>> Guidance <<<<<<<<<<<<
 def guidance(c: CubeSat, f: FemtoSat, earth_turn: float) -> None:
@@ -126,8 +126,8 @@ class KalmanFilter:
         else:
             # print(f"r_m:{len(r_m)}, c.q:{len(self.c.q)}, r_orf:{len(self.c.r_orf)}, i={i}")
             signal_rate = get_gain(self.c, quart2dcm(self.c.q[i_c]) @ np.array(self.c.r_orf[i_c] - r_m[0:3])) * \
-                get_gain(self.f, quart2dcm(r_m[3:7]) @ np.array(self.c.r_orf[i_c] - r_m[0:3])) \
-                if self.orientation else 1
+                          get_gain(self.f, quart2dcm(r_m[3:7]) @ np.array(self.c.r_orf[i_c] - r_m[0:3])) \
+                          if self.orientation else 1
             z_model = np.linalg.norm(r_m[0:3] - self.c.r_orf[0])
             z_ *= np.sqrt(signal_rate)
             self.f.z_difference[i] += [abs(z_model - z_)]
@@ -179,11 +179,9 @@ class KalmanFilter:
                                          (r_m[self.t*i+0:self.t*i+3] - self.c.r_orf[i_c]))
                                 for i in range(self.f.n)] +
                                flatten([[get_gain(self.f, quart2dcm(r_m[self.t*i+3:self.t*i+7])
-                                                         @ (r_m[self.t*i+0:self.t*i+3] -
-                                                            r_m[self.t*j+0:self.t*j+3])) *
+                                                  @ (r_m[self.t*i+0:self.t*i+3] - r_m[self.t*j+0:self.t*j+3])) *
                                          get_gain(self.f, quart2dcm(r_m[self.t*j+3:self.t*j+7])
-                                                         @ (r_m[self.t*i+0:self.t*i+3] -
-                                                            r_m[self.t*j+0:self.t*j+3]))
+                                                  @ (r_m[self.t*i+0:self.t*i+3] - r_m[self.t*j+0:self.t*j+3]))
                                          for i in range(j)] for j in range(self.f.n)])) \
             if self.orientation else np.array([1] * int(self.f.n * (self.f.n + 1) // 2))
 

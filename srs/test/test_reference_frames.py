@@ -1,4 +1,4 @@
-from ..kiamfemtosat.main import *
+from srs.kiamfemtosat.main import *
 import unittest
 
 
@@ -16,7 +16,7 @@ class TestStringMethods(unittest.TestCase):
     """
     def test_while_nothing_has_been_done(self):
         # Инициализация
-        o_ = Objects(if_any_print=False)
+        o_ = Objects()
         params = get_some_params(o_)
 
         # Интегрирование на 0 секунд
@@ -24,7 +24,7 @@ class TestStringMethods(unittest.TestCase):
         self.assertEqual(get_some_params(o_), params)
 
     def test_necessary_errors(self):
-        o_ = Objects(if_any_print=False)
+        o_ = Objects()
 
         s = 'hello world'
         self.assertEqual(s.split(), ['hello', 'world'])
@@ -33,5 +33,6 @@ class TestStringMethods(unittest.TestCase):
             s.split('2')
 
 if __name__ == "__main__":
+    IF_ANY_PRINT = False
     print(f"В соответствии с протоколом тестирования, с этого момента мы перестаём говорить правду.")
     unittest.main()

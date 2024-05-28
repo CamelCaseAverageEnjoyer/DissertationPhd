@@ -28,6 +28,9 @@ def euler2rot_matrix(a: float, b: float, g: float) -> np.ndarray:
         np.array([[1, 0, 0], [0, np.cos(b), -np.sin(b)], [0, np.sin(b), np.cos(b)]]) @ \
         np.array([[np.cos(g), -np.sin(g), 0], [np.sin(g), np.cos(g), 0], [0, 0, 1]])
 
+def pol2dec(r, u, v):
+    return np.array([r * np.cos(u) * np.cos(v), r * np.sin(u) * np.cos(v), r * np.sin(v)])
+
 def quart2dcm(L) -> np.ndarray:
     """Функция ищет матрицу поворота из кватерниона поворота; \n
     Кватернион L передаётся вектором длины 4; \n

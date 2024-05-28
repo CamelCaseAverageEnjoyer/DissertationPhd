@@ -1,4 +1,4 @@
-from dynamics import *
+from srs.kiamfemtosat.dynamics import *
 
 class Objects:
     def __init__(self, navigation_method: str = None, kalman_coef: dict = None, dt: float = 1,
@@ -27,8 +27,7 @@ class Objects:
                           start_navigation=start_navigation, w_orb=self.w_orb)
         self.p = PhysicModel(c=self.c, f=self.f, dt=dt,
                              method_navigation='kalman_filter rv' if navigation_method is None else navigation_method,
-                             kalman_coef={'q': 1e-12, 'p': [1e-8] * 3, 'r': 1e-1}
-                             if kalman_coef is None else kalman_coef, h_orb=self.h_orb)
+                             kalman_coef=KALMAN_COEF if kalman_coef is None else kalman_coef, h_orb=self.h_orb)
 
     def integrate(self, t: float, animate: bool = False) -> None:
         my_print(f"Оборотов вокруг Земли: {round(10 * t / (3600 * 1.5)) / 10}  "
@@ -49,20 +48,17 @@ class Objects:
 
 if __name__ == '__main__':
     # Инициализация
-    t_integrate = 1e4
-    o = Objects(n_c=1, n_f=1, dt=1., start_navigation_tolerance=0.9,
-                navigation_method='kalman_filter rv' + 'q' * 0 + ' all' * 0,
-                kalman_coef={'q': [1e-8, 1e-15], 'p': [1e-8]*4, 'r': 1e-1},
-                model_c=['1U', '1.5U', '2U', '3U', '6U', '12U'][0],
-                start_navigation=['perfect', 'near', 'random'][1])
-    o.f.gain_mode = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas'][0]
-    o.c.gain_mode = o.f.gain_mode
+    o = Objects(n_c=CUBESAT_AMOUNT, n_f=CHIPSAT_AMOUNT, dt=dT, start_navigation_tolerance=0.9,
+                navigation_method='kalman_filter rv' + 'q' * int(NAVIGATION_ANGLES) + ' all' * int(NAVIGATION_BY_ALL),
+                kalman_coef=KALMAN_COEF, model_c=CUBESAT_MODEL, start_navigation=START_NAVIGATION)
+    o.f.gain_mode = GAIN_MODEL
+    o.c.gain_mode = GAIN_MODEL
     o.p.k.gain_mode = o.f.gain_mode
-    o.p.is_aero = False
+    o.p.is_aero = AERO_DRAG
     o.p.show_rate = 1
 
     # Интегрирование
-    o.integrate(t=t_integrate, animate=False)
+    o.integrate(t=TIME, animate=False)
 
     # Вывод результатов
     tmp = np.array([np.linalg.norm(o.f.line_difference[0][i]) for i in range(len(o.f.line_difference[0]))])

@@ -1,32 +1,44 @@
-from my_math import *
-from config import *
+"""Функции, связанные с архитектурой КА"""
+from srs.kiamfemtosat.my_math import *
+from srs.kiamfemtosat.config import *
+from srs.kiamfemtosat.cosmetic import my_print
 
 # >>>>>>>>>>>> Небольшие функции <<<<<<<<<<<<
-def get_gain(o, r: Union[float, np.ndarray], mode3: bool = False):
-    r1 = r / np.linalg.norm(r)
-    if o.gain_mode == GAIN_MODES[1]:
-        return np.linalg.norm([r1[0] * 1, r1[1] * o.ellipsoidal_signal, r1[2] * o.ellipsoidal_signal])
-    if o.gain_mode == GAIN_MODES[2]:
-        return get_dipoles(r1, 'z')
-    if o.gain_mode == GAIN_MODES[3] or (mode3 and o.gain_mode == GAIN_MODES[4]):
-        return get_dipoles(r1, 'x') + get_dipoles(r1, 'y')
-    if o.gain_mode == GAIN_MODES[4] and not mode3:
-        return [get_dipoles(r1, 'x'), get_dipoles(r1, 'y')]
-    return 1
-
-def get_dipoles(r, ind: str):
-    if len(ind) != 1 and ind not in "xyz":
-        raise ValueError(f'Индекс "{ind}" должен быть 1 символом из [x, y, z]')
-    cos_a = (r[0] * int(ind == 'x') + r[1] * int(ind == 'y') + r[2] * int(ind == 'z'))
+def local_dipole(r, ind: str = 'x') -> float:
+    """Возвращает диаграмму направленности одной полуволновой антенны (бублик). Костыль: возвращается >= 0
+    :param r: Радиус-вектор направления антенны
+    :param ind: Координата направления антенны"""
+    if ind not in "xyz":
+        raise ValueError(f"Координата «{ind}» должна быть среди: [x, y, z]")
+    r_m = np.sqrt(r[0] ** 2 + r[1] ** 2 + r[2] ** 2)
+    cos_a = (r[0] * int(ind == 'x') + r[1] * int(ind == 'y') + r[2] * int(ind == 'z')) / r_m
     sin_a = (np.sqrt(r[1] ** 2 + r[2] ** 2) * int(ind == 'x') +
              np.sqrt(r[0] ** 2 + r[2] ** 2) * int(ind == 'y') +
-             np.sqrt(r[0] ** 2 + r[1] ** 2) * int(ind == 'z'))
+             np.sqrt(r[0] ** 2 + r[1] ** 2) * int(ind == 'z')) / r_m
     aside = ((r[1] + r[2]) * int(ind == 'x') +
              (r[0] + r[2]) * int(ind == 'y') +
-             r[2] * int(ind == 'z'))
-    if abs(sin_a) > 1e-4:
-        return np.cos(cos_a * np.pi / 2) / sin_a + DISTORTION * cos_a ** 2 + DISTORTION * aside
-    return 1e-4 + DISTORTION * cos_a ** 2 + DISTORTION * aside
+             r[2] * int(ind == 'z')) / r_m
+    tmp = np.cos(cos_a * np.pi / 2) / sin_a + DISTORTION * cos_a ** 2 + DISTORTION * aside
+    if tmp < 0 and IF_ANY_PRINT:
+        my_print(f"Внимание! Отрицательное усиление! G={tmp} (cos={cos_a}, sin={sin_a})", color="r")
+    return clip(tmp, 0, 1e10)
+
+def get_gain(obj: any, r: Union[float, np.ndarray], mode3: bool = False) -> list:
+    """Внимание! Всё переделано - теперь возвращается только список для повышения градуса полиморфизма,
+    интуитивизма, индуизма, культуризма, конституционализма, шовинизма, каннибализма"""
+    # Памятка: GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas']
+    r1 = r / np.linalg.norm(r)
+    if obj.gain_mode == GAIN_MODES[1]:
+        return [np.linalg.norm([r1[0] * 1, r1[1] * 0.7, r1[2] * 0.8])]
+    if obj.gain_mode == GAIN_MODES[2]:
+        return [local_dipole(r1, 'z')]
+    if obj.gain_mode == GAIN_MODES[3] or (mode3 and obj.gain_mode == GAIN_MODES[4]):
+        return [local_dipole(r1, 'x') + local_dipole(r1, 'y')]
+    if obj.gain_mode == GAIN_MODES[4] and not mode3:
+        return [local_dipole(r1, 'x'), local_dipole(r1, 'y')]
+    if obj.gain_mode == GAIN_MODES[5] and not mode3:
+        return [local_dipole(r1, 'x'), local_dipole(r1, 'y'), local_dipole(r1, 'z')]
+    return [1]
 
 # >>>>>>>>>>>> Классы аппаратов <<<<<<<<<<<<
 class FemtoSat:
@@ -40,7 +52,6 @@ class FemtoSat:
         self.size = [0.03, 0.03]
         self.power_signal_full = 0.01
         self.length_signal_full = 0.001
-        self.ellipsoidal_signal = 0.9
         self.gain_mode = GAIN_MODES[0]
 
         # Индивидуальные параметры движения
@@ -58,7 +69,7 @@ class FemtoSat:
 
         # Индивидуальные параметры режимов работы
         self.operating_mode = [OPERATING_MODES[0] for _ in range(self.n)]
-        self.operating_modes = [OPERATING_MODES_CHANGE[1] for _ in range(self.n)]
+        self.operating_modes = [CHIPSAT_OPERATING_MODE for _ in range(self.n)]
 
         # Индивидуальные параметры управления
         self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
@@ -99,7 +110,6 @@ class CubeSat:
         self.mass_center_error = mass_center_errors[self.model_number]
         self.r_mass_center = np.array([np.random.uniform(-i, i) for i in self.mass_center_error])
         self.size = sizes[self.model_number]
-        self.ellipsoidal_signal = 0.9
         self.gain_mode = GAIN_MODES[0]
 
         # Индивидуальные параметры движения

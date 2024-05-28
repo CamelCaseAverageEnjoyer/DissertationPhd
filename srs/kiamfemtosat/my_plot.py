@@ -1,8 +1,8 @@
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from my_math import *
-from config import *
+from srs.kiamfemtosat.my_math import *
+from srs.kiamfemtosat.config import *
 
 
 FEMTO_RATE = 1e2
