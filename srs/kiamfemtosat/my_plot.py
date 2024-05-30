@@ -168,12 +168,12 @@ def plot_distance(o):
                 if i_f == 0 else [None for _ in range(100)]
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
-                         c=MY_COLORS[0], label=labels[0])
+                         c=MY_COLORS[0], label=labels[0] if i_c == 0 else None)
             axes[0].plot([o.p.dt * i for i in range(len(o.f.z_difference[i_f]))], o.f.z_difference[i_f],
-                         c=MY_COLORS[3], label=labels[1])
+                         c=MY_COLORS[3], label=labels[1] if i_c == 0 else None)
             axes[0].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][0] == NO_LINE_FLAG else
                              np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
-                         c=MY_COLORS[2], label=labels[2])
+                         c=MY_COLORS[2], label=labels[2] if i_c == 0 else None)
     axes[0].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[0].set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
     axes[0].legend(fontsize=CAPTION_SIZE)
@@ -186,25 +186,24 @@ def plot_distance(o):
             for j in range(3):
                 axes[1].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][j] == NO_LINE_FLAG else
                                  o.f.line_difference[i_f][i][j] for i in range(len(x))], c=MY_COLORS[j+3],
-                             label=labels[j] if i_f == 0 else None)
+                             label=labels[j] if i_f == 0 and i_c == 0 else None)
     axes[1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[1].set_ylabel(f"Компоненты r, м", fontsize=CAPTION_SIZE)
     axes[1].legend(fontsize=CAPTION_SIZE)
     axes[1].grid(True)
 
     if o.p.k.orientation:
-        for i_c in range(o.c.n):
-            for i_f in range(o.f.n):
-                labels_q = ["ΔΛ⁰", "ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]  # "ΔΛ⁰",
-                labels_w = ["Δωˣ", "Δωʸ", "Δωᶻ"]  # "ΔΛ⁰",
-                x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-                for j in range(3):
-                    ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][j] for i in range(len(x))],
-                                  c=MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
-                    ax[1][1].plot(x, [o.f.spin_difference[i_f][i][j] for i in range(len(x))],
-                                  c=MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
-                ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][3] for i in range(len(x))],
-                              c=MY_COLORS[3+3], label=labels_q[3] if i_f == 0 else None)
+        for i_f in range(o.f.n):
+            labels_q = ["ΔΛ⁰", "ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]  # "ΔΛ⁰",
+            labels_w = ["Δωˣ", "Δωʸ", "Δωᶻ"]  # "ΔΛ⁰",
+            x = [o.p.dt * i for i in range(len(o.c.real_dist[0][i_f]))]
+            for j in range(3):
+                ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][j] for i in range(len(x))],
+                              c=MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
+                ax[1][1].plot(x, [o.f.spin_difference[i_f][i][j] for i in range(len(x))],
+                              c=MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
+            ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][3] for i in range(len(x))],
+                          c=MY_COLORS[3+3], label=labels_q[3] if i_f == 0 else None)
         ax[1][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
         ax[1][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
         for j in range(2):

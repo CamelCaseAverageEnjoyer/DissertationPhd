@@ -35,3 +35,7 @@ def measure_magnetic_field(c: CubeSat, f: FemtoSat, noise: float = 0.) -> None:
     for obj in [c, f]:
         for i in range(obj.n):
             obj.b_env[i] = np.zeros(3) + np.random.normal(0, noise, 3)
+
+def measure_gps(f: FemtoSat, noise: float) -> None:
+    """Функция обновляет для объектов FemtoSat параметры _не_введено_"""
+    pass

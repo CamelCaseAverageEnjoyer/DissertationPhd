@@ -1,12 +1,12 @@
 # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
-dT = 1.
-TIME = 1e4
-CUBESAT_AMOUNT = 1
-CHIPSAT_AMOUNT = 1
+dT = 10.
+TIME = 1e5
+CUBESAT_AMOUNT = 5
+CHIPSAT_AMOUNT = 2
 AERO_DRAG = False
-NAVIGATION_BY_ALL = False
+NAVIGATION_BY_ALL = True
 NAVIGATION_ANGLES = False
-START_NAVIGATION = ['perfect', 'near', 'random'][1]
+START_NAVIGATION = ['perfect', 'near', 'random'][2]
 GAIN_MODEL = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][0]
 DISTORTION = 0.  # Искривление диаграммы направленности
 CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
@@ -14,8 +14,8 @@ CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
 SHAMANISM = {'KalmanQuaternionNormalize': True,   # Нормировка кватернионов в фильтре Калмана
              'KalmanSpinLimit': [True, 1e-3],  # Ограничение скорости вращения в прогнозе фильтра Калмана
              'ClohessyWiltshireC1=0': True}  # Траектории без дрейфа (зануление C1, при учёте аэродинамики поломок нет)
-KALMAN_COEF = {'q': [1e-8, 1e-15], 'p': [1e-8]*4, 'r': 1e-1}
-R_V_CubeSat_SPREAD = [0, 0]
+KALMAN_COEF = {'q': [1e-12]*2, 'p': [1e-7]*4, 'r': 1e-1}
+R_V_CubeSat_SPREAD = [10, 0.1]
 CUBESAT_MODEL = ['1U', '1.5U', '2U', '3U', '6U', '12U'][0]
 
 # >>>>>>>>>>>> Параметры отображения <<<<<<<<<<<<
@@ -23,7 +23,7 @@ IF_ANY_PRINT = True
 NO_LINE_FLAG = -10
 
 # >>>>>>>>>>>> Константы <<<<<<<<<<<<
-GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas']
+GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas']
 NAVIGATIONS = ['perfect', 'near', 'random']
 OPERATING_MODES = ['free_flying', 'swarm_stabilize', 'lost']
 OPERATING_MODES_CHANGE = ['const', 'while_sun_visible']

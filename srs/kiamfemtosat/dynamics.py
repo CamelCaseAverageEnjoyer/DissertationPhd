@@ -109,7 +109,7 @@ class PhysicModel:
         self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], self.w_orb) for i in range(self.f.n)]
 
     # Интегрирование движения
-    def aero_integrate(self, obj, i: int, r=None, v=None, th=None, w=None):
+    def aero_integrate(self, obj, i: int, r=None, v=None, th=None, w=None) -> tuple:
         S = quart2dcm(obj.q[i])
         cos_alpha = clip((np.trace(S) - 1) / 2, -1, 1)
         # alpha = 180 / np.pi * np.arccos(cos_alpha)
@@ -198,7 +198,9 @@ class PhysicModel:
                             self.f.spin_difference[i_f] += [NO_LINE_FLAG * np.ones(3)]
 
         # Навигация чипсатов
-        if self.k.single_femto_filter:
+        if NAVIGATION_BY_ALL:  # self.k.single_femto_filter:
+            self.k.new_calc()  # Пока что при любом OPERATING_MODES (если весь рой выпал)
+        else:
             for i in range(self.f.n):
                 if self.f.operating_mode[i] != OPERATING_MODES[-1]:
                     self.k.calc(i)
@@ -210,8 +212,6 @@ class PhysicModel:
                             tmp = np.append(np.append(self.f.r_orf[j_n], self.f.v_orf[j_n]), list(self.f.q[j_n][1:4]))
                             tmp = np.zeros(9) if self.f.operating_mode[j_n] != OPERATING_MODES[-1] else tmp
                             self.k.sigmas[j_n * self.k.t + j_t] += [np.sqrt(self.k.p_[j_n][j_t][j_t]) * tmp[j_t]]
-        else:
-            self.k.calc_all()  # Пока что при любом OPERATING_MODES (если весь рой выпал)
 
     # Функции возврата
     def get_full_acceleration(self, c_resist: float, rho: float, square: float, r: Union[float, np.ndarray],
@@ -242,7 +242,7 @@ class PhysicModel:
         return rho, t, p
 
     # Рунге-Кутты 4 порядка
-    def rk4_translate(self, r, v, a):
+    def rk4_translate(self, r, v, a) -> tuple:
         def rv_right_part(rv1, a1):
             return np.array([rv1[3], rv1[4], rv1[5], a1[0], a1[1], a1[2]])
         rv = np.append(r, v)
