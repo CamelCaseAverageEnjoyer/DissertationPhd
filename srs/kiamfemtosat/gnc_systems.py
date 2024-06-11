@@ -13,7 +13,7 @@ def guidance(c: CubeSat, f: FemtoSat, earth_turn: float) -> None:
 
 # >>>>>>>>>>>> Navigation <<<<<<<<<<<<
 class KalmanFilter:
-    def __init__(self, f: FemtoSat, c: CubeSat, p, dt: float, w_orb: float, kalman_coef: dict,
+    def __init__(self, f: FemtoSat, c: CubeSat, p, dt: float, kalman_coef: dict,
                  orientation: bool = False, single_femto_filter: bool = True):
 
         # Общие параметры
@@ -38,9 +38,9 @@ class KalmanFilter:
             self.phi_ = np.array([[1, 0, 0, dt, 0, 0],
                                   [0, 1, 0, 0, dt, 0],
                                   [0, 0, 1, 0, 0, dt],
-                                  [0, 0, 0, 1, 0, -2 * w_orb * dt],
-                                  [0, - w_orb ** 2 * dt, 0, 0, 1, 0],
-                                  [0, 0, 3 * w_orb ** 2 * dt,  2 * w_orb * dt, 0, 1]])
+                                  [0, 0, 0, 1, 0, -2 * W_ORB * dt],
+                                  [0, - W_ORB ** 2 * dt, 0, 0, 1, 0],
+                                  [0, 0, 3 * W_ORB ** 2 * dt,  2 * W_ORB * dt, 0, 1]])
             self.d_ = np.vstack([np.zeros((3, 3)), np.eye(3)])
             self.p_ = [np.diag([self.p_coef[0]]*3 + [self.p_coef[1]]*3) for _ in range(f.n)]
             self.q_ = np.diag([self.q_coef[0]]*3)
@@ -53,9 +53,9 @@ class KalmanFilter:
                                   [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
                                   [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
                                   [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 1, 0, -2 * w_orb * dt, 0, 0, 0],
-                                  [0, -w_orb ** 2 * dt, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-                                  [0, 0, 3 * w_orb ** 2 * dt, 0, 0, 0, 0, 2 * w_orb * dt, 0, 1, 0, 0, 0],
+                                  [0, 0, 0, 0, 0, 0, 0, 1, 0, -2 * W_ORB * dt, 0, 0, 0],
+                                  [0, -W_ORB ** 2 * dt, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                                  [0, 0, 3 * W_ORB ** 2 * dt, 0, 0, 0, 0, 2 * W_ORB * dt, 0, 1, 0, 0, 0],
                                   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
                                   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
                                   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]])

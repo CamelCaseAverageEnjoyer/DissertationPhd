@@ -1,6 +1,11 @@
+from PIL import Image
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.patches import FancyArrowPatch
+from mpl_toolkits.mplot3d import proj3d
+from matplotlib import animation
 from srs.kiamfemtosat.my_math import *
 from srs.kiamfemtosat.config import *
 
@@ -12,6 +17,114 @@ CAPTION_SIZE = 13  # 13
 rcParams["savefig.directory"] = "/home/kodiak/Desktop"
 rcParams["savefig.format"] = "jpg"
 
+# >>>>>>>>>>>> 2D графики <<<<<<<<<<<<
+def plot_signals(o):
+    global TITLE_SIZE, CAPTION_SIZE
+    for i_c in range(o.c.n):
+        for i_f in range(o.f.n):
+            x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.signal_power[i_c][i_f]))]
+            plt.plot(x, o.c.signal_power[i_c][i_f], label=f"фемтоступтник № {i_f+ 1}")
+        plt.xlabel("Время, с", fontsize=CAPTION_SIZE)
+        plt.ylabel("Мощность сигнала, ?", fontsize=CAPTION_SIZE)
+        plt.title(f"График сигналов от фемтоспутников, получаемых кубсатом № {i_c + 1}")
+        plt.legend(fontsize=CAPTION_SIZE)
+        plt.show()
+    tmp = plt.subplots(o.f.n, 1)
+    fig = tmp[0]
+    fig.suptitle(f"График сигналов от фемтоспутников, получаемых фемтосатом № {[i + 1 for i in range(o.f.n)]}",
+                 fontsize=TITLE_SIZE)
+    axes = tmp[1:o.f.n][0]
+    colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
+    for i_f1 in range(o.f.n):
+        for i_f2 in range(o.f.n):
+            if i_f1 != i_f2:
+                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.signal_power[i_f1][i_f2]))]
+                axes[i_f1].plot(x, o.f.signal_power[i_f1][i_f2], c=colors[i_f2])
+        axes[i_f1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+        axes[i_f1].set_ylabel("?", fontsize=CAPTION_SIZE)
+    plt.show()
+
+def plot_distance(o):
+    global TITLE_SIZE, CAPTION_SIZE
+    fig, ax = plt.subplots(2, 2 if o.p.k.orientation else 1, figsize=(15 if o.p.k.orientation else 8, 10))
+    axes = ax[0] if o.p.k.orientation else ax
+    fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
+    for i_c in range(o.c.n):
+        for i_f in range(o.f.n):
+            labels = ["Ошибка дистанции (реальная)",
+                      "Ошибка дистанции (оцениваемая)",
+                      "Ошибка определения положения"] \
+                if i_f == 0 else [None for _ in range(100)]
+            x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+            axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
+                         c=MY_COLORS[0], label=labels[0] if i_c == 0 else None)
+            axes[0].plot([o.p.dt * i for i in range(len(o.f.z_difference[i_f]))], o.f.z_difference[i_f],
+                         c=MY_COLORS[3], label=labels[1] if i_c == 0 else None)
+            axes[0].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][0] == NO_LINE_FLAG else
+                             np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
+                         c=MY_COLORS[2], label=labels[2] if i_c == 0 else None)
+    axes[0].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+    axes[0].set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
+    axes[0].legend(fontsize=CAPTION_SIZE)
+    axes[0].grid(True)
+
+    for i_c in range(o.c.n):
+        for i_f in range(o.f.n):
+            labels = ["ΔX", "ΔY", "ΔZ"]
+            x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+            for j in range(3):
+                axes[1].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][j] == NO_LINE_FLAG else
+                                 o.f.line_difference[i_f][i][j] for i in range(len(x))], c=MY_COLORS[j+3],
+                             label=labels[j] if i_f == 0 and i_c == 0 else None)
+    axes[1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+    axes[1].set_ylabel(f"Компоненты r, м", fontsize=CAPTION_SIZE)
+    axes[1].legend(fontsize=CAPTION_SIZE)
+    axes[1].grid(True)
+
+    if o.p.k.orientation:
+        for i_f in range(o.f.n):
+            labels_q = ["ΔΛ⁰", "ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]  # "ΔΛ⁰",
+            labels_w = ["Δωˣ", "Δωʸ", "Δωᶻ"]  # "ΔΛ⁰",
+            x = [o.p.dt * i for i in range(len(o.c.real_dist[0][i_f]))]
+            for j in range(3):
+                ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][j] for i in range(len(x))],
+                              c=MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
+                ax[1][1].plot(x, [o.f.spin_difference[i_f][i][j] for i in range(len(x))],
+                              c=MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
+            ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][3] for i in range(len(x))],
+                          c=MY_COLORS[3+3], label=labels_q[3] if i_f == 0 else None)
+        ax[1][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
+        ax[1][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
+        for j in range(2):
+            ax[1][j].legend(fontsize=CAPTION_SIZE)
+            ax[1][j].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+            ax[1][j].grid(True)
+    plt.show()
+
+def plot_sigmas(o):
+    """
+    Функция берёт преобразованные диагональные элементы матрицы P и делает по ним выводы.
+    Гордая такая.
+    """
+    fig, axes = plt.subplots(2, 1)
+    fig.suptitle(f"Погрешности, оцениваемые фильтром Калмана", fontsize=TITLE_SIZE)
+    colors = ['forestgreen', 'cornflowerblue', 'teal', 'peru']
+    x = [o.p.dt * i for i in range(len(o.p.k.sigmas[0]))]
+    t = 9 if o.p.k.orientation else 6
+    for n in range(o.f.n):
+        for i in range(t):
+            j = int((i // 3) % 2 == 0)
+            axes[j].plot(x, o.p.k.sigmas[n * t + i], c=colors[j])
+            # axes[j].plot(x, o.p.k.real_sigmas[n * t + i], c=colors[j+2])
+    '''for i in [0, 4]:
+        j = int((i // 3) % 2 == 0)
+        axes[j].plot(x, o.p.k.sigmas[i], c=colors[j], label="")
+        # axes[j].plot(x, o.p.k.real_sigmas[i], c=colors[j+2])'''
+    # plt.legend(fontsize=CAPTION_SIZE)
+    plt.show()
+
+
+# >>>>>>>>>>>> 3D отображение в ОСК <<<<<<<<<<<<
 def show_chipsat(o, j, clr, opacity):
     global FEMTO_RATE
     x, y, z = ([], [], [0 for _ in range(4)])
@@ -129,107 +242,95 @@ def plot_all(o, save: bool = False, count: int = None):
     else:
         f.show()
 
-def plot_signals(o):
-    global TITLE_SIZE, CAPTION_SIZE
-    for i_c in range(o.c.n):
-        for i_f in range(o.f.n):
-            x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.signal_power[i_c][i_f]))]
-            plt.plot(x, o.c.signal_power[i_c][i_f], label=f"фемтоступтник № {i_f+ 1}")
-        plt.xlabel("Время, с", fontsize=CAPTION_SIZE)
-        plt.ylabel("Мощность сигнала, ?", fontsize=CAPTION_SIZE)
-        plt.title(f"График сигналов от фемтоспутников, получаемых кубсатом № {i_c + 1}")
-        plt.legend(fontsize=CAPTION_SIZE)
-        plt.show()
-    tmp = plt.subplots(o.f.n, 1)
-    fig = tmp[0]
-    fig.suptitle(f"График сигналов от фемтоспутников, получаемых фемтосатом № {[i + 1 for i in range(o.f.n)]}",
-                 fontsize=TITLE_SIZE)
-    axes = tmp[1:o.f.n][0]
-    colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
-    for i_f1 in range(o.f.n):
-        for i_f2 in range(o.f.n):
-            if i_f1 != i_f2:
-                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.signal_power[i_f1][i_f2]))]
-                axes[i_f1].plot(x, o.f.signal_power[i_f1][i_f2], c=colors[i_f2])
-        axes[i_f1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-        axes[i_f1].set_ylabel("?", fontsize=CAPTION_SIZE)
-    plt.show()
 
-def plot_distance(o):
-    global TITLE_SIZE, CAPTION_SIZE
-    fig, ax = plt.subplots(2, 2 if o.p.k.orientation else 1, figsize=(15 if o.p.k.orientation else 8, 10))
-    axes = ax[0] if o.p.k.orientation else ax
-    fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
-    for i_c in range(o.c.n):
-        for i_f in range(o.f.n):
-            labels = ["Ошибка дистанции (реальная)",
-                      "Ошибка дистанции (оцениваемая)",
-                      "Ошибка определения положения"] \
-                if i_f == 0 else [None for _ in range(100)]
-            x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-            axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
-                         c=MY_COLORS[0], label=labels[0] if i_c == 0 else None)
-            axes[0].plot([o.p.dt * i for i in range(len(o.f.z_difference[i_f]))], o.f.z_difference[i_f],
-                         c=MY_COLORS[3], label=labels[1] if i_c == 0 else None)
-            axes[0].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][0] == NO_LINE_FLAG else
-                             np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
-                         c=MY_COLORS[2], label=labels[2] if i_c == 0 else None)
-    axes[0].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-    axes[0].set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
-    axes[0].legend(fontsize=CAPTION_SIZE)
-    axes[0].grid(True)
+# >>>>>>>>>>>> 3D отображение в ИСК <<<<<<<<<<<<
+def arrows3d(ends: np.ndarray, starts: np.ndarray = None, ax=None, label: str = None, **kwargs):
+    """Построение 3D стрелок
+    GitHub: https://github.com/matplotlib/matplotlib/issues/22571
+    :param ends: (N, 3) size array of arrow end coordinates
+    :param starts: (N, 3) size array of arrow start coordinates.
+    :param ax: (Axes3DSubplot) existing axes to add to
+    :param label: legend label to apply to this group of arrows
+    :param kwargs: additional arrow properties"""
+    if starts is None:
+        starts = np.zeros_like(ends)
 
-    for i_c in range(o.c.n):
-        for i_f in range(o.f.n):
-            labels = ["ΔX", "ΔY", "ΔZ"]
-            x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-            for j in range(3):
-                axes[1].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][j] == NO_LINE_FLAG else
-                                 o.f.line_difference[i_f][i][j] for i in range(len(x))], c=MY_COLORS[j+3],
-                             label=labels[j] if i_f == 0 and i_c == 0 else None)
-    axes[1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-    axes[1].set_ylabel(f"Компоненты r, м", fontsize=CAPTION_SIZE)
-    axes[1].legend(fontsize=CAPTION_SIZE)
-    axes[1].grid(True)
+    assert starts.shape == ends.shape, "`starts` and `ends` shape must match"
+    assert len(ends.shape) == 2 and ends.shape[1] == 3, \
+        "`starts` and `ends` must be shape (N, 3)"
 
-    if o.p.k.orientation:
-        for i_f in range(o.f.n):
-            labels_q = ["ΔΛ⁰", "ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]  # "ΔΛ⁰",
-            labels_w = ["Δωˣ", "Δωʸ", "Δωᶻ"]  # "ΔΛ⁰",
-            x = [o.p.dt * i for i in range(len(o.c.real_dist[0][i_f]))]
-            for j in range(3):
-                ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][j] for i in range(len(x))],
-                              c=MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
-                ax[1][1].plot(x, [o.f.spin_difference[i_f][i][j] for i in range(len(x))],
-                              c=MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
-            ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][3] for i in range(len(x))],
-                          c=MY_COLORS[3+3], label=labels_q[3] if i_f == 0 else None)
-        ax[1][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
-        ax[1][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
-        for j in range(2):
-            ax[1][j].legend(fontsize=CAPTION_SIZE)
-            ax[1][j].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-            ax[1][j].grid(True)
-    plt.show()
+    class Arrow3D(FancyArrowPatch):
+        def __init__(self, xs, ys, zs, *args, **kwargs):
+            super().__init__((0, 0), (0, 0), *args, **kwargs)
+            self._verts3d = xs, ys, zs
 
-def plot_sigmas(o):
-    """
-    Функция берёт преобразованные диагональные элементы матрицы P и делает по ним выводы.
-    Гордая такая.
-    """
-    fig, axes = plt.subplots(2, 1)
-    fig.suptitle(f"Погрешности, оцениваемые фильтром Калмана", fontsize=TITLE_SIZE)
-    colors = ['forestgreen', 'cornflowerblue', 'teal', 'peru']
-    x = [o.p.dt * i for i in range(len(o.p.k.sigmas[0]))]
-    t = 9 if o.p.k.orientation else 6
-    for n in range(o.f.n):
-        for i in range(t):
-            j = int((i // 3) % 2 == 0)
-            axes[j].plot(x, o.p.k.sigmas[n * t + i], c=colors[j])
-            # axes[j].plot(x, o.p.k.real_sigmas[n * t + i], c=colors[j+2])
-    '''for i in [0, 4]:
-        j = int((i // 3) % 2 == 0)
-        axes[j].plot(x, o.p.k.sigmas[i], c=colors[j], label="")
-        # axes[j].plot(x, o.p.k.real_sigmas[i], c=colors[j+2])'''
-    # plt.legend(fontsize=CAPTION_SIZE)
-    plt.show()
+        def do_3d_projection(self, renderer=None):
+            xs3d, ys3d, zs3d = self._verts3d
+            xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, self.axes.M)
+            self.set_positions((xs[0], ys[0]), (xs[1], ys[1]))
+
+            return np.min(zs)
+
+    # create new axes if none given
+    if ax is None:
+        ax = plt.figure().add_subplot(111, projection='3d')
+    arrow_prop_dict = dict(mutation_scale=20, arrowstyle='-|>', color='k', shrinkA=0, shrinkB=0)
+    arrow_prop_dict.update(kwargs)
+    for ind, (s, e) in enumerate(np.stack((starts, ends), axis=1)):
+        a = Arrow3D(
+            [s[0], e[0]], [s[1], e[1]], [s[2], e[2]],
+            # only give label to first arrow
+            label=label if ind == 0 else None,
+            **arrow_prop_dict)
+        ax.add_artist(a)
+    ax.points = np.vstack((starts, ends, getattr(ax, 'points', np.empty((0, 3)))))
+    return ax
+
+def plot_the_earth(ax, res: int = 1, pth: str = "./", earth_image=None):
+    x_points = 180 * res
+    y_points = 90 * res
+
+    if earth_image is None:
+        bm = Image.open(f'{pth}source/skins/{EARTH_FILE_NAME}')
+        bm = np.array(bm.resize((x_points, y_points))) / 256.
+    else:
+        bm = earth_image
+
+    # coordinates of the image - don't know if this is entirely accurate, but probably close
+    lons = np.linspace(-180, 180, bm.shape[1]) * np.pi / 180
+    lats = np.linspace(-90, 90, bm.shape[0])[::-1] * np.pi / 180
+
+    x = EARTH_RADIUS * np.outer(np.cos(lons), np.cos(lats)).T
+    y = EARTH_RADIUS * np.outer(np.sin(lons), np.cos(lats)).T
+    z = EARTH_RADIUS * np.outer(np.ones(np.size(lons)), np.sin(lats)).T
+    ax.plot_surface(x, y, z, rstride=4, cstride=4, facecolors=bm)
+    ax.set_xlabel("x, км")
+    ax.set_ylabel("y, км")
+    ax.set_zlabel("z, км")
+    return ax
+
+def plot_reference_frames(ax, o, txt: str, color: str = "gray", t: float = None):
+    x = np.array([1, 0, 0])
+    y = np.array([0, 1, 0])
+    z = np.array([0, 0, 1])
+    arrows = np.array([x, y, z]) * ORBIT_RADIUS
+    start = np.zeros(3)
+    if txt == "ОСК":
+        # Костыль на отсутствие вращения тела
+        # get_matrices(self, obj: Union[CubeSat, FemtoSat], n: int, t: float = None)
+        o.c.q[0] = [1, 0, 0, 0]
+        U, S, A, R_orb = o.p.get_matrices(obj=o.c, n=0, t=t)
+        arrows = np.array([U.T @ x, U.T @ y, U.T @ z]) * ORBIT_RADIUS / 2
+        start = R_orb
+    if txt == "ИСК":
+        n_round = 30
+        ax.plot(ORBIT_RADIUS * np.array([np.cos(i) for i in np.linspace(0, 2 * np.pi, n_round)]),
+                ORBIT_RADIUS * np.array([np.sin(i) for i in np.linspace(0, 2 * np.pi, n_round)]), np.zeros(n_round),
+                color)  # , ls=":"
+    ax = arrows3d(starts=np.array([start for _ in range(3)]), ends=np.array([start + arrows[i] for i in range(3)]),
+                  ax=ax, color=color, label=txt)
+    for i in range(3):
+        label = ["x", "y", "z"][i]
+        a = start + arrows[i] + arrows[i] / np.linalg.norm(arrows[i]) * 0.2
+        ax.text(a[0], a[1], a[2], c=color, s=label)
+    return ax

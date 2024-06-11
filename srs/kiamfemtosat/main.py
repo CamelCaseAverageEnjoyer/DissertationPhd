@@ -16,18 +16,12 @@ class Objects:
         self.model_c = model_c
 
         # Классы
-        self.h_orb = 600e3
-        self.mu = 5.972e24 * 6.67408e-11  # гравитационный параметр
-        self.j_2 = 1.082 * 1e-3
-        self.r_earth = 6371e3
-        self.r_orb = self.r_earth + self.h_orb
-        self.w_orb = np.sqrt(self.mu / self.r_orb ** 3)
-        self.c = CubeSat(n=n_c, n_f=n_f, model=model_c, w_orb=self.w_orb)
+        self.c = CubeSat(n=n_c, n_f=n_f, model=model_c)
         self.f = FemtoSat(n=n_f, start_navigation_tolerance=start_navigation_tolerance,
-                          start_navigation=start_navigation, w_orb=self.w_orb)
+                          start_navigation=start_navigation)
         self.p = PhysicModel(c=self.c, f=self.f, dt=dt,
                              method_navigation='kalman_filter rv' if navigation_method is None else navigation_method,
-                             kalman_coef=KALMAN_COEF if kalman_coef is None else kalman_coef, h_orb=self.h_orb)
+                             kalman_coef=KALMAN_COEF if kalman_coef is None else kalman_coef)
 
     def integrate(self, t: float, animate: bool = False) -> None:
         my_print(f"Оборотов вокруг Земли: {round(10 * t / (3600 * 1.5)) / 10}  "

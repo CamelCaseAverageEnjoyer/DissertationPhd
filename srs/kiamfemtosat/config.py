@@ -1,3 +1,5 @@
+import numpy as np
+
 # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
 dT = 10.
 TIME = 1e5
@@ -23,11 +25,18 @@ IF_ANY_PRINT = True
 NO_LINE_FLAG = -10
 
 # >>>>>>>>>>>> Константы <<<<<<<<<<<<
+EARTH_RADIUS = 6731e3
+ORBIT_RADIUS = EARTH_RADIUS + 400e3
+MU = 5.972e24 * 6.67408e-11  # гравитационный параметр
+W_ORB = np.sqrt(MU / ORBIT_RADIUS ** 3)
+V_ORB = np.sqrt(MU / ORBIT_RADIUS)
+J2 = 1.082 * 1e-3
+EARTH_FILE_NAME = ["earth1.jpg", "earth2.jpg", "earth3.webp"][2]
 GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas']
 NAVIGATIONS = ['perfect', 'near', 'random']
 OPERATING_MODES = ['free_flying', 'swarm_stabilize', 'lost']
 OPERATING_MODES_CHANGE = ['const', 'while_sun_visible']
-MY_COLORMAPS = ['cool', 'winter', 'summer', 'spring', 'gray', 'bone''autumn', ]
+MY_COLORMAPS = ['cool', 'winter', 'summer', 'spring', 'gray', 'bone''autumn']
 MY_COLORS = ['violet', 'blueviolet', 'forestgreen', 'cornflowerblue', 'peru', 'teal', 'blueviolet', 'deeppink',
              'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'forestgreen',
              'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy', 'deepskyblue', 'maroon', 'gold', 'aquamarine',
@@ -69,4 +78,38 @@ if __name__ == "__main__":
         ax.set_title(f"Диаграмма направленностей | GAIN_MODEL = {GAIN_MODEL}")
         plt.show()
 
+    def animate_reference_frames(resolution: int = 3, n: int = 5):
+        from srs.kiamfemtosat.my_plot import plot_the_earth, plot_reference_frames
+        from srs.kiamfemtosat.main import Objects
+        from PIL import Image
+        from os import remove
+
+        o = Objects()
+        t_list = np.linspace(0, 1.5, n)
+        fig = plt.figure(figsize=(7, 7))
+        ax = fig.add_subplot(projection='3d')
+        ax.set_xlim3d([-1e7, 1e7])
+        ax.set_ylim3d([-1e7, 1e7])
+        ax.set_zlim3d([-1e7, 1e7])
+        x_points = 180 * resolution
+        y_points = 90 * resolution
+        earth_image = Image.open(f'../../source/skins/{EARTH_FILE_NAME}')
+        earth_image = np.array(earth_image.resize((x_points, y_points))) / 256.
+        for i in range(n):
+            t = t_list[i] * 3600  # t в секундах, i в часах
+            ax = plot_the_earth(ax, earth_image=earth_image)
+            ax = plot_reference_frames(ax, o, txt="ИСК", color="lime")
+            ax = plot_reference_frames(ax, o, txt="ОСК", color="red", t=t)
+            ax.axis('equal')
+            plt.legend()
+            plt.savefig(f"../../res/to_delete_{'{:04}'.format(i)}.jpg")
+            ax.clear()
+        plt.close()
+
+        images = [Image.open(f"../../res/to_delete_{'{:04}'.format(i)}.jpg") for i in range(n)]
+        images[0].save('../../res/res.gif', save_all=True, append_images=images[1:], duration=100, loop=0)
+        for i in range(n):
+            remove(f"../../res/to_delete_{'{:04}'.format(i)}.jpg")
+
+    # animate_reference_frames(resolution=5, n=15)
     plot_model_gain()

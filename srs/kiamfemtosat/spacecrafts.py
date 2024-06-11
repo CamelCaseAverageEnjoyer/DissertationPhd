@@ -42,7 +42,7 @@ def get_gain(obj: any, r: Union[float, np.ndarray], mode3: bool = False) -> list
 
 # >>>>>>>>>>>> Классы аппаратов <<<<<<<<<<<<
 class FemtoSat:
-    def __init__(self, w_orb: float, n: int = 10, r_spread: float = 1e2, v_spread: float = 1e-1,
+    def __init__(self, n: int = 10, r_spread: float = 1e2, v_spread: float = 1e-1,
                  start_navigation: str = 'near', start_navigation_tolerance: float = 0.9, w_spread: float = 1e-5):
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
@@ -63,7 +63,7 @@ class FemtoSat:
             self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
         for i in range(self.n):
             if SHAMANISM["ClohessyWiltshireC1=0"]:
-                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * w_orb
+                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * W_ORB
             self.q[i] /= np.linalg.norm(self.q[i])
             self.q_[i] /= np.linalg.norm(self.q_[i])
 
@@ -88,7 +88,7 @@ class FemtoSat:
                             prm_poor[i] * (1 - start_navigation_tolerance) for i in range(self.n)]
 
 class CubeSat:
-    def __init__(self, w_orb: float, n_f: int, n: int = 1, model: str = '1U', w_spread: float = 1e-4,
+    def __init__(self, n_f: int, n: int = 1, model: str = '1U', w_spread: float = 1e-4,
                  r_spread: float = R_V_CubeSat_SPREAD[0], v_spread: float = R_V_CubeSat_SPREAD[1]):
         """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.\n
         Все величны представлены в СИ."""
@@ -120,7 +120,7 @@ class CubeSat:
         self.c_hkw, self.line = [[[] for _ in range(self.n)] for _ in range(2)]
         for i in range(self.n):
             if SHAMANISM["ClohessyWiltshireC1=0"]:
-                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * w_orb
+                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * W_ORB
             self.q[i] /= np.linalg.norm(self.q[i])
 
         # Индивидуальные параметры режимов работы
@@ -137,4 +137,3 @@ class CubeSat:
         # Прорисовка ножек
         self.legs_x = 0.0085
         self.legs_z = 0.007
-

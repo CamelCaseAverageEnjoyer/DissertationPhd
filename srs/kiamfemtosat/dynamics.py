@@ -75,20 +75,13 @@ def get_rand_c(w: float, r_spread: float = 100, v_spread: float = 0.01, if_no: b
 # >>>>>>>>>>>> Класс динамики кубсатов и чипсатов <<<<<<<<<<<<
 class PhysicModel:
     def __init__(self, f: FemtoSat, c: CubeSat, kalman_coef: dict, method_navigation: str, dt: float = 1.,
-                 is_aero: bool = True, is_complex_aero: bool = False, is_hkw: bool = True, h_orb: float = 600e3):
+                 is_aero: bool = True, is_complex_aero: bool = False, is_hkw: bool = True):
         self.dt = dt
-        self.h_orb = h_orb
         self.show_rate = 1
 
         # Неизменные параметры
         self.t = 0.
         self.iter = 0
-        self.mu = 5.972e24 * 6.67408e-11  # гравитационный параметр
-        self.j_2 = 1.082 * 1e-3
-        self.r_earth = 6371e3
-        self.r_orb = self.r_earth + self.h_orb
-        self.w_orb = np.sqrt(self.mu / self.r_orb ** 3)
-        self.v_orb = np.sqrt(self.mu / self.r_orb)
         self.c = c
         self.f = f
         self.r_matrix = kalman_coef['r']
@@ -101,12 +94,12 @@ class PhysicModel:
 
         # Параметры фильтров
         self.navigation = method_navigation.split()
-        self.k = KalmanFilter(f=f, c=c, p=self, dt=self.dt, w_orb=self.w_orb, kalman_coef=kalman_coef,
+        self.k = KalmanFilter(f=f, c=c, p=self, dt=self.dt, kalman_coef=kalman_coef,
                               orientation='rvq' in self.navigation, single_femto_filter='all' not in self.navigation)
 
         # Расчёт движения Хилла-Клохесси-Уилтшира
-        self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], self.w_orb) for i in range(self.c.n)]
-        self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], self.w_orb) for i in range(self.f.n)]
+        self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], W_ORB) for i in range(self.c.n)]
+        self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], W_ORB) for i in range(self.f.n)]
 
     # Интегрирование движения
     def aero_integrate(self, obj, i: int, r=None, v=None, th=None, w=None) -> tuple:
@@ -136,13 +129,9 @@ class PhysicModel:
 
         # Вывод основных параметров
         if self.iter == 1 and IF_ANY_PRINT:
-            tmp1 = f", сферичность={int(self.c.ellipsoidal_signal*100)}%" if self.c.gain_mode == GAIN_MODES[1] \
-                else ""
-            tmp2 = f", сферичность={int(self.f.ellipsoidal_signal*100)}%" if self.f.gain_mode == GAIN_MODES[1] \
-                else ""
             tmp = ", ориентации\n" if 'rvq' in self.navigation else "\n"
-            my_print(f"Диаграмма антенн кубсата: {self.c.gain_mode}{tmp1}\n"
-                     f"Диаграмма антенн фемтосатов: {self.f.gain_mode}{tmp2}\n"
+            my_print(f"Диаграмма антенн кубсата: {self.c.gain_mode}\n"
+                     f"Диаграмма антенн фемтосатов: {self.f.gain_mode}\n"
                      f"Учёт аэродинамики: {self.is_aero}\n"
                      f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}" 
                      f"Фильтр Калмана основан на: "
@@ -159,8 +148,8 @@ class PhysicModel:
                 if self.is_aero:
                     obj.r_orf[i], obj.v_orf[i] = self.aero_integrate(obj, i)
                 else:
-                    obj.r_orf[i] = r_hkw(obj.c_hkw[i], self.w_orb, self.t)
-                    obj.v_orf[i] = v_hkw(obj.c_hkw[i], self.w_orb, self.t)
+                    obj.r_orf[i] = r_hkw(obj.c_hkw[i], W_ORB, self.t)
+                    obj.v_orf[i] = v_hkw(obj.c_hkw[i], W_ORB, self.t)
 
                 if self.iter % self.show_rate == 0:
                     obj.line[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
@@ -170,7 +159,7 @@ class PhysicModel:
         measure_magnetic_field(c=self.c, f=self.f, noise=np.sqrt(self.r_matrix))
 
         # Изменение режимов работы
-        guidance(c=self.c, f=self.f, earth_turn=self.t * self.w_orb / 2 / np.pi)
+        guidance(c=self.c, f=self.f, earth_turn=self.t * W_ORB / 2 / np.pi)
 
         # Запись параметров
         if self.iter % self.show_rate == 0:
@@ -221,7 +210,7 @@ class PhysicModel:
         c_resist - Cf для аэродинаммики"""
         # force = - r * self.mu / np.linalg.norm(r)
         force = self.get_w_orb_acceleration(r, v)
-        v_real = v + np.array([self.v_orb, 0, 0])
+        v_real = v + np.array([V_ORB, 0, 0])
         if self.is_aero:
             force -= v_real * np.linalg.norm(v_real) * c_resist * rho * square / 2 / m
         return force
@@ -230,13 +219,13 @@ class PhysicModel:
         return np.zeros(3)
 
     def get_w_orb_acceleration(self, r, v):
-        return np.array([-2 * self.w_orb * v[2],
-                         -self.w_orb ** 2 * r[1],
-                         2 * self.w_orb * v[0] + 3 * self.w_orb ** 2 * r[2]])
+        return np.array([-2 * W_ORB * v[2],
+                         -W_ORB ** 2 * r[1],
+                         2 * W_ORB * v[0] + 3 * W_ORB ** 2 * r[2]])
 
     def get_atm_params(self, h: float):
         """https://www.grc.nasa.gov/www/k-12/airplane/atmosmet.html"""
-        t = -131.21 + 0.00299 * (h + self.h_orb)
+        t = -131.21 + 0.00299 * (h + ORBIT_RADIUS - EARTH_RADIUS)
         p = 2.488 * ((t + 273.1) / 216.6) ** -11.388
         rho = p / (0.2869 * (t + 273.1))
         return rho, t, p
@@ -268,3 +257,16 @@ class PhysicModel:
         Lw = self.dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         tmp = (Lw[0:4] + L_)  # / np.linalg.norm(Lw[0:4] + L_)
         return tmp[4-a:4], Lw[a:a+3] + w
+
+    def get_matrices(self, obj: Union[CubeSat, FemtoSat], n: int, t: float = None):
+        t = self.t if t is None else t
+        A = quart2dcm(obj.q[n])
+        U = np.array([[0., 1., 0.],
+                      [0., 0., 1.],
+                      [1., 0., 0.]]) @ \
+            np.array([[np.cos(t * W_ORB), np.sin(t * W_ORB), 0],
+                      [-np.sin(t * W_ORB), np.cos(t * W_ORB), 0],
+                      [0, 0, 1]])
+        S = A @ U.T
+        R_orb = U.T @ np.array([0, 0, ORBIT_RADIUS])
+        return U, S, A, R_orb
