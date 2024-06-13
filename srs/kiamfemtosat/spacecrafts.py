@@ -25,7 +25,10 @@ def local_dipole(r, ind: str = 'x') -> float:
 
 def get_gain(obj: any, r: Union[float, np.ndarray], mode3: bool = False) -> list:
     """Внимание! Всё переделано - теперь возвращается только список для повышения градуса полиморфизма,
-    интуитивизма, индуизма, культуризма, конституционализма, шовинизма, каннибализма"""
+    интуитивизма, индуизма, культуризма, конституционализма, шовинизма, каннибализма
+    :param obj: Переменная класса FemtoSat или CubeSat (any потому что не хочу ниже писать)
+    :param r: Направление сигнала в СК антенны
+    :param mode3: Специальный флаг для возврата списка длины 1"""
     # Памятка: GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas']
     r1 = r / np.linalg.norm(r)
     if obj.gain_mode == GAIN_MODES[1]:
@@ -47,6 +50,7 @@ class FemtoSat:
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
         # Общие параметры
+        self.name = "FemtoSat"
         self.n = n
         self.mass = 0.01
         self.size = [0.03, 0.03]
@@ -103,6 +107,7 @@ class CubeSat:
             raise ValueError(f"Модель кубсата [{model}] должна быть среди {models}")
 
         # Общие параметры
+        self.name = "CubeSat"
         self.n = n
         self.model = model
         self.model_number = models.index(model)

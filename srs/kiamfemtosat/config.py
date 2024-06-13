@@ -9,7 +9,7 @@ AERO_DRAG = False
 NAVIGATION_BY_ALL = True
 NAVIGATION_ANGLES = False
 START_NAVIGATION = ['perfect', 'near', 'random'][2]
-GAIN_MODEL = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][0]
+GAIN_MODEL = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][4]
 DISTORTION = 0.  # Искривление диаграммы направленности
 CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
 
@@ -20,9 +20,15 @@ KALMAN_COEF = {'q': [1e-12]*2, 'p': [1e-7]*4, 'r': 1e-1}
 R_V_CubeSat_SPREAD = [10, 0.1]
 CUBESAT_MODEL = ['1U', '1.5U', '2U', '3U', '6U', '12U'][0]
 
+ATMOSPHERE_MODEL = ['NASA', 'ПНБО', 'COESA62', 'COESA76'][3]
+DYNAMIC_MODEL = ['Clohessy-Wiltshire', 'Spherical']
+
+
 # >>>>>>>>>>>> Параметры отображения <<<<<<<<<<<<
 IF_ANY_PRINT = True
 NO_LINE_FLAG = -10
+EARTH_FILE_NAME = ["earth1.jpg", "earth2.jpg", "earth3.webp"][2]
+
 
 # >>>>>>>>>>>> Константы <<<<<<<<<<<<
 EARTH_RADIUS = 6731e3
@@ -31,16 +37,19 @@ MU = 5.972e24 * 6.67408e-11  # гравитационный параметр
 W_ORB = np.sqrt(MU / ORBIT_RADIUS ** 3)
 V_ORB = np.sqrt(MU / ORBIT_RADIUS)
 J2 = 1.082 * 1e-3
-EARTH_FILE_NAME = ["earth1.jpg", "earth2.jpg", "earth3.webp"][2]
 GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas']
 NAVIGATIONS = ['perfect', 'near', 'random']
 OPERATING_MODES = ['free_flying', 'swarm_stabilize', 'lost']
 OPERATING_MODES_CHANGE = ['const', 'while_sun_visible']
 MY_COLORMAPS = ['cool', 'winter', 'summer', 'spring', 'gray', 'bone''autumn']
-MY_COLORS = ['violet', 'blueviolet', 'forestgreen', 'cornflowerblue', 'peru', 'teal', 'blueviolet', 'deeppink',
+MY_COLORS = ['violet', 'forestgreen', 'cornflowerblue', 'peru', 'teal', 'blueviolet', 'deeppink',
              'darksalmon', 'magenta', 'maroon', 'orchid', 'purple', 'wheat', 'tan', 'steelblue', 'forestgreen',
              'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy', 'deepskyblue', 'maroon', 'gold', 'aquamarine',
              'indigo', 'olivedrab', 'slategray', 'pink', 'salmon', 'steelblue', 'peru']
+
+
+# >>>>>>>>>>>> Параметры для тестов <<<<<<<<<<<<
+IF_NAVIGATION = True
 
 
 if __name__ == "__main__":
@@ -51,14 +60,13 @@ if __name__ == "__main__":
     from srs.kiamfemtosat.main import Objects
     from srs.kiamfemtosat.cosmetic import my_print
 
-
-    def plot_model_gain(N: int = 30):
+    def plot_model_gain(n: int = 30):
         my_print(f"Диаграмма направленностей типа: {GAIN_MODEL}", color="b")
         fig = plt.figure(figsize=(10, 10))
         ax = fig.add_subplot(projection='3d')
 
-        u = np.linspace(0, 2 * np.pi, N)
-        v = np.linspace(-np.pi / 2, np.pi / 2, N)
+        u = np.linspace(0, 2 * np.pi, n)
+        v = np.linspace(-np.pi / 2, np.pi / 2, n)
         U, V = np.meshgrid(u, v)
 
         o_ = Objects()
@@ -66,7 +74,7 @@ if __name__ == "__main__":
         max_g = 0
 
         for k in range(len(get_gain(obj=o_.f, r=pol2dec(1, u[0], v[0])))):
-            g = np.array([[get_gain(obj=o_.f, r=pol2dec(1, u[i], v[j]))[k] for i in range(N)] for j in range(N)])
+            g = np.array([[get_gain(obj=o_.f, r=pol2dec(1, u[i], v[j]))[k] for i in range(n)] for j in range(n)])
             X, Y, Z = pol2dec(g, U, V)
             ax.plot_surface(X, Y, Z, cmap=MY_COLORMAPS[k])
             max_g = max(max_g, np.max(g.flatten()))
@@ -78,13 +86,35 @@ if __name__ == "__main__":
         ax.set_title(f"Диаграмма направленностей | GAIN_MODEL = {GAIN_MODEL}")
         plt.show()
 
+    def plot_atmosphere_models(n: int = 100):
+        from srs.kiamfemtosat.dynamics import get_atm_params
+        atmosphere_models = ['NASA', 'ПНБО', 'COESA62', 'COESA76']
+
+        range_km = [300, 500]
+        fig, axs = plt.subplots(1, 2, figsize=(19, 5))
+        fig.suptitle('Модели атмосферы')
+        for m in range(len(atmosphere_models)):
+            for j in range(2):
+                z = np.linspace(100e3 if j == 0 else range_km[0]*1e3, range_km[1]*1e3, n)
+                rho = [get_atm_params(z[i], atm_model=atmosphere_models[m])[0] for i in range(n)]
+                tmp = ", используемая" if atmosphere_models[m] == ATMOSPHERE_MODEL else ""
+                axs[j].plot(z, rho, ls="-" if atmosphere_models[m] == ATMOSPHERE_MODEL else ":",
+                            label=f"Модель: {atmosphere_models[m]}{tmp}")  # , c=MY_COLORS[m])
+                axs[j].set_ylabel(f"Плотность ρ, кг/м³")
+                axs[j].set_xlabel(f"Высота z, м")
+                axs[j].legend()
+                axs[j].grid()
+        axs[0].set_title(f"От линии Кармана до {range_km[1]} км")
+        axs[1].set_title(f"От {range_km[0]} до {range_km[1]} км")
+        plt.show()
+
     def animate_reference_frames(resolution: int = 3, n: int = 5):
         from srs.kiamfemtosat.my_plot import plot_the_earth, plot_reference_frames
         from srs.kiamfemtosat.main import Objects
         from PIL import Image
         from os import remove
 
-        o = Objects()
+        o = Objects(dt=1.5 * 3600 / n)
         t_list = np.linspace(0, 1.5, n)
         fig = plt.figure(figsize=(7, 7))
         ax = fig.add_subplot(projection='3d')
@@ -96,10 +126,12 @@ if __name__ == "__main__":
         earth_image = Image.open(f'../../source/skins/{EARTH_FILE_NAME}')
         earth_image = np.array(earth_image.resize((x_points, y_points))) / 256.
         for i in range(n):
-            t = t_list[i] * 3600  # t в секундах, i в часах
+            o.p.time_step()
+            # t = t_list[i] * 3600  # t в секундах, i в часах
             ax = plot_the_earth(ax, earth_image=earth_image)
             ax = plot_reference_frames(ax, o, txt="ИСК", color="lime")
-            ax = plot_reference_frames(ax, o, txt="ОСК", color="red", t=t)
+            # ax = plot_reference_frames(ax, o, txt="ОСК", color="red", t=t)
+            ax = plot_reference_frames(ax, o, txt="ОСК", color="red")
             ax.axis('equal')
             plt.legend()
             plt.savefig(f"../../res/to_delete_{'{:04}'.format(i)}.jpg")
@@ -111,5 +143,6 @@ if __name__ == "__main__":
         for i in range(n):
             remove(f"../../res/to_delete_{'{:04}'.format(i)}.jpg")
 
-    # animate_reference_frames(resolution=5, n=15)
+    # animate_reference_frames(resolution=1, n=15)  # Поставить IF_NAVIGATION = False
     plot_model_gain()
+    plot_atmosphere_models()

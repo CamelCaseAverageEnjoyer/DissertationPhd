@@ -1,4 +1,6 @@
+"""Ёбаный пиздец блять в каком же я ахуе просто ебааать"""
 from srs.kiamfemtosat.spacecrafts import *
+from srs.kiamfemtosat.dynamics import rk4_translate, rk4_attitude
 
 # >>>>>>>>>>>> Guidance <<<<<<<<<<<<
 def guidance(c: CubeSat, f: FemtoSat, earth_turn: float) -> None:
@@ -86,10 +88,10 @@ class KalmanFilter:
         r_ = self.r_orf_estimation  # [i_f][i_t]
         if AERO_DRAG:  # Переделать весь расчёт. Это какой-то крокодил и он тебя сожрёт рано или поздно
             rv_m = [
-                self.p.aero_integrate(self.f, i=i, r=r_[i][0:3], v=r_[i][7:10] if self.orientation else r_[i][3:6])
+                rk4_translate(self.f, i=i, r=r_[i][0:3], v=r_[i][7:10] if self.orientation else r_[i][3:6])
                 for i in range(self.f.n)]
             if NAVIGATION_ANGLES:
-                thw = [self.p.attitude_integrate(self.f, i=i, th=r_[i][3:7], w=r_[i][10:13]) for i in
+                thw = [rk4_attitude(self.f, i=i, th=r_[i][3:7], w=r_[i][10:13]) for i in
                        range(self.f.n)]
                 r_m = np.array(
                     flatten([np.append(np.append(np.append(rv_m[i][0], thw[i][0]), rv_m[i][1]), thw[i][1])
@@ -101,7 +103,7 @@ class KalmanFilter:
             if NAVIGATION_ANGLES:
                 for i in range(self.f.n):
                     r__ = self.r_orf_estimation[i]
-                    q_w = self.p.attitude_integrate(self.f, i=i, th=r__[3:7], w=r__[10:13])
+                    q_w = rk4_attitude(self.f, i=i, th=r__[3:7], w=r__[10:13])
                     r_m[i*self.t + 3:i*self.t + 7], r_m[i*self.t + 10:i*self.t + 13] = (q_w[0], q_w[1])
 
         # Измерения с поправкой на signal_rate
@@ -176,16 +178,16 @@ class KalmanFilter:
         z_ = self.c.calc_dist[0][i][-1]
         r_ = self.r_orf_estimation[i]
         if self.p.is_aero:
-            rv_m = self.p.aero_integrate(self.f, i=i, r=r_[0:3], v=r_[7:10] if self.orientation else r_[3:6])
+            rv_m = rk4_translate(self.f, i=i, r=r_[0:3], v=r_[7:10] if self.orientation else r_[3:6])
             if self.orientation:
-                thw = self.p.attitude_integrate(self.f, i=i, th=r_[3:7], w=r_[10:13])
+                thw = rk4_attitude(self.f, i=i, th=r_[3:7], w=r_[10:13])
                 r_m = np.append(np.append(np.append(rv_m[0], thw[0]), rv_m[1]), thw[1])
             else:
                 r_m = np.append(rv_m[0], rv_m[1])
         else:
             r_m = self.phi_ @ r_
             if self.orientation:
-                thw = self.p.attitude_integrate(self.f, i=i, th=r_[3:7], w=r_[10:13])
+                thw = rk4_attitude(self.f, i=i, th=r_[3:7], w=r_[10:13])
                 r_m[3:7], r_m[10:13] = (thw[0], thw[1])
 
         if self.c.gain_mode == GAIN_MODES[4]:
@@ -242,10 +244,10 @@ class KalmanFilter:
                       [self.f.calc_dist[j][i][-1] for i in range(j)] for j in range(self.f.n)]))
         if self.p.is_aero:
             r_ = self.r_orf_estimation
-            rv_m = [self.p.aero_integrate(self.f, i=i, r=r_[i][0:3], v=r_[i][7:10] if self.orientation else r_[i][3:6])
+            rv_m = [rk4_translate(self.f, i=i, r=r_[i][0:3], v=r_[i][7:10] if self.orientation else r_[i][3:6])
                     for i in range(self.f.n)]
             if self.orientation:
-                thw = [self.p.attitude_integrate(self.f, i=i, th=r_[i][3:7], w=r_[i][10:13]) for i in range(self.f.n)]
+                thw = [rk4_attitude(self.f, i=i, th=r_[i][3:7], w=r_[i][10:13]) for i in range(self.f.n)]
                 r_m = np.array(flatten([np.append(np.append(np.append(rv_m[i][0], thw[i][0]), rv_m[i][1]), thw[i][1])
                                         for i in range(self.f.n)]))
             else:
@@ -257,7 +259,7 @@ class KalmanFilter:
             if self.orientation:
                 for i in range(self.f.n):
                     r__ = self.r_orf_estimation[i]
-                    thw = self.p.attitude_integrate(self.f, i=i, th=r__[3:7], w=r__[10:13])
+                    thw = rk4_attitude(self.f, i=i, th=r__[3:7], w=r__[10:13])
                     r_m[self.t*i+3:self.t*i+7], r_m[self.t*i+10:self.t*i+13] = (thw[0], thw[1])
 
         signal_rate = np.array([get_gain(self.f, quart2dcm(r_m[self.t*i+3:self.t*i+7]) @
@@ -304,5 +306,21 @@ class KalmanFilter:
             if SHAMANISM["KalmanSpinLimit"][0] and np.linalg.norm(tmp[10:13]) > SHAMANISM["KalmanSpinLimit"][1]:
                 tmp[10:13] = tmp[10:13] / np.linalg.norm(tmp[10:13]) * SHAMANISM["KalmanSpinLimit"][1]
             self.r_orf_estimation[i] = tmp
+
+def navigate(k: KalmanFilter):
+    if NAVIGATION_BY_ALL:  # self.k.single_femto_filter:
+        k.new_calc()  # Пока что при любом OPERATING_MODES (если весь рой выпал)
+    else:
+        for i in range(k.f.n):
+            if k.f.operating_mode[i] != OPERATING_MODES[-1]:
+                k.calc(i)
+            else:
+                k.f.z_difference[i] += [NO_LINE_FLAG]
+            if k.c.gain_mode != GAIN_MODES[4]:
+                for j_n in range(k.f.n):
+                    for j_t in range(9 if k.orientation else 3):  # range(self.k.t)
+                        tmp = np.append(np.append(k.f.r_orf[j_n], k.f.v_orf[j_n]), list(k.f.q[j_n][1:4]))
+                        tmp = np.zeros(9) if k.f.operating_mode[j_n] != OPERATING_MODES[-1] else tmp
+                        k.sigmas[j_n * k.t + j_t] += [np.sqrt(k.p_[j_n][j_t][j_t]) * tmp[j_t]]
 
 # >>>>>>>>>>>> Control <<<<<<<<<<<<

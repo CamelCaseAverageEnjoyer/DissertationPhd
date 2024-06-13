@@ -1,3 +1,4 @@
+"""Численное моделирование космической миссии с использованием чипсатов"""
 from srs.kiamfemtosat.dynamics import *
 
 class Objects:
