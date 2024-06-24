@@ -296,7 +296,6 @@ def plot_the_earth(ax, res: int = 1, pth: str = "./", earth_image=None):
     else:
         bm = earth_image
 
-    # coordinates of the image - don't know if this is entirely accurate, but probably close
     lons = np.linspace(-180, 180, bm.shape[1]) * np.pi / 180
     lats = np.linspace(-90, 90, bm.shape[0])[::-1] * np.pi / 180
 

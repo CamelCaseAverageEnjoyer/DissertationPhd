@@ -1,24 +1,26 @@
 import numpy as np
 
 # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
-dT = 10.
-TIME = 1e5
+dT = 10000.
+TIME = 1e6
 CUBESAT_AMOUNT = 5
 CHIPSAT_AMOUNT = 2
 AERO_DRAG = False
 NAVIGATION_BY_ALL = True
 NAVIGATION_ANGLES = False
+START_NAVIGATION_TOLERANCE = 0.9
 START_NAVIGATION = ['perfect', 'near', 'random'][2]
 GAIN_MODEL = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][4]
 DISTORTION = 0.  # Искривление диаграммы направленности
 CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
 
+R_V_W_CubeSat_SPREAD = [1e1, 1e-1, 1e-5]
+R_V_W_ChipSat_SPREAD = [1e2, 1e-1, 1e-5]
+KALMAN_COEF = {'q': [1e-12]*2, 'p': [1e-7]*4, 'r': 1e-1}
+CUBESAT_MODEL = ['1U', '1.5U', '2U', '3U', '6U', '12U'][0]
 SHAMANISM = {'KalmanQuaternionNormalize': True,   # Нормировка кватернионов в фильтре Калмана
              'KalmanSpinLimit': [True, 1e-3],  # Ограничение скорости вращения в прогнозе фильтра Калмана
              'ClohessyWiltshireC1=0': True}  # Траектории без дрейфа (зануление C1, при учёте аэродинамики поломок нет)
-KALMAN_COEF = {'q': [1e-12]*2, 'p': [1e-7]*4, 'r': 1e-1}
-R_V_CubeSat_SPREAD = [10, 0.1]
-CUBESAT_MODEL = ['1U', '1.5U', '2U', '3U', '6U', '12U'][0]
 
 ATMOSPHERE_MODEL = ['NASA', 'ПНБО', 'COESA62', 'COESA76'][3]
 DYNAMIC_MODEL = ['Clohessy-Wiltshire', 'Spherical']
@@ -33,10 +35,14 @@ EARTH_FILE_NAME = ["earth1.jpg", "earth2.jpg", "earth3.webp"][2]
 # >>>>>>>>>>>> Константы <<<<<<<<<<<<
 EARTH_RADIUS = 6731e3
 ORBIT_RADIUS = EARTH_RADIUS + 400e3
+ECCENTRICITY = 0
+INCLINATION = 0  # В градусах
+
 MU = 5.972e24 * 6.67408e-11  # гравитационный параметр
 W_ORB = np.sqrt(MU / ORBIT_RADIUS ** 3)
 V_ORB = np.sqrt(MU / ORBIT_RADIUS)
 J2 = 1.082 * 1e-3
+CUBESAT_MODELS = ['1U', '1.5U', '2U', '3U', '6U', '12U']
 GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas']
 NAVIGATIONS = ['perfect', 'near', 'random']
 OPERATING_MODES = ['free_flying', 'swarm_stabilize', 'lost']
@@ -49,7 +55,7 @@ MY_COLORS = ['violet', 'forestgreen', 'cornflowerblue', 'peru', 'teal', 'bluevio
 
 
 # >>>>>>>>>>>> Параметры для тестов <<<<<<<<<<<<
-IF_NAVIGATION = True
+IF_NAVIGATION = False
 
 
 if __name__ == "__main__":

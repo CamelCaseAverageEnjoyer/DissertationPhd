@@ -1,7 +1,7 @@
 """Функции для моделирования динамики КА"""
 from datetime import datetime
-
-import numpy as np
+from kiam_astro import kiam
+from kiam_astro.trajectory import Trajectory
 
 from srs.kiamfemtosat.cosmetic import *
 from srs.kiamfemtosat.primary_info import *
@@ -130,13 +130,11 @@ def get_full_acceleration(obj: Union[CubeSat, FemtoSat], i: int, r: Union[float,
     c_resist - Cf для аэродинаммики"""
     if DYNAMIC_MODEL == 'Clohessy-Wiltshire':
         force = get_geopotential_acceleration(r, v)
-        v_real = v + np.array([V_ORB, 0, 0])
         if AERO_DRAG:
             force += get_aero_drag_acceleration(r=r, v=v, obj=obj, i=i)
-            # force -= v_real * np.linalg.norm(v_real) * c_resist * rho * square / 2 / m
         return force
 
-def rk4_translate(obj: Union[CubeSat, FemtoSat], i: int, dt: float, r=None, v=None) -> tuple:
+def rk4_translate(obj: Union[CubeSat, FemtoSat], i: int, dt: float = dT, r=None, v=None) -> tuple:
     def rv_right_part(rv1, a1):
         return np.array([rv1[3], rv1[4], rv1[5], a1[0], a1[1], a1[2]])
     r = obj.r_orf[i] if r is None else r
@@ -157,7 +155,7 @@ def get_torque(obj: Union[CubeSat, FemtoSat], q: Union[list, np.ndarray], w: np.
     """Возвращает вектор углового УСКОРЕНИЯ. Удачи!"""
     return np.zeros(3)
 
-def rk4_attitude(obj: Union[CubeSat, FemtoSat], dt: float, i: int, q=None, w=None):
+def rk4_attitude(obj: Union[CubeSat, FemtoSat], i: int, dt: float = dT, q=None, w=None):
     """Господи, где здесь производная, где дифференциал? Пожалуйста, дрогой я, дай мне знак!"""
     def lw_right_part(qw_, e_):
         q_, w_ = qw_[0:4], qw_[4:7]
@@ -180,9 +178,7 @@ def rk4_attitude(obj: Union[CubeSat, FemtoSat], dt: float, i: int, q=None, w=Non
 
 # >>>>>>>>>>>> Класс динамики кубсатов и чипсатов <<<<<<<<<<<<
 class PhysicModel:
-    def __init__(self, f: FemtoSat, c: CubeSat, kalman_coef: dict, method_navigation: str, dt: float = 1.,
-                 is_aero: bool = True, is_complex_aero: bool = False, is_hkw: bool = True):
-        self.dt = dt
+    def __init__(self, f: FemtoSat, c: CubeSat):
         self.show_rate = 1
 
         # Неизменные параметры
@@ -190,18 +186,10 @@ class PhysicModel:
         self.iter = 0
         self.c = c
         self.f = f
-        self.r_matrix = kalman_coef['r']
         self.time_begin = datetime.now()
 
-        # Параметры типа bool
-        self.is_aero = is_aero
-        self.is_complex_aero = is_complex_aero
-        self.is_hkw = is_hkw
-
-        # Параметры фильтров
-        self.navigation = method_navigation.split()
-        self.k = KalmanFilter(f=f, c=c, p=self, dt=self.dt, kalman_coef=kalman_coef,
-                              orientation='rvq' in self.navigation, single_femto_filter='all' not in self.navigation)
+        # Инициализация фильтра
+        self.k = KalmanFilter(f=f, c=c, p=self)
 
         # Расчёт движения Хилла-Клохесси-Уилтшира
         self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], W_ORB) for i in range(self.c.n)]
@@ -210,29 +198,49 @@ class PhysicModel:
     # Шаг по времени
     def time_step(self):
         self.iter += 1
-        self.t = self.iter * self.dt
+        self.t = self.iter * dT
 
-        # Вывод основных параметров
         if self.iter == 1 and IF_ANY_PRINT:
-            tmp = ", ориентации\n" if 'rvq' in self.navigation else "\n"
+            # Отображение траектории полёта
+            t0 = 0.0
+            s0 = [ORBIT_RADIUS / EARTH_RADIUS, ECCENTRICITY, kiam.deg2rad(INCLINATION),
+                  0.0, 0.0, 0.0]  # a, e, i, Ω, ω, M₀
+            # s0.extend(list(kiam.eye2vec(6)))  # Orbital_elements + State-transition matrix
+            s0 = np.array(s0)
+            jd0 = kiam.juliandate(2024, 1, 1, 0, 0, 0)  # (год, месяц, день, чч, мм, сс)
+            tr = Trajectory(initial_state=s0, initial_time=t0, initial_jd=jd0, variables='oe', system='gcrs',
+                            units_name='earth')
+            tr.set_model(variables='rv', model_type='nbp', primary='earth',
+                         sources_list=['atm'])  # 'atm', 'j2', 'moon', 'sun'
+            tr.model['data']['jd_zero'] = jd0  # julian date corresponding to t = 0
+            tr.model['data']['mass'] = self.f.mass  # spacecraft mass, kg
+            tr.model['data']['area'] = self.f.size[0] * self.f.size[1]  # spacecraft area, m^2
+            tr.model['data']['order'] = 0  # order of the Moon's gravity field
+            tr.propagate(tof=2 * np.pi * TIME*W_ORB/2/np.pi, npoints=50000)  # (time of flight, number of points)
+            print(f"Time: {tr.times[-1]} ({2 * np.pi})")
+            # help(tr.show)
+            tmp = tr.show(variables='3d', language='rus')
+
+            # Вывод основных параметров
+            tmp = ", ориентации" if NAVIGATION_ANGLES else ""
             my_print(f"Диаграмма антенн кубсата: {self.c.gain_mode}\n"
                      f"Диаграмма антенн фемтосатов: {self.f.gain_mode}\n"
-                     f"Учёт аэродинамики: {self.is_aero}\n"
-                     f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}" 
+                     f"Учёт аэродинамики: {AERO_DRAG}\n"
+                     f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}\n" 
                      f"Фильтр Калмана основан на: "
-                     f"{'одном чипсате' if self.k.single_femto_filter else 'всех чипсатах'}", color='c')
-        if not IF_NAVIGATION:
-            my_print(f"Внимание: IF_NAVIGATION={IF_NAVIGATION}! ", color='m')
+                     f"{'всех чипсатах' if NAVIGATION_BY_ALL else 'одном чипсате'}", color='c')
+            if not IF_NAVIGATION:
+                my_print(f"Внимание: IF_NAVIGATION={IF_NAVIGATION}! ", color='m')
 
         # Движение системы на dt
         for obj in [self.c, self.f]:
             for i in range(obj.n):
                 # Вращательное движение
-                obj.q[i], obj.w_orf[i] = rk4_attitude(obj=obj, i=i, dt=self.dt)
+                obj.q[i], obj.w_orf[i] = rk4_attitude(obj=obj, i=i)
 
                 # Поступательное движение
-                if self.is_aero:
-                    obj.r_orf[i], obj.v_orf[i] = rk4_translate(obj=obj, i=i, dt=self.dt)
+                if AERO_DRAG:
+                    obj.r_orf[i], obj.v_orf[i] = rk4_translate(obj=obj, i=i)
                 else:
                     obj.r_orf[i] = r_hkw(obj.c_hkw[i], W_ORB, self.t)
                     obj.v_orf[i] = v_hkw(obj.c_hkw[i], W_ORB, self.t)
@@ -241,8 +249,8 @@ class PhysicModel:
                     obj.line[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
 
         # Комплекс первичной информации
-        measure_antennas_power(c=self.c, f=self.f, noise=np.sqrt(self.r_matrix))
-        measure_magnetic_field(c=self.c, f=self.f, noise=np.sqrt(self.r_matrix))
+        measure_antennas_power(c=self.c, f=self.f, noise=np.sqrt(KALMAN_COEF['r']))
+        measure_magnetic_field(c=self.c, f=self.f, noise=np.sqrt(KALMAN_COEF['r']))
 
         # Изменение режимов работы
         guidance(c=self.c, f=self.f, earth_turn=self.t * W_ORB / 2 / np.pi)
@@ -259,7 +267,7 @@ class PhysicModel:
                                                     self.k.r_orf_estimation[i_f][2]]
                         self.f.line_difference[i_f] += \
                             [np.array(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
-                        if self.k.orientation:
+                        if NAVIGATION_ANGLES:
                             self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:7]
                                                                 - np.array(self.f.q[i_f])]
                             self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][10:13]
@@ -268,7 +276,7 @@ class PhysicModel:
                         self.c.kalm_dist[i_c][i_f] += [NO_LINE_FLAG]
                         self.f.line_kalman[i_f] += [NO_LINE_FLAG] * 3
                         self.f.line_difference[i_f] += [NO_LINE_FLAG * np.ones(3)]
-                        if self.k.orientation:
+                        if NAVIGATION_ANGLES:
                             self.f.attitude_difference[i_f] += [NO_LINE_FLAG * np.ones(4)]
                             self.f.spin_difference[i_f] += [NO_LINE_FLAG * np.ones(3)]
 
