@@ -1,11 +1,12 @@
 """Функции, связанные с архитектурой КА"""
 from srs.kiamfemtosat.my_math import *
-from srs.kiamfemtosat.config import *
+from srs.kiamfemtosat.config import Variables
 from srs.kiamfemtosat.cosmetic import my_print
 
-# >>>>>>>>>>>> Небольшие функции <<<<<<<<<<<<
-def local_dipole(r, ind: str = 'x') -> float:
+# >>>>>>>>>>>> Диаграмма направленности антенн связи <<<<<<<<<<<<
+def local_dipole(v: Variables, r: Union[list, np.ndarray], ind: str = 'x') -> float:
     """Возвращает диаграмму направленности одной полуволновой антенны (бублик). Костыль: возвращается >= 0
+    :param v: Объект класса Variables
     :param r: Радиус-вектор направления антенны
     :param ind: Координата направления антенны"""
     if ind not in "xyz":
@@ -18,61 +19,71 @@ def local_dipole(r, ind: str = 'x') -> float:
     aside = ((r[1] + r[2]) * int(ind == 'x') +
              (r[0] + r[2]) * int(ind == 'y') +
              r[2] * int(ind == 'z')) / r_m
-    tmp = np.cos(cos_a * np.pi / 2) / sin_a + DISTORTION * cos_a ** 2 + DISTORTION * aside
-    if tmp < 0 and IF_ANY_PRINT:
-        my_print(f"Внимание! Отрицательное усиление! G={tmp} (cos={cos_a}, sin={sin_a})", color="r")
+    tmp = np.cos(cos_a * np.pi / 2) / sin_a + v.DISTORTION * cos_a ** 2 + v.DISTORTION * aside
+    my_print(f"Внимание! Отрицательное усиление! G={tmp} (cos={cos_a}, sin={sin_a})", color="r",
+             if_print=tmp < 0 and v.IF_ANY_PRINT)
     return clip(tmp, 0, 1e10)
 
-def get_gain(obj: any, r: Union[float, np.ndarray], mode3: bool = False) -> list:
+def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], mode3: bool = False) -> list:
     """Внимание! Всё переделано - теперь возвращается только список для повышения градуса полиморфизма,
     интуитивизма, индуизма, культуризма, конституционализма, шовинизма, каннибализма
+    :param v: Объект класса Variables
     :param obj: Переменная класса FemtoSat или CubeSat (any потому что не хочу ниже писать)
     :param r: Направление сигнала в СК антенны
     :param mode3: Специальный флаг для возврата списка длины 1"""
     # Памятка: GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas']
     r1 = r / np.linalg.norm(r)
-    if obj.gain_mode == GAIN_MODES[1]:
+    if obj.gain_mode == v.GAIN_MODES[1]:
         return [np.linalg.norm([r1[0] * 1, r1[1] * 0.7, r1[2] * 0.8])]
-    if obj.gain_mode == GAIN_MODES[2]:
-        return [local_dipole(r1, 'z')]
-    if obj.gain_mode == GAIN_MODES[3] or (mode3 and obj.gain_mode == GAIN_MODES[4]):
-        return [local_dipole(r1, 'x') + local_dipole(r1, 'y')]
-    if obj.gain_mode == GAIN_MODES[4] and not mode3:
-        return [local_dipole(r1, 'x'), local_dipole(r1, 'y')]
-    if obj.gain_mode == GAIN_MODES[5] and not mode3:
-        return [local_dipole(r1, 'x'), local_dipole(r1, 'y'), local_dipole(r1, 'z')]
+    if obj.gain_mode == v.GAIN_MODES[2]:
+        return [local_dipole(v, r1, 'z')]
+    if obj.gain_mode == v.GAIN_MODES[3] or (mode3 and obj.gain_mode == v.GAIN_MODES[4]):
+        return [local_dipole(v, r1, 'x') + local_dipole(v, r1, 'y')]
+    if obj.gain_mode == v.GAIN_MODES[4] and not mode3:
+        return [local_dipole(v, r1, 'x'), local_dipole(v, r1, 'y')]
+    if obj.gain_mode == v.GAIN_MODES[5] and not mode3:
+        return [local_dipole(v, r1, 'x'), local_dipole(v, r1, 'y'), local_dipole(v, r1, 'z')]
     return [1]
 
 # >>>>>>>>>>>> Классы аппаратов <<<<<<<<<<<<
 class FemtoSat:
-    def __init__(self, n: int = CHIPSAT_AMOUNT):
+    def __init__(self, v: Variables):
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
+        from srs.kiamfemtosat.dynamics import get_matrices, o_i
+        if v.CHIPSAT_AMOUNT < 0:
+            raise ValueError(f"Количество чипсатов {v.CHIPSAT_AMOUNT} должно быть не меньше 0!")
+
         # Общие параметры
         self.name = "FemtoSat"
-        self.n = n
+        self.n = v.CHIPSAT_AMOUNT
         self.mass = 0.01
         self.size = [0.03, 0.03]
         self.power_signal_full = 0.01
         self.length_signal_full = 0.001
-        self.gain_mode = GAIN_MODES[0]
+        self.gain_mode = v.GAIN_MODEL_F
 
         # Индивидуальные параметры движения
-        self.r_orf = [np.random.uniform(-R_V_W_ChipSat_SPREAD[0], R_V_W_ChipSat_SPREAD[0], 3) for _ in range(self.n)]
-        self.v_orf = [np.random.uniform(-R_V_W_ChipSat_SPREAD[1], R_V_W_ChipSat_SPREAD[1], 3) for _ in range(self.n)]
-        self.w_orf = [np.random.uniform(-R_V_W_ChipSat_SPREAD[2], R_V_W_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
+        self.r_orf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3) for _ in range(self.n)]
+        self.v_orf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[1], v.RVW_ChipSat_SPREAD[1], 3) for _ in range(self.n)]
+        self.r_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
+        self.v_irf = [np.zeros(3) for _ in range(self.n)]
+        self.w_irf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
         self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
-        self.c_hkw, self.line, self.line_kalman, self.line_difference, self.attitude_difference, self.spin_difference, \
-            self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
+        self.c_hkw, self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
+            self.spin_difference, self.z_difference = [[[] for _ in range(self.n)] for _ in range(8)]
         for i in range(self.n):
-            if SHAMANISM["ClohessyWiltshireC1=0"]:
-                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * W_ORB
+            if v.SHAMANISM["ClohessyWiltshireC1=0"]:
+                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
             self.q[i] /= np.linalg.norm(self.q[i])
             self.q_[i] /= np.linalg.norm(self.q_[i])
+            U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
+            self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
+            self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
 
         # Индивидуальные параметры режимов работы
-        self.operating_mode = [OPERATING_MODES[0] for _ in range(self.n)]
-        self.operating_modes = [CHIPSAT_OPERATING_MODE for _ in range(self.n)]
+        self.operating_mode = [v.OPERATING_MODES[0] for _ in range(self.n)]
+        self.operating_modes = [v.CHIPSAT_OPERATING_MODE for _ in range(self.n)]
 
         # Индивидуальные параметры управления
         self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
@@ -81,61 +92,68 @@ class FemtoSat:
         self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_ = \
             [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
         prm_poor = [np.append(
-            np.append(np.append(np.random.uniform(-R_V_W_ChipSat_SPREAD[0], R_V_W_ChipSat_SPREAD[0], 3), self.q_[i]),
-                      np.random.uniform(-R_V_W_ChipSat_SPREAD[1], R_V_W_ChipSat_SPREAD[1], 3)),
-            np.random.uniform(-R_V_W_ChipSat_SPREAD[2], R_V_W_ChipSat_SPREAD[2], 3)) for i in range(self.n)]
-        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_orf[i])
+            np.append(np.append(np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3), self.q_[i]),
+                      np.random.uniform(-v.RVW_ChipSat_SPREAD[1], v.RVW_ChipSat_SPREAD[1], 3)),
+            np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3)) for i in range(self.n)]
+        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_irf[i])
                     for i in range(self.n)]
-        start_navigation_tolerance = 1 if START_NAVIGATION == NAVIGATIONS[0] else START_NAVIGATION_TOLERANCE
-        start_navigation_tolerance = 0 if START_NAVIGATION == NAVIGATIONS[2] else start_navigation_tolerance
+        start_navigation_tolerance = 1 if v.START_NAVIGATION == v.NAVIGATIONS[0] else v.START_NAVIGATION_TOLERANCE
+        start_navigation_tolerance = 0 if v.START_NAVIGATION == v.NAVIGATIONS[2] else start_navigation_tolerance
         self.rv_orf_calc = [prm_good[i] * start_navigation_tolerance +
                             prm_poor[i] * (1 - start_navigation_tolerance) for i in range(self.n)]
 
 class CubeSat:
-    def __init__(self, n_f: int = CHIPSAT_AMOUNT, n: int = CUBESAT_AMOUNT, model: str = CUBESAT_MODEL):
+    def __init__(self, v: Variables):
         """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.\n
         Все величны представлены в СИ."""
+        from srs.kiamfemtosat.dynamics import get_matrices, o_i
+        if v.CUBESAT_AMOUNT < 1:
+            raise ValueError(f"Количество чипсатов {v.CUBESAT_AMOUNT} должно быть не меньше 1!")
+
         # Предопределённые параметры
         masses = [2., 3., 4., 6., 12., 24.]
         mass_center_errors = [[0.02, 0.02, 0.02], [0.02, 0.02, 0.03], [0.02, 0.02, 0.045],
                               [0.02, 0.02, 0.07], [4.5, 2., 7.], [4.5, 4.5, 7.]]
         sizes = [[0.1, 0.1, 0.1135], [0.1, 0.1, 0.1702], [0.1, 0.1, 0.227],
                  [0.1, 0.1, 0.3405], [0.2263, 0.1, 0.366], [0.2263, 0.2263, 0.366]]
-        if model not in CUBESAT_MODELS:
-            raise ValueError(f"Модель кубсата [{model}] должна быть среди {CUBESAT_MODELS}")
 
         # Общие параметры
         self.name = "CubeSat"
-        self.n = n
-        self.model = model
-        self.model_number = CUBESAT_MODELS.index(model)
+        self.n = v.CUBESAT_AMOUNT
+        self.model = v.CUBESAT_MODEL
+        self.model_number = v.CUBESAT_MODELS.index(self.model)
         self.mass = masses[self.model_number]
         self.mass_center_error = mass_center_errors[self.model_number]
         self.r_mass_center = np.array([np.random.uniform(-i, i) for i in self.mass_center_error])
         self.size = sizes[self.model_number]
-        self.gain_mode = GAIN_MODES[0]
+        self.gain_mode = v.GAIN_MODEL_C
 
         # Индивидуальные параметры движения
-        self.r_orf = [np.random.uniform(-R_V_W_CubeSat_SPREAD[0], R_V_W_CubeSat_SPREAD[0], 3) for _ in range(self.n)]
-        self.v_orf = [np.random.uniform(-R_V_W_CubeSat_SPREAD[1], R_V_W_CubeSat_SPREAD[1], 3) for _ in range(self.n)]
-        self.w_orf = [np.random.uniform(-R_V_W_CubeSat_SPREAD[2], R_V_W_CubeSat_SPREAD[2], 3) for _ in range(self.n)]
+        self.r_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[0], v.RVW_CubeSat_SPREAD[0], 3) for _ in range(self.n)]
+        self.v_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[1], v.RVW_CubeSat_SPREAD[1], 3) for _ in range(self.n)]
+        self.r_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
+        self.v_irf = [np.zeros(3) for _ in range(self.n)]
+        self.w_irf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[2], v.RVW_CubeSat_SPREAD[2], 3) for _ in range(self.n)]
         self.q = [np.array([np.random.uniform(-1, 1) for _ in range(4)]) for _ in range(self.n)]
-        self.c_hkw, self.line = [[[] for _ in range(self.n)] for _ in range(2)]
+        self.c_hkw, self.line_orf, self.line_irf = [[[] for _ in range(self.n)] for _ in range(3)]
         for i in range(self.n):
-            if SHAMANISM["ClohessyWiltshireC1=0"]:
-                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * W_ORB
+            if v.SHAMANISM["ClohessyWiltshireC1=0"]:
+                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
             self.q[i] /= np.linalg.norm(self.q[i])
+            U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
+            self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
+            self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
 
         # Индивидуальные параметры режимов работы
-        self.operating_mode = [OPERATING_MODES[0] for _ in range(self.n)]
-        self.operating_modes = [OPERATING_MODES_CHANGE[0] for _ in range(self.n)]
+        self.operating_mode = [v.OPERATING_MODES[0] for _ in range(self.n)]
+        self.operating_modes = [v.OPERATING_MODES_CHANGE[0] for _ in range(self.n)]
 
         # Индивидуальные параметры управления
         self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
 
         # Индивидуальные параметры измерений
         self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_, self.kalm_dist = \
-            [[[[] for _ in range(n_f)] for _ in range(self.n)] for _ in range(5)]
+            [[[[] for _ in range(v.CHIPSAT_AMOUNT)] for _ in range(self.n)] for _ in range(5)]
 
         # Прорисовка ножек
         self.legs_x = 0.0085

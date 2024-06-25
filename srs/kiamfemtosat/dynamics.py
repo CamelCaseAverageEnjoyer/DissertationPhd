@@ -1,9 +1,10 @@
-"""Функции для моделирования динамики КА"""
+"""Функции для моделирования динамики КА
+ПЕРЕДЕЛАТЬ v_->v, v->u"""
 from datetime import datetime
+
 from kiam_astro import kiam
 from kiam_astro.trajectory import Trajectory
 
-from srs.kiamfemtosat.cosmetic import *
 from srs.kiamfemtosat.primary_info import *
 from srs.kiamfemtosat.gnc_systems import *
 from srs.kiamfemtosat.my_plot import *
@@ -47,14 +48,15 @@ def get_rand_c(w: float, r_spread: float = 100, v_spread: float = 0.01, if_no: b
     return [2 * z + vx / w, vz / w, -3 * z - 2 * vx / w, x - 2 * vz / w, vy / w, y]
 
 # >>>>>>>>>>>> Поступательное движение, интегрирование <<<<<<<<<<<<
-def get_atm_params(h: float, atm_model: str = None) -> tuple:
+def get_atm_params(v: Variables, h: float, atm_model: str = None) -> tuple:
     """NASA модель: https://www.grc.nasa.gov/www/k-12/airplane/atmosmet.html (якорная точка: 25 км)
     ПНБО модель: https://www.energia.ru/ktt/archive/2022/04-2022/101-111.pdf (120-600 км)
     COESA62, COESA76 модели: библиотека poliastro
+    :param v: Объект класса Variables
     :param h: Высота
     :param atm_model: Модель атмосферы (необязательный параметр)
     :return: (ρ, T, P): плотность, температура, давление (Внимание! Для ПНБО (ρ, None, None)"""
-    atm_model = ATMOSPHERE_MODEL if atm_model is None else atm_model
+    atm_model = v.ATMOSPHERE_MODEL if atm_model is None else atm_model
     rho, T, p = None, None, None
     if atm_model == 'NASA':
         if h > 25e3:
@@ -92,25 +94,28 @@ def get_atm_params(h: float, atm_model: str = None) -> tuple:
         rho = rho.value
     return rho, T, p
 
-def get_geopotential_acceleration(r: Union[list, np.ndarray], v: Union[list, np.ndarray]) -> np.ndarray:
+def get_geopotential_acceleration(v_: Variables, r: Union[list, np.ndarray], v: Union[list, np.ndarray]) -> np.ndarray:
     """Возвращает ускорение КА от притяжения Земли.
     Внимание! При глобальном параметре DYNAMIC_MODEL='Clohessy-Wiltshire' возвращает ускорение в ОСК.
-    Иначе возвращает ускорение в ИСК."""
-    if DYNAMIC_MODEL == 'Clohessy-Wiltshire':
-        return np.array([-2 * W_ORB * v[2],
-                         -W_ORB ** 2 * r[1],
-                         2 * W_ORB * v[0] + 3 * W_ORB ** 2 * r[2]])
-    return MU * np.array(r) / np.linalg.norm(r)**3
+    Иначе возвращает ускорение в ИСК.
+    :param v: Скорость КА. Внимание! Не путать с Variables!
+    :param r: Положение КА
+    :param v_: Переменная класса Variables. Внимание! Не путать со скоростью!"""
+    if v_.DYNAMIC_MODEL == 'Clohessy-Wiltshire':
+        return np.array([-2 * v_.W_ORB * v[2],
+                         -v_.W_ORB ** 2 * r[1],
+                         2 * v_.W_ORB * v[0] + 3 * v_.W_ORB ** 2 * r[2]])
+    return v_.MU * np.array(r) / np.linalg.norm(r)**3
 
-def get_aero_drag_acceleration(obj: Union[CubeSat, FemtoSat], i: int, r: Union[list, np.ndarray],
-                               v: Union[list, np.ndarray]):
+def get_aero_drag_acceleration(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int,
+                               r: Union[list, np.ndarray], v: Union[list, np.ndarray]):
     """Возвращает ускорение КА от сопротивления атмосферы.
     Внимание! При глобальном параметре DYNAMIC_MODEL='Clohessy-Wiltshire' возвращает ускорение в ОСК.
     Иначе возвращает ускорение в ИСК."""
     S = quart2dcm(obj.q[i])  # Для новых кватернионов - неверно!
     cos_alpha = clip((np.trace(S) - 1) / 2, -1, 1)
     # alpha = 180 / np.pi * np.arccos(cos_alpha)
-    rho = get_atm_params(h=obj.r_orf[i][2] + ORBIT_RADIUS - EARTH_RADIUS)[0]
+    rho = get_atm_params(v=v_, h=obj.r_orf[i][2] + v_.ORBIT_RADIUS - v_.EARTH_RADIUS)[0]
     if obj.name == "CubeSat":
         c_resist = 1.05
         square = obj.size[0] * obj.size[1]
@@ -118,28 +123,30 @@ def get_aero_drag_acceleration(obj: Union[CubeSat, FemtoSat], i: int, r: Union[l
         c_resist = 1.17
         square = obj.size[0] * obj.size[1] * abs(cos_alpha)
 
-    if DYNAMIC_MODEL == 'Clohessy-Wiltshire':
-        v_real = v + np.array([V_ORB, 0, 0])
-        rho = get_atm_params(h=r[2] + ORBIT_RADIUS - EARTH_RADIUS)[0]
+    if v_.DYNAMIC_MODEL == 'Clohessy-Wiltshire':
+        v_real = v + np.array([v_.V_ORB, 0, 0])
+        rho = get_atm_params(v=v_, h=r[2] + v_.ORBIT_RADIUS - v_.EARTH_RADIUS)[0]
         return - v_real * np.linalg.norm(v_real) * c_resist * rho * square / 2 / obj.mass
 
-def get_full_acceleration(obj: Union[CubeSat, FemtoSat], i: int, r: Union[float, np.ndarray],
-                          v: Union[float, np.ndarray]) -> np.ndarray:
+def get_full_acceleration(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int,
+                          r: Union[float, np.ndarray], v: Union[float, np.ndarray]) -> np.ndarray:
     """Возвращает вектор силы в ОСК, принимает параметры в ОСК\n
     square - площадь S для аэродинамики
     c_resist - Cf для аэродинаммики"""
-    if DYNAMIC_MODEL == 'Clohessy-Wiltshire':
-        force = get_geopotential_acceleration(r, v)
-        if AERO_DRAG:
-            force += get_aero_drag_acceleration(r=r, v=v, obj=obj, i=i)
+    if v_.DYNAMIC_MODEL == 'Clohessy-Wiltshire':
+        force = get_geopotential_acceleration(v_=v_, r=r, v=v)
+        if v_.AERO_DRAG:
+            force += get_aero_drag_acceleration(v_=v_, r=r, v=v, obj=obj, i=i)
         return force
 
-def rk4_translate(obj: Union[CubeSat, FemtoSat], i: int, dt: float = dT, r=None, v=None) -> tuple:
+def rk4_translate(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float = None, r=None, v=None) -> tuple:
+    dt = v_.dT if dt is None else dt
+
     def rv_right_part(rv1, a1):
         return np.array([rv1[3], rv1[4], rv1[5], a1[0], a1[1], a1[2]])
     r = obj.r_orf[i] if r is None else r
     v = obj.v_orf[i] if v is None else v
-    a = get_full_acceleration(obj=obj, i=i, r=r, v=v)
+    a = get_full_acceleration(v_=v_, obj=obj, i=i, r=r, v=v)
 
     rv = np.append(r, v)
     k1 = rv_right_part(rv, a)
@@ -151,19 +158,21 @@ def rk4_translate(obj: Union[CubeSat, FemtoSat], i: int, dt: float = dT, r=None,
 
 
 # >>>>>>>>>>>> Вращательное движение, интегрирование <<<<<<<<<<<<
-def get_torque(obj: Union[CubeSat, FemtoSat], q: Union[list, np.ndarray], w: np.ndarray) -> np.ndarray:
+def get_torque(v_: Variables, obj: Union[CubeSat, FemtoSat], q: Union[list, np.ndarray], w: np.ndarray) -> np.ndarray:
     """Возвращает вектор углового УСКОРЕНИЯ. Удачи!"""
     return np.zeros(3)
 
-def rk4_attitude(obj: Union[CubeSat, FemtoSat], i: int, dt: float = dT, q=None, w=None):
-    """Господи, где здесь производная, где дифференциал? Пожалуйста, дрогой я, дай мне знак!"""
+def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float = None, q=None, w=None):
+    """Господи, где здесь производная, где дифференциал? Пожалуйста, дрогой я, дай мне знак! ДОрОжНЫй!!!"""
+    dt = v_.dT if dt is None else dt
+
     def lw_right_part(qw_, e_):
         q_, w_ = qw_[0:4], qw_[4:7]
         dq = 1 / 2 * q_dot([0, w_[0], w_[1], w_[2]], q_)
         return np.append(dq, e_)
     q = obj.q[i] if q is None else q
-    w = obj.w_orf[i] if w is None else w
-    e = get_torque(obj=obj, q=q, w=w)
+    w = obj.w_irf[i] if w is None else w
+    e = get_torque(v_=v_, obj=obj, q=q, w=w)
 
     a = len(q)
     q4 = q if a == 4 else vec2quat(q)
@@ -176,14 +185,55 @@ def rk4_attitude(obj: Union[CubeSat, FemtoSat], i: int, dt: float = dT, q=None, 
     tmp = (qw[0:4] + q4) / np.linalg.norm(qw[0:4] + q4)
     return tmp[4 - a:4], qw[a:a + 3] + w
 
+
+# >>>>>>>>>>>> Перевод между системами координат <<<<<<<<<<<<
+def get_matrices(v: Variables, t: float, obj: Union[CubeSat, FemtoSat], n: int):
+    """Функция возвращает матрицы поворота.
+    Инициализируется в dymancis.py, используется в spacecrafts, dynamics"""
+    A = quart2dcm(obj.q[n])
+    U = np.array([[0., 1., 0.],
+                  [0., 0., 1.],
+                  [1., 0., 0.]]) @ \
+        np.array([[np.cos(t * v.W_ORB), np.sin(t * v.W_ORB), 0],
+                  [-np.sin(t * v.W_ORB), np.cos(t * v.W_ORB), 0],
+                  [0, 0, 1]])
+    S = A @ U.T
+    R_orb = U.T @ np.array([0, 0, v.ORBIT_RADIUS])
+    return U, S, A, R_orb
+
+def i_o(a, v: Variables, U: np.ndarray, vec_type: str):
+    """Инерциальная -> Орбитальная"""
+    a_np = np.array(a)
+    if len(a_np.shape) == 1 and vec_type == "r":
+        return U @ a_np - np.array([0, 0, v.ORBIT_RADIUS])
+    if len(a_np.shape) == 1 and vec_type == "v":
+        # print(f"a_np={U @ a_np}  ---------------> {U @ a_np - np.array([V_ORB, 0, 0])}")
+        return U @ a_np - np.array([v.V_ORB, 0, 0])
+    if len(a_np.shape) == 2:
+        return U @ a_np @ U.T
+    raise ValueError(f"Необходимо подать вектор или матрицу! Тип вектора {vec_type} должен быть из [r, v]")
+
+def o_i(a, v: Variables, U: np.ndarray, vec_type: str):
+    """Орбитальная -> Инерциальная"""
+    a_np = np.array(a)
+    if len(a_np.shape) == 1 and vec_type == "r":
+        return U.T @ (a_np + np.array([0, 0, v.ORBIT_RADIUS]))
+    if len(a_np.shape) == 1 and vec_type == "v":
+        return U.T @ (a_np + np.array([v.V_ORB, 0, 0]))
+    if len(a_np.shape) == 2:
+        return U.T @ a_np @ U
+    raise ValueError(f"Необходимо подать вектор или матрицу! Тип вектора {vec_type} должен быть из [r, v]")
+
+
 # >>>>>>>>>>>> Класс динамики кубсатов и чипсатов <<<<<<<<<<<<
 class PhysicModel:
-    def __init__(self, f: FemtoSat, c: CubeSat):
+    def __init__(self, f: FemtoSat, c: CubeSat, v: Variables):
         self.show_rate = 1
 
         # Неизменные параметры
         self.t = 0.
         self.iter = 0
+        self.v = v
         self.c = c
         self.f = f
         self.time_begin = datetime.now()
@@ -191,75 +241,110 @@ class PhysicModel:
         # Инициализация фильтра
         self.k = KalmanFilter(f=f, c=c, p=self)
 
+        # Инициализация траектории kiam-astro
+        # s0 = [ORBIT_RADIUS / EARTH_RADIUS, ECCENTRICITY, kiam.deg2rad(INCLINATION), 0.0, 0.0, 0.0]  a, e, i, Ω, ω, M₀
+        # s0.extend(list(kiam.eye2vec(6)))  # Orbital_elements + State-transition matrix
+        # s0 = np.array(s0)
+        self.jd0 = kiam.juliandate(2024, 1, 1, 0, 0, 0)  # (год, месяц, день, чч, мм, сс)
+        self.tr = [[Trajectory(initial_state=np.zeros(6), initial_time=0, initial_jd=self.jd0, variables='rv',
+                               system='gcrs', units_name='earth') for _ in range(obj.n)] for obj in [self.c, self.f]]
+        for j in range(2):
+            obj = [self.c, self.f][j]
+            for i in range(obj.n):
+                s0 = np.append(obj.r_irf[i] / self.v.EARTH_RADIUS, obj.v_irf[i] / self.v.V_ORB)
+                # print(f"{obj.name}-{i+1} -> {s0} (V_irf={obj.v_irf[i]}, V_orb={V_ORB})")
+                self.tr[j][i] = Trajectory(initial_state=s0, initial_time=0, initial_jd=self.jd0, variables='rv',
+                                           system='gcrs', units_name='earth')
+
         # Расчёт движения Хилла-Клохесси-Уилтшира
-        self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], W_ORB) for i in range(self.c.n)]
-        self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], W_ORB) for i in range(self.f.n)]
+        self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], self.v.W_ORB) for i in range(self.c.n)]
+        self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], self.v.W_ORB) for i in range(self.f.n)]
 
     # Шаг по времени
     def time_step(self):
         self.iter += 1
-        self.t = self.iter * dT
+        self.t = self.iter * self.v.dT
 
-        if self.iter == 1 and IF_ANY_PRINT:
-            # Отображение траектории полёта
-            t0 = 0.0
-            s0 = [ORBIT_RADIUS / EARTH_RADIUS, ECCENTRICITY, kiam.deg2rad(INCLINATION),
-                  0.0, 0.0, 0.0]  # a, e, i, Ω, ω, M₀
-            # s0.extend(list(kiam.eye2vec(6)))  # Orbital_elements + State-transition matrix
-            s0 = np.array(s0)
-            jd0 = kiam.juliandate(2024, 1, 1, 0, 0, 0)  # (год, месяц, день, чч, мм, сс)
-            tr = Trajectory(initial_state=s0, initial_time=t0, initial_jd=jd0, variables='oe', system='gcrs',
-                            units_name='earth')
-            tr.set_model(variables='rv', model_type='nbp', primary='earth',
-                         sources_list=['atm'])  # 'atm', 'j2', 'moon', 'sun'
-            tr.model['data']['jd_zero'] = jd0  # julian date corresponding to t = 0
-            tr.model['data']['mass'] = self.f.mass  # spacecraft mass, kg
-            tr.model['data']['area'] = self.f.size[0] * self.f.size[1]  # spacecraft area, m^2
-            tr.model['data']['order'] = 0  # order of the Moon's gravity field
-            tr.propagate(tof=2 * np.pi * TIME*W_ORB/2/np.pi, npoints=50000)  # (time of flight, number of points)
-            print(f"Time: {tr.times[-1]} ({2 * np.pi})")
-            # help(tr.show)
-            tmp = tr.show(variables='3d', language='rus')
-
+        if self.iter == 1 and self.v.IF_ANY_PRINT:
             # Вывод основных параметров
-            tmp = ", ориентации" if NAVIGATION_ANGLES else ""
+            tmp = ", ориентации" if self.v.NAVIGATION_ANGLES else ""
             my_print(f"Диаграмма антенн кубсата: {self.c.gain_mode}\n"
                      f"Диаграмма антенн фемтосатов: {self.f.gain_mode}\n"
-                     f"Учёт аэродинамики: {AERO_DRAG}\n"
+                     f"Учёт аэродинамики: {self.v.AERO_DRAG}\n"
                      f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}\n" 
                      f"Фильтр Калмана основан на: "
-                     f"{'всех чипсатах' if NAVIGATION_BY_ALL else 'одном чипсате'}", color='c')
-            if not IF_NAVIGATION:
-                my_print(f"Внимание: IF_NAVIGATION={IF_NAVIGATION}! ", color='m')
+                     f"{'всех чипсатах' if self.v.NAVIGATION_BY_ALL else 'одном чипсате'}", color='c')
+            my_print(f"Внимание: IF_NAVIGATION={self.v.IF_NAVIGATION}! ", color='m', if_print=not self.v.IF_NAVIGATION)
 
-        # Движение системы на dt
-        for obj in [self.c, self.f]:
-            for i in range(obj.n):
-                # Вращательное движение
-                obj.q[i], obj.w_orf[i] = rk4_attitude(obj=obj, i=i)
+        # Движение системы
+        if 'rk4' in self.v.DYNAMIC_MODEL:
+            for obj in [self.c, self.f]:
+                for i in range(obj.n):
+                    # Вращательное движение
+                    obj.q[i], obj.w_irf[i] = rk4_attitude(v_=self.v, obj=obj, i=i)
 
-                # Поступательное движение
-                if AERO_DRAG:
-                    obj.r_orf[i], obj.v_orf[i] = rk4_translate(obj=obj, i=i)
-                else:
-                    obj.r_orf[i] = r_hkw(obj.c_hkw[i], W_ORB, self.t)
-                    obj.v_orf[i] = v_hkw(obj.c_hkw[i], W_ORB, self.t)
+                    # Поступательное движение
+                    if self.v.AERO_DRAG:
+                        obj.r_orf[i], obj.v_orf[i] = rk4_translate(v_=self.v, obj=obj, i=i)
+                    else:
+                        obj.r_orf[i] = r_hkw(obj.c_hkw[i], self.v.W_ORB, self.t)
+                        obj.v_orf[i] = v_hkw(obj.c_hkw[i], self.v.W_ORB, self.t)
 
-                if self.iter % self.show_rate == 0:
-                    obj.line[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
+                    U, _, _, _ = get_matrices(v=self.v, t=self.t, obj=obj, n=i)
+                    obj.r_irf[i] = o_i(v=self.v, a=obj.r_orf[i], U=U, vec_type='r')
+                    obj.v_irf[i] = o_i(v=self.v, a=obj.v_orf[i], U=U, vec_type='v')
+        elif 'kiamastro' in self.v.DYNAMIC_MODEL:
+            # Расчёт
+            if self.iter == 1:
+                for i in range(2):
+                    obj = [self.c, self.f][i]
+                    for j in range(obj.n):
+                        self.tr[i][j].set_model(variables='rv', model_type='nbp', primary='earth',
+                                                sources_list=[])  # 'atm', 'j2', 'moon', 'sun'
+                        self.tr[i][j].model['data']['jd_zero'] = self.jd0  # julian date corresponding to t = 0
+                        self.tr[i][j].model['data']['mass'] = self.f.mass  # spacecraft mass, kg
+                        self.tr[i][j].model['data']['area'] = self.f.size[0] * self.f.size[1]  # spacecraft area, m^2
+                        self.tr[i][j].model['data']['order'] = 0  # order of the Moon's gravity field
+                        self.tr[i][j].propagate(tof=2 * np.pi * self.v.TIME*self.v.W_ORB/2/np.pi,
+                                                npoints=int(self.v.TIME // self.v.dT))
+                my_print(f"kiam-astro Time: {self.tr[0][0].times[-1]} ({2 * np.pi})\n"
+                         f"kiam-astro Points: {self.v.TIME / self.v.dT}", if_print=self.v.IF_ANY_PRINT)
+                # self.tr[0][0].show(variables='3d', language='rus')
+
+            # Запись параметров: ВНИМАНИЕ! ПОВТОРЯЕТСЯ РАССЧЁТ ВРАЩАТЕЛЬНОГО ДВИЖЕНИЯ
+            for i in range(2):
+                obj = [self.c, self.f][i]
+                for j in range(obj.n):
+                    # Вращательное движение
+                    obj.q[j], obj.w_irf[j] = rk4_attitude(v_=self.v, obj=obj, i=j)
+
+                    # Поступательное движение
+                    obj.r_irf[j] = np.array([self.tr[i][j].states[ii][self.iter - 1]
+                                             for ii in range(3)]) * self.v.EARTH_RADIUS
+                    obj.v_irf[j] = np.array([self.tr[i][j].states[ii + 3][self.iter - 1]
+                                             for ii in range(3)]) * self.v.V_ORB
+                    U, _, _, _ = get_matrices(v=self.v, t=self.t, obj=obj, n=j)
+                    obj.r_orf[j] = i_o(v=self.v, a=obj.r_irf[j], U=U, vec_type='r')
+                    obj.v_orf[j] = i_o(v=self.v, a=obj.v_irf[j], U=U, vec_type='v')
+        else:
+            raise ValueError(f"Уточни модель движения! DYNAMIC_MODEL={self.v.DYNAMIC_MODEL}")
 
         # Комплекс первичной информации
-        measure_antennas_power(c=self.c, f=self.f, noise=np.sqrt(KALMAN_COEF['r']))
-        measure_magnetic_field(c=self.c, f=self.f, noise=np.sqrt(KALMAN_COEF['r']))
+        measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
+        measure_magnetic_field(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
 
         # Изменение режимов работы
-        guidance(c=self.c, f=self.f, earth_turn=self.t * W_ORB / 2 / np.pi)
+        guidance(v=self.v, c=self.c, f=self.f, earth_turn=self.t * self.v.W_ORB / 2 / np.pi)
 
         # Запись параметров
+        for obj in [self.c, self.f]:
+            for i in range(obj.n):
+                obj.line_orf[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
+                obj.line_irf[i] += [obj.r_irf[i][0], obj.r_irf[i][1], obj.r_irf[i][2]]
         if self.iter % self.show_rate == 0:
             for i_c in range(self.c.n):
                 for i_f in range(self.f.n):
-                    if self.f.operating_mode[i_f] != OPERATING_MODES[-1]:
+                    if self.f.operating_mode[i_f] != self.v.OPERATING_MODES[-1]:
                         self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] -
                                                                       self.k.r_orf_estimation[i_f][0:3])]
                         self.f.line_kalman[i_f] += [self.k.r_orf_estimation[i_f][0],
@@ -267,33 +352,19 @@ class PhysicModel:
                                                     self.k.r_orf_estimation[i_f][2]]
                         self.f.line_difference[i_f] += \
                             [np.array(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
-                        if NAVIGATION_ANGLES:
+                        if self.v.NAVIGATION_ANGLES:
                             self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:7]
                                                                 - np.array(self.f.q[i_f])]
                             self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][10:13]
-                                                            - np.array(self.f.w_orf[i_f])]
+                                                            - np.array(self.f.w_irf[i_f])]
                     else:
-                        self.c.kalm_dist[i_c][i_f] += [NO_LINE_FLAG]
-                        self.f.line_kalman[i_f] += [NO_LINE_FLAG] * 3
-                        self.f.line_difference[i_f] += [NO_LINE_FLAG * np.ones(3)]
-                        if NAVIGATION_ANGLES:
-                            self.f.attitude_difference[i_f] += [NO_LINE_FLAG * np.ones(4)]
-                            self.f.spin_difference[i_f] += [NO_LINE_FLAG * np.ones(3)]
+                        self.c.kalm_dist[i_c][i_f] += [self.v.NO_LINE_FLAG]
+                        self.f.line_kalman[i_f] += [self.v.NO_LINE_FLAG] * 3
+                        self.f.line_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(3)]
+                        if self.v.NAVIGATION_ANGLES:
+                            self.f.attitude_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(4)]
+                            self.f.spin_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(3)]
 
         # Навигация чипсатов
-        if IF_NAVIGATION:
+        if self.v.IF_NAVIGATION:
             navigate(k=self.k)
-
-    # Перевод между системами координат
-    def get_matrices(self, obj: Union[CubeSat, FemtoSat], n: int, t: float = None):
-        t = self.t if t is None else t
-        A = quart2dcm(obj.q[n])
-        U = np.array([[0., 1., 0.],
-                      [0., 0., 1.],
-                      [1., 0., 0.]]) @ \
-            np.array([[np.cos(t * W_ORB), np.sin(t * W_ORB), 0],
-                      [-np.sin(t * W_ORB), np.cos(t * W_ORB), 0],
-                      [0, 0, 1]])
-        S = A @ U.T
-        R_orb = U.T @ np.array([0, 0, ORBIT_RADIUS])
-        return U, S, A, R_orb

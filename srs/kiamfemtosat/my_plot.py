@@ -57,12 +57,12 @@ def plot_distance(o):
                 if i_f == 0 else [None for _ in range(100)]
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
-                         c=MY_COLORS[0], label=labels[0] if i_c == 0 else None)
+                         c=o.v.MY_COLORS[0], label=labels[0] if i_c == 0 else None)
             axes[0].plot([o.p.dt * i for i in range(len(o.f.z_difference[i_f]))], o.f.z_difference[i_f],
-                         c=MY_COLORS[3], label=labels[1] if i_c == 0 else None)
-            axes[0].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][0] == NO_LINE_FLAG else
+                         c=o.v.MY_COLORS[3], label=labels[1] if i_c == 0 else None)
+            axes[0].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][0] == o.v.NO_LINE_FLAG else
                              np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
-                         c=MY_COLORS[2], label=labels[2] if i_c == 0 else None)
+                         c=o.v.MY_COLORS[2], label=labels[2] if i_c == 0 else None)
     axes[0].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[0].set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
     axes[0].legend(fontsize=CAPTION_SIZE)
@@ -73,8 +73,8 @@ def plot_distance(o):
             labels = ["ΔX", "ΔY", "ΔZ"]
             x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             for j in range(3):
-                axes[1].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][j] == NO_LINE_FLAG else
-                                 o.f.line_difference[i_f][i][j] for i in range(len(x))], c=MY_COLORS[j+3],
+                axes[1].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][j] == o.v.NO_LINE_FLAG else
+                                 o.f.line_difference[i_f][i][j] for i in range(len(x))], c=o.v.MY_COLORS[j+3],
                              label=labels[j] if i_f == 0 and i_c == 0 else None)
     axes[1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[1].set_ylabel(f"Компоненты r, м", fontsize=CAPTION_SIZE)
@@ -88,11 +88,11 @@ def plot_distance(o):
             x = [o.p.dt * i for i in range(len(o.c.real_dist[0][i_f]))]
             for j in range(3):
                 ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][j] for i in range(len(x))],
-                              c=MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
+                              c=o.v.MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
                 ax[1][1].plot(x, [o.f.spin_difference[i_f][i][j] for i in range(len(x))],
-                              c=MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
+                              c=o.v.MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
             ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][3] for i in range(len(x))],
-                          c=MY_COLORS[3+3], label=labels_q[3] if i_f == 0 else None)
+                          c=o.v.MY_COLORS[3+3], label=labels_q[3] if i_f == 0 else None)
         ax[1][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
         ax[1][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
         for j in range(2):
@@ -125,7 +125,7 @@ def plot_sigmas(o):
 
 
 # >>>>>>>>>>>> 3D отображение в ОСК <<<<<<<<<<<<
-def show_chipsat(o, j, clr, opacity):
+def show_chipsat(o, j, clr, opacity, reference_frame: str) -> list:
     global FEMTO_RATE
     x, y, z = ([], [], [0 for _ in range(4)])
     for x_shift in [-o.f.size[0] * FEMTO_RATE, o.f.size[0] * FEMTO_RATE]:
@@ -135,14 +135,14 @@ def show_chipsat(o, j, clr, opacity):
     A = quart2dcm(o.f.q[j])
     for i in range(4):
         r = A.T @ np.array([x[i], y[i], z[i]])
-        x[i] = r[0] + o.f.r_orf[j][0]
-        y[i] = r[1] + o.f.r_orf[j][1]
-        z[i] = r[2] + o.f.r_orf[j][2]
+        x[i] = r[0] + o.f.r_orf[j][0] if reference_frame == "ORF" else r[0] + o.f.r_irf[j][0]
+        y[i] = r[1] + o.f.r_orf[j][1] if reference_frame == "ORF" else r[1] + o.f.r_irf[j][1]
+        z[i] = r[2] + o.f.r_orf[j][2] if reference_frame == "ORF" else r[2] + o.f.r_irf[j][2]
     xl, yl, zl = ([], [], [])
-    for i in range(int(len(o.f.line[j])//3)):
-        xl += [o.f.line[j][i * 3 + 0]]
-        yl += [o.f.line[j][i * 3 + 1]]
-        zl += [o.f.line[j][i * 3 + 2]]
+    for i in range(int(len(o.f.line_orf[j]) // 3)):
+        xl += [o.f.line_orf[j][i * 3 + 0]] if reference_frame == "ORF" else [o.f.line_irf[j][i * 3 + 0]]
+        yl += [o.f.line_orf[j][i * 3 + 1]] if reference_frame == "ORF" else [o.f.line_irf[j][i * 3 + 1]]
+        zl += [o.f.line_orf[j][i * 3 + 2]] if reference_frame == "ORF" else [o.f.line_irf[j][i * 3 + 2]]
     xk, yk, zk = ([], [], [])
     for i in range(int(len(o.f.line_kalman[j])//3)):
         xk += [o.f.line_kalman[j][i * 3 + 0]]
@@ -151,7 +151,7 @@ def show_chipsat(o, j, clr, opacity):
     return [go.Mesh3d(x=x, y=y, z=z, color=clr, opacity=opacity), go.Scatter3d(x=xl, y=yl, z=zl, mode='lines'),
             go.Scatter3d(x=xk, y=yk, z=zk, mode='lines')]
 
-def show_cubesat(o, j):
+def show_cubesat(o, j, reference_frame: str) -> list:
     global CUBE_RATE
     total_cubes = 30
     r = [[[] for _ in range(total_cubes)] for _ in range(3)]
@@ -210,37 +210,21 @@ def show_cubesat(o, j):
     A = quart2dcm(o.c.q[j])
     for k in range(total_cubes):
         for i in range(4):
-            r1 = A.T @ np.array([r[0][k][i], r[1][k][i], r[2][k][i]])
-            r[0][k][i] = r1[0] + o.c.r_orf[j][0]
-            r[1][k][i] = r1[1] + o.c.r_orf[j][1]
-            r[2][k][i] = r1[2] + o.c.r_orf[j][2]
+            r1 = A.T @ np.array([r[0][k][i], r[1][k][i], r[2][k][i]])  # При IRF нет поворота. А и хрен с ним
+            r[0][k][i] = r1[0] + o.c.r_orf[j][0] if reference_frame == "ORF" else r1[0] + o.c.r_irf[j][0]
+            r[1][k][i] = r1[1] + o.c.r_orf[j][1] if reference_frame == "ORF" else r1[1] + o.c.r_irf[j][1]
+            r[2][k][i] = r1[2] + o.c.r_orf[j][2] if reference_frame == "ORF" else r1[2] + o.c.r_irf[j][2]
     anw = []
     for i in range(total_cubes):
         color = 'yellow' if i < 6 else 'gray'
         anw += [go.Mesh3d(x=r[0][i], y=r[1][i], z=r[2][i], color=color, opacity=1)]
     xl, yl, zl = ([], [], [])
-    for i in range(int(len(o.c.line[j]) // 3)):
-        xl += [o.c.line[j][i * 3 + 0]]
-        yl += [o.c.line[j][i * 3 + 1]]
-        zl += [o.c.line[j][i * 3 + 2]]
+    for i in range(int(len(o.c.line_orf[j]) // 3)):
+        xl += [o.c.line_orf[j][i * 3 + 0]] if reference_frame == "ORF" else [o.c.line_irf[j][i * 3 + 0]]
+        yl += [o.c.line_orf[j][i * 3 + 1]] if reference_frame == "ORF" else [o.c.line_irf[j][i * 3 + 1]]
+        zl += [o.c.line_orf[j][i * 3 + 2]] if reference_frame == "ORF" else [o.c.line_irf[j][i * 3 + 2]]
     anw += [go.Scatter3d(x=xl, y=yl, z=zl, mode='lines')]
     return anw
-
-def show_chipsats_and_cubesats(o, clr: str = 'lightpink', opacity: float = 1):
-    data = []
-    for i in range(o.f.n):
-        data += show_chipsat(o, i, clr, opacity)
-    for i in range(o.c.n):
-        data += show_cubesat(o, i)
-    return go.Figure(data=data, layout=go.Layout(autosize=False, width=900, height=700))
-
-def plot_all(o, save: bool = False, count: int = None):
-    f = show_chipsats_and_cubesats(o, clr='black')
-    # f.update_traces(scatter3d=dict(width=3))
-    if save:
-        f.write_image('img/' + str('{:04}'.format(count)) + '.jpg')
-    else:
-        f.show()
 
 
 # >>>>>>>>>>>> 3D отображение в ИСК <<<<<<<<<<<<
@@ -286,12 +270,12 @@ def arrows3d(ends: np.ndarray, starts: np.ndarray = None, ax=None, label: str = 
     ax.points = np.vstack((starts, ends, getattr(ax, 'points', np.empty((0, 3)))))
     return ax
 
-def plot_the_earth(ax, res: int = 1, pth: str = "./", earth_image=None):
+def plot_the_earth_mpl(ax, v: Variables, res: int = 1, pth: str = "./", earth_image=None):
     x_points = 180 * res
     y_points = 90 * res
 
     if earth_image is None:
-        bm = Image.open(f'{pth}source/skins/{EARTH_FILE_NAME}')
+        bm = Image.open(f'{pth}source/skins/{v.EARTH_FILE_NAME}')
         bm = np.array(bm.resize((x_points, y_points))) / 256.
     else:
         bm = earth_image
@@ -299,32 +283,38 @@ def plot_the_earth(ax, res: int = 1, pth: str = "./", earth_image=None):
     lons = np.linspace(-180, 180, bm.shape[1]) * np.pi / 180
     lats = np.linspace(-90, 90, bm.shape[0])[::-1] * np.pi / 180
 
-    x = EARTH_RADIUS * np.outer(np.cos(lons), np.cos(lats)).T
-    y = EARTH_RADIUS * np.outer(np.sin(lons), np.cos(lats)).T
-    z = EARTH_RADIUS * np.outer(np.ones(np.size(lons)), np.sin(lats)).T
+    x = v.EARTH_RADIUS * np.outer(np.cos(lons), np.cos(lats)).T
+    y = v.EARTH_RADIUS * np.outer(np.sin(lons), np.cos(lats)).T
+    z = v.EARTH_RADIUS * np.outer(np.ones(np.size(lons)), np.sin(lats)).T
     ax.plot_surface(x, y, z, rstride=4, cstride=4, facecolors=bm)
     ax.set_xlabel("x, км")
     ax.set_ylabel("y, км")
     ax.set_zlabel("z, км")
     return ax
 
+def plot_the_earth_go(v: Variables):
+    spherical_earth_map = np.load('data/map_sphere.npy')
+    xm, ym, zm = spherical_earth_map.T * v.EARTH_RADIUS
+
+    return go.Scatter3d(x=xm, y=ym, z=zm, mode='lines')
+
 def plot_reference_frames(ax, o, txt: str, color: str = "gray", t: float = None):
     x = np.array([1, 0, 0])
     y = np.array([0, 1, 0])
     z = np.array([0, 0, 1])
-    arrows = np.array([x, y, z]) * ORBIT_RADIUS
+    arrows = np.array([x, y, z]) * o.v.ORBIT_RADIUS
     start = np.zeros(3)
     if txt == "ОСК":
         # Костыль на отсутствие вращения тела
         # get_matrices(self, obj: Union[CubeSat, FemtoSat], n: int, t: float = None)
         o.c.q[0] = [1, 0, 0, 0]
         U, S, A, R_orb = o.p.get_matrices(obj=o.c, n=0, t=t)
-        arrows = np.array([U.T @ x, U.T @ y, U.T @ z]) * ORBIT_RADIUS / 2
+        arrows = np.array([U.T @ x, U.T @ y, U.T @ z]) * o.v.ORBIT_RADIUS / 2
         start = R_orb
     if txt == "ИСК":
         n_round = 30
-        ax.plot(ORBIT_RADIUS * np.array([np.cos(i) for i in np.linspace(0, 2 * np.pi, n_round)]),
-                ORBIT_RADIUS * np.array([np.sin(i) for i in np.linspace(0, 2 * np.pi, n_round)]), np.zeros(n_round),
+        ax.plot(o.v.ORBIT_RADIUS * np.array([np.cos(i) for i in np.linspace(0, 2 * np.pi, n_round)]),
+                o.v.ORBIT_RADIUS * np.array([np.sin(i) for i in np.linspace(0, 2 * np.pi, n_round)]), np.zeros(n_round),
                 color)  # , ls=":"
     ax = arrows3d(starts=np.array([start for _ in range(3)]), ends=np.array([start + arrows[i] for i in range(3)]),
                   ax=ax, color=color, label=txt)
@@ -333,3 +323,27 @@ def plot_reference_frames(ax, o, txt: str, color: str = "gray", t: float = None)
         a = start + arrows[i] + arrows[i] / np.linalg.norm(arrows[i]) * 0.2
         ax.text(a[0], a[1], a[2], c=color, s=label)
     return ax
+
+
+# >>>>>>>>>>>> Конечная ассамблея <<<<<<<<<<<<
+def show_chipsats_and_cubesats(o, reference_frame: str, clr: str = 'lightpink', opacity: float = 1):
+    data = []
+    for i in range(o.f.n):
+        data += show_chipsat(o, i, clr, opacity, reference_frame)
+    for i in range(o.c.n):
+        data += show_cubesat(o, i, reference_frame)
+    return data
+
+def plot_all(o, save: bool = False, count: int = None):
+    from plotly.subplots import make_subplots
+    fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'surface'}, {'type': 'surface'}]],
+                        subplot_titles=('Инерциальная СК', 'Орбитальная СК'))
+    for i in range(2):
+        tmp = show_chipsats_and_cubesats(o, ['IRF', 'ORF'][i], clr='black')
+        for surf in tmp:
+            fig.add_trace(surf, row=1, col=i+1)
+    fig.add_trace(plot_the_earth_go(v=o.v), row=1, col=1)
+    if save:
+        fig.write_image('img/' + str('{:04}'.format(count)) + '.jpg')
+    else:
+        fig.show()
