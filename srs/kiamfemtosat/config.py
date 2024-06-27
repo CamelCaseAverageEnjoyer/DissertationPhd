@@ -1,16 +1,18 @@
 class Variables:
     def __init__(self):
+        from kiam_astro import kiam
         import numpy
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
-        self.dT = 10.
-        self.TIME = 1e4
+        self.dT = 1.
+        self.TIME = 1e5
         self.CUBESAT_AMOUNT = 1
         self.CHIPSAT_AMOUNT = 1
-        self.AERO_DRAG = False
-        self.NAVIGATION_BY_ALL = True
+        self.DYNAMIC_MODEL = {'aero drag': True,
+                              'j2': False}
+        self.NAVIGATION_BY_ALL = False
         self.NAVIGATION_ANGLES = False
         self.START_NAVIGATION_TOLERANCE = 0.9
-        self.DYNAMIC_MODEL = ['rk4', 'kiamastro'][1]
+        self.SOLVER = ['rk4 hkw', 'kiamastro'][0]
         self.START_NAVIGATION = ['perfect', 'near', 'random'][2]
         self.GAIN_MODEL_C = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][5]
         self.GAIN_MODEL_F = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][4]
@@ -31,12 +33,15 @@ class Variables:
         # >>>>>>>>>>>> Параметры отображения <<<<<<<<<<<<
         self.IF_TALK = False
         self.IF_ANY_PRINT = True
+        self.IF_ANY_SHOW = False
         self.NO_LINE_FLAG = -10
         self.EARTH_FILE_NAME = ["earth1.jpg", "earth2.jpg", "earth3.webp"][2]
 
 
         # >>>>>>>>>>>> Константы <<<<<<<<<<<<
-        self.EARTH_RADIUS = 6731e3
+        self.SEC_IN_TURN = 24*3600*kiam.units('earth')['TimeUnit']*2*numpy.pi
+        self.SEC_IN_RAD = 24*3600*kiam.units('earth')['TimeUnit']
+        self.EARTH_RADIUS = kiam.units('earth')['DistUnit'] * 1e3
         self.ORBIT_RADIUS = self.EARTH_RADIUS + 400e3
         self.ECCENTRICITY = 0
         self.INCLINATION = 0  # В градусах

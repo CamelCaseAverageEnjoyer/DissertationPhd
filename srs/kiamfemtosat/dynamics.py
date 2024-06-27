@@ -101,7 +101,7 @@ def get_geopotential_acceleration(v_: Variables, r: Union[list, np.ndarray], v: 
     :param v: Скорость КА. Внимание! Не путать с Variables!
     :param r: Положение КА
     :param v_: Переменная класса Variables. Внимание! Не путать со скоростью!"""
-    if v_.DYNAMIC_MODEL == 'Clohessy-Wiltshire':
+    if 'hkw' in v_.SOLVER:
         return np.array([-2 * v_.W_ORB * v[2],
                          -v_.W_ORB ** 2 * r[1],
                          2 * v_.W_ORB * v[0] + 3 * v_.W_ORB ** 2 * r[2]])
@@ -123,7 +123,7 @@ def get_aero_drag_acceleration(v_: Variables, obj: Union[CubeSat, FemtoSat], i: 
         c_resist = 1.17
         square = obj.size[0] * obj.size[1] * abs(cos_alpha)
 
-    if v_.DYNAMIC_MODEL == 'Clohessy-Wiltshire':
+    if 'hkw' in v_.SOLVER:
         v_real = v + np.array([v_.V_ORB, 0, 0])
         rho = get_atm_params(v=v_, h=r[2] + v_.ORBIT_RADIUS - v_.EARTH_RADIUS)[0]
         return - v_real * np.linalg.norm(v_real) * c_resist * rho * square / 2 / obj.mass
@@ -133,9 +133,9 @@ def get_full_acceleration(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int,
     """Возвращает вектор силы в ОСК, принимает параметры в ОСК\n
     square - площадь S для аэродинамики
     c_resist - Cf для аэродинаммики"""
-    if v_.DYNAMIC_MODEL == 'Clohessy-Wiltshire':
+    if 'hkw' in v_.SOLVER:
         force = get_geopotential_acceleration(v_=v_, r=r, v=v)
-        if v_.AERO_DRAG:
+        if v_.DYNAMIC_MODEL['aero drag']:
             force += get_aero_drag_acceleration(v_=v_, r=r, v=v, obj=obj, i=i)
         return force
 
@@ -238,6 +238,8 @@ class PhysicModel:
         self.f = f
         self.time_begin = datetime.now()
 
+        self.to_delete = 0.
+
         # Инициализация фильтра
         self.k = KalmanFilter(f=f, c=c, p=self)
 
@@ -251,8 +253,8 @@ class PhysicModel:
         for j in range(2):
             obj = [self.c, self.f][j]
             for i in range(obj.n):
-                s0 = np.append(obj.r_irf[i] / self.v.EARTH_RADIUS, obj.v_irf[i] / self.v.V_ORB)
-                # print(f"{obj.name}-{i+1} -> {s0} (V_irf={obj.v_irf[i]}, V_orb={V_ORB})")
+                s0 = np.append(obj.r_irf[i] / (kiam.units('earth')['DistUnit'] * 1e3),
+                               obj.v_irf[i] / (kiam.units('earth')['VelUnit'] * 1e3))
                 self.tr[j][i] = Trajectory(initial_state=s0, initial_time=0, initial_jd=self.jd0, variables='rv',
                                            system='gcrs', units_name='earth')
 
@@ -270,21 +272,21 @@ class PhysicModel:
             tmp = ", ориентации" if self.v.NAVIGATION_ANGLES else ""
             my_print(f"Диаграмма антенн кубсата: {self.c.gain_mode}\n"
                      f"Диаграмма антенн фемтосатов: {self.f.gain_mode}\n"
-                     f"Учёт аэродинамики: {self.v.AERO_DRAG}\n"
+                     f"Учёт аэродинамики: {self.v.DYNAMIC_MODEL['aero drag']}\n"
                      f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}\n" 
                      f"Фильтр Калмана основан на: "
                      f"{'всех чипсатах' if self.v.NAVIGATION_BY_ALL else 'одном чипсате'}", color='c')
             my_print(f"Внимание: IF_NAVIGATION={self.v.IF_NAVIGATION}! ", color='m', if_print=not self.v.IF_NAVIGATION)
 
         # Движение системы
-        if 'rk4' in self.v.DYNAMIC_MODEL:
+        if 'rk4' in self.v.SOLVER:
             for obj in [self.c, self.f]:
                 for i in range(obj.n):
                     # Вращательное движение
                     obj.q[i], obj.w_irf[i] = rk4_attitude(v_=self.v, obj=obj, i=i)
 
                     # Поступательное движение
-                    if self.v.AERO_DRAG:
+                    if self.v.DYNAMIC_MODEL['aero drag']:
                         obj.r_orf[i], obj.v_orf[i] = rk4_translate(v_=self.v, obj=obj, i=i)
                     else:
                         obj.r_orf[i] = r_hkw(obj.c_hkw[i], self.v.W_ORB, self.t)
@@ -293,25 +295,27 @@ class PhysicModel:
                     U, _, _, _ = get_matrices(v=self.v, t=self.t, obj=obj, n=i)
                     obj.r_irf[i] = o_i(v=self.v, a=obj.r_orf[i], U=U, vec_type='r')
                     obj.v_irf[i] = o_i(v=self.v, a=obj.v_orf[i], U=U, vec_type='v')
-        elif 'kiamastro' in self.v.DYNAMIC_MODEL:
+        elif 'kiamastro' in self.v.SOLVER:
             # Расчёт
             if self.iter == 1:
                 for i in range(2):
                     obj = [self.c, self.f][i]
                     for j in range(obj.n):
                         self.tr[i][j].set_model(variables='rv', model_type='nbp', primary='earth',
-                                                sources_list=[])  # 'atm', 'j2', 'moon', 'sun'
-                        self.tr[i][j].model['data']['jd_zero'] = self.jd0  # julian date corresponding to t = 0
-                        self.tr[i][j].model['data']['mass'] = self.f.mass  # spacecraft mass, kg
-                        self.tr[i][j].model['data']['area'] = self.f.size[0] * self.f.size[1]  # spacecraft area, m^2
+                                                sources_list=[] + ['j2'] if self.v.DYNAMIC_MODEL['j2'] else [] +
+                                                             ['atm'] if self.v.DYNAMIC_MODEL['aero drag'] else [])
+                        self.tr[i][j].model['data']['jd_zero'] = self.jd0
+                        self.tr[i][j].model['data']['mass'] = self.f.mass
+                        self.tr[i][j].model['data']['area'] = self.f.size[0] * self.f.size[1]
                         self.tr[i][j].model['data']['order'] = 0  # order of the Moon's gravity field
-                        self.tr[i][j].propagate(tof=2 * np.pi * self.v.TIME*self.v.W_ORB/2/np.pi,
-                                                npoints=int(self.v.TIME // self.v.dT))
-                my_print(f"kiam-astro Time: {self.tr[0][0].times[-1]} ({2 * np.pi})\n"
-                         f"kiam-astro Points: {self.v.TIME / self.v.dT}", if_print=self.v.IF_ANY_PRINT)
-                # self.tr[0][0].show(variables='3d', language='rus')
+                        self.tr[i][j].propagate(tof=self.v.TIME/self.v.SEC_IN_RAD, npoints=int(self.v.TIME//self.v.dT))
+                my_print(f"kiam-astro Time: {self.tr[0][0].times[-1]} ({self.tr[0][0].times[-1]/2/np.pi} оборотов)\n"
+                         f"kiam-astro Points: {self.v.TIME/self.v.dT}", if_print=self.v.IF_ANY_PRINT)
+                if self.v.IF_ANY_SHOW:
+                    self.tr[0][0].show(variables='3d', language='rus')
+                    self.tr[1][0].show(variables='3d', language='rus')
 
-            # Запись параметров: ВНИМАНИЕ! ПОВТОРЯЕТСЯ РАССЧЁТ ВРАЩАТЕЛЬНОГО ДВИЖЕНИЯ
+            # Запись положений КА и расчёт вращательного движения КА
             for i in range(2):
                 obj = [self.c, self.f][i]
                 for j in range(obj.n):
@@ -320,14 +324,16 @@ class PhysicModel:
 
                     # Поступательное движение
                     obj.r_irf[j] = np.array([self.tr[i][j].states[ii][self.iter - 1]
-                                             for ii in range(3)]) * self.v.EARTH_RADIUS
+                                             for ii in range(3)]) * kiam.units('earth')['DistUnit'] * 1e3
                     obj.v_irf[j] = np.array([self.tr[i][j].states[ii + 3][self.iter - 1]
-                                             for ii in range(3)]) * self.v.V_ORB
-                    U, _, _, _ = get_matrices(v=self.v, t=self.t, obj=obj, n=j)
+                                             for ii in range(3)]) * kiam.units('earth')['VelUnit'] * 1e3
+                    tr_time = self.tr[i][j].times[self.iter-1] * self.v.SEC_IN_RAD
+                    U, _, _, _ = get_matrices(v=self.v, t=tr_time, obj=obj, n=j)
                     obj.r_orf[j] = i_o(v=self.v, a=obj.r_irf[j], U=U, vec_type='r')
                     obj.v_orf[j] = i_o(v=self.v, a=obj.v_irf[j], U=U, vec_type='v')
+                    self.to_delete = tr_time
         else:
-            raise ValueError(f"Уточни модель движения! DYNAMIC_MODEL={self.v.DYNAMIC_MODEL}")
+            raise ValueError(f"Уточни модель движения! DYNAMIC_MODEL={self.v.SOLVER}")
 
         # Комплекс первичной информации
         measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))

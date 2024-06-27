@@ -343,6 +343,12 @@ def plot_all(o, save: bool = False, count: int = None):
         for surf in tmp:
             fig.add_trace(surf, row=1, col=i+1)
     fig.add_trace(plot_the_earth_go(v=o.v), row=1, col=1)
+    fig.update_layout(title=dict(text=f"Солвер: {o.v.SOLVER} "
+                                      f"{'(' if o.v.DYNAMIC_MODEL['aero drag'] or o.v.DYNAMIC_MODEL['j2'] else ''}"
+                                      f"{' +Лобовое сопротивление' if o.v.DYNAMIC_MODEL['aero drag'] else ''}"
+                                      f"{' +Вторая гармоника' if o.v.DYNAMIC_MODEL['j2'] else ''}"
+                                      f"{' )' if o.v.DYNAMIC_MODEL['aero drag'] or o.v.DYNAMIC_MODEL['j2'] else ''}"
+                                      f" | Время: {o.v.TIME} (дней: {round(o.v.TIME / (3600 * 24), 2)})"))
     if save:
         fig.write_image('img/' + str('{:04}'.format(count)) + '.jpg')
     else:

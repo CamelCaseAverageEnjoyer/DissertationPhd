@@ -84,7 +84,7 @@ class KalmanFilter:
         z_len = int(self.f.n * self.c.n) + int(self.f.n * (self.f.n - 1) / 2)  # ll = Рёбра НЕполного графа
         # Расчёт. Примечание: вектор _self.r_orf_estimation_ должен быть длины _self.f.n_ * _self.t_ (вроде)
         r_ = self.r_orf_estimation  # [i_f][i_t]
-        if self.v.AERO_DRAG:  # Переделать весь расчёт. Это какой-то крокодил и он тебя сожрёт рано или поздно
+        if self.v.DYNAMIC_MODEL['aero drag']:  # ПЕРЕДЕЛАТЬ ВЕСЬ РАСЧЁТ
             rv_m = [
                 rk4_translate(self.f, i=i, r=r_[i][0:3], v=r_[i][7:10] if self.v.NAVIGATION_ANGLES else r_[i][3:6])
                 for i in range(self.f.n)]
