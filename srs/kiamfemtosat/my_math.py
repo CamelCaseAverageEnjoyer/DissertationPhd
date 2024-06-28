@@ -9,7 +9,7 @@ def rad2deg(a: float) -> float:
     return a * 180 / np.pi
 
 def vec2quat(v: Union[list, np.ndarray]) -> list:
-    """Перевод вектор-часть кватерниона в кватернион"""
+    """Перевод вектор-часть кватерниона в кватернион """
     if len(v) != 3:
         raise ValueError(f"Подаётся вектор длинны {len(v)}, требуется длинна 3!")
     if np.linalg.norm(v) > 1:
