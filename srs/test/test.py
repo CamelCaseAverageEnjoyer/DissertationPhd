@@ -4,6 +4,7 @@ import numpy as np
 from srs.kiamfemtosat.main import Objects
 from srs.kiamfemtosat.config import Variables
 from srs.kiamfemtosat.cosmetic import *
+from srs.kiamfemtosat.my_math import *
 
 dT_optimal = 0.1
 TOTAL_TIME = 1e4
@@ -65,6 +66,13 @@ class MyTests(unittest.TestCase):
         v.CHIPSAT_AMOUNT = 1
         with self.assertRaises(ValueError):
             _ = Objects(v=v)
+
+    # >>>>>>>>>>>> Проверки мини-функций <<<<<<<<<<<<
+    def test_my_math(self):
+        self.assertEqual(np.pi/2, deg2rad(90))
+        self.assertEqual(rad2deg(2*np.pi), 360)
+        self.assertEqual(vec2quat([1, 2, 3]), [0, 1/np.sqrt(14), 2/np.sqrt(14), 3/np.sqrt(14)])
+        self.assertEqual(vec2quat(np.array([0, 0, 0])), [1, 0, 0, 0])
 
     # >>>>>>>>>>>> Проверки на дурачка <<<<<<<<<<<<
     def test_while_nothing_has_been_done(self):

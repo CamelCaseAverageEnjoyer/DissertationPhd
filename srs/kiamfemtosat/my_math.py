@@ -2,9 +2,11 @@
 from typing import Union
 import numpy as np
 
-'''def get_quaternion_from_vecpart(q: Union[list, np.ndarray]) -> np.ndarray:
-    return np.append(1 - np.linalg.norm(q) ** 2, q) if np.linalg.norm(q) <= 1 else \
-        np.append(0, q / np.linalg.norm(q))'''
+def deg2rad(a: float) -> float:
+    return a / 180 * np.pi
+
+def rad2deg(a: float) -> float:
+    return a * 180 / np.pi
 
 def vec2quat(v: Union[list, np.ndarray]) -> list:
     """Перевод вектор-часть кватерниона в кватернион"""

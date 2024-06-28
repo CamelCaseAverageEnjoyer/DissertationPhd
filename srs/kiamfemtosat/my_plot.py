@@ -287,9 +287,9 @@ def plot_the_earth_mpl(ax, v: Variables, res: int = 1, pth: str = "./", earth_im
     y = v.EARTH_RADIUS * np.outer(np.sin(lons), np.cos(lats)).T
     z = v.EARTH_RADIUS * np.outer(np.ones(np.size(lons)), np.sin(lats)).T
     ax.plot_surface(x, y, z, rstride=4, cstride=4, facecolors=bm)
-    ax.set_xlabel("x, км")
-    ax.set_ylabel("y, км")
-    ax.set_zlabel("z, км")
+    ax.set_xlabel("x, тыс. км")
+    ax.set_ylabel("y, тыс. км")
+    ax.set_zlabel("z, тыс. км")
     return ax
 
 def plot_the_earth_go(v: Variables):
@@ -299,6 +299,7 @@ def plot_the_earth_go(v: Variables):
     return go.Scatter3d(x=xm, y=ym, z=zm, mode='lines')
 
 def plot_reference_frames(ax, o, txt: str, color: str = "gray", t: float = None):
+    from srs.kiamfemtosat.dynamics import get_matrices
     x = np.array([1, 0, 0])
     y = np.array([0, 1, 0])
     z = np.array([0, 0, 1])
@@ -308,14 +309,19 @@ def plot_reference_frames(ax, o, txt: str, color: str = "gray", t: float = None)
         # Костыль на отсутствие вращения тела
         # get_matrices(self, obj: Union[CubeSat, FemtoSat], n: int, t: float = None)
         o.c.q[0] = [1, 0, 0, 0]
-        U, S, A, R_orb = o.p.get_matrices(obj=o.c, n=0, t=t)
+        U, S, A, R_orb = get_matrices(obj=o.c, n=0, t=t, v=o.v)
         arrows = np.array([U.T @ x, U.T @ y, U.T @ z]) * o.v.ORBIT_RADIUS / 2
         start = R_orb
     if txt == "ИСК":
-        n_round = 30
-        ax.plot(o.v.ORBIT_RADIUS * np.array([np.cos(i) for i in np.linspace(0, 2 * np.pi, n_round)]),
-                o.v.ORBIT_RADIUS * np.array([np.sin(i) for i in np.linspace(0, 2 * np.pi, n_round)]), np.zeros(n_round),
-                color)  # , ls=":"
+        # Отрисовка кружочка
+        x, y, z = ([], [], [])
+        n_round = 50
+        for t in np.linspace(0, o.v.SEC_IN_TURN * 1.5, n_round):
+            U, _, _, R_orb = get_matrices(v=o.v, t=t, obj=o.c, n=0)
+            x += [R_orb[0]]
+            y += [R_orb[1]]
+            z += [R_orb[2]]
+        ax.plot(x, y, z, color)
     ax = arrows3d(starts=np.array([start for _ in range(3)]), ends=np.array([start + arrows[i] for i in range(3)]),
                   ax=ax, color=color, label=txt)
     for i in range(3):

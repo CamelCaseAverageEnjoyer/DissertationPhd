@@ -9,13 +9,13 @@
 ---
 
 #### Способы основного численного моделирования:
-- v.DYNAMIC_MODEL = 'rk4': НОО, e=0, i=0
-- v.DYNAMIC_MODEL = 'kiamastro': ИСК полное моделирование, переход в ОСК только e=0, i=0
+- v.DYNAMIC_MODEL = 'rk4': НОО, e=0
+- v.DYNAMIC_MODEL = 'kiamastro': ИСК полное моделирование, переход в ОСК при любом e, i
 
 ---
 Пока что задача на этапе НОО:
 
-<img src="source/example 2.gif" width="200">
+<img src="source/example 2.gif" width="400">
 
 Плохой пример обнаружения чипсата только по оценке расстояния:
 

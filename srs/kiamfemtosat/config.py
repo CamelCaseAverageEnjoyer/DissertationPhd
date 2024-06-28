@@ -39,12 +39,16 @@ class Variables:
 
 
         # >>>>>>>>>>>> Константы <<<<<<<<<<<<
+        self.ECCENTRICITY = 0.01
+        self.INCLINATION = 30  # В градусах
         self.SEC_IN_TURN = 24*3600*kiam.units('earth')['TimeUnit']*2*numpy.pi
         self.SEC_IN_RAD = 24*3600*kiam.units('earth')['TimeUnit']
         self.EARTH_RADIUS = kiam.units('earth')['DistUnit'] * 1e3
         self.ORBIT_RADIUS = self.EARTH_RADIUS + 400e3
-        self.ECCENTRICITY = 0
-        self.INCLINATION = 0  # В градусах
+
+        self.APOGEE = self.ORBIT_RADIUS  # Апогей
+        self.PERIGEE = self.ORBIT_RADIUS * (1 - self.ECCENTRICITY)/(1 + self.ECCENTRICITY)  # Перигей
+        self.P = self.APOGEE * (1 - self.ECCENTRICITY**2)  # Фокальный параметр
 
         self.MU = 5.972e24 * 6.67408e-11  # гравитационный параметр
         self.W_ORB = numpy.sqrt(self.MU / self.ORBIT_RADIUS ** 3)
@@ -135,7 +139,8 @@ if __name__ == "__main__":
 
         v_ = Variables()
         o = Objects(v=v_)
-        o.v.dT = 1.5 * 3600 / n
+        # o.v.dT = o.v.SEC_IN_TURN / (n - 3)
+        o.v.dT = 2*np.pi / o.v.W_ORB / n
         o.v.IF_NAVIGATION = False
 
         fig = plt.figure(figsize=(7, 7))
@@ -149,22 +154,23 @@ if __name__ == "__main__":
         earth_image = np.array(earth_image.resize((x_points, y_points))) / 256.
         for i in range(n):
             o.p.time_step()
-            # t = t_list[i] * 3600  # t в секундах, i в часах
             ax = plot_the_earth_mpl(ax, v=v_, earth_image=earth_image)
-            ax = plot_reference_frames(ax, o, txt="ИСК", color="lime")
-            # ax = plot_reference_frames(ax, o, txt="ОСК", color="red", t=t)
-            ax = plot_reference_frames(ax, o, txt="ОСК", color="red")
+            ax = plot_reference_frames(ax, o, t=o.p.t, txt="ИСК", color="lime")
+            ax = plot_reference_frames(ax, o, t=o.p.t, txt="ОСК", color="red")
+            ax.view_init(azim=20, elev=30, roll=0)
             ax.axis('equal')
+            plt.title(f"Наклонение: {o.v.INCLINATION}°, эксцентриситет: {round(o.v.ECCENTRICITY, 2)}, "
+                      f"апогей: {round(o.v.APOGEE / 1e3)} км, перигей: {round(o.v.PERIGEE / 1e3)} км")
             plt.legend()
-            plt.savefig(f"../../res/to_delete_{'{:04}'.format(i)}.jpg")
+            plt.savefig(f"../../res/to_delete_{'{:04}'.format(i)}.png")
             ax.clear()
         plt.close()
 
-        images = [Image.open(f"../../res/to_delete_{'{:04}'.format(i)}.jpg") for i in range(n)]
-        images[0].save('../../res/res.gif', save_all=True, append_images=images[1:], duration=100, loop=0)
+        images = [Image.open(f"../../res/to_delete_{'{:04}'.format(i)}.png") for i in range(n)]
+        images[0].save('../../res/res.gif', save_all=True, append_images=images[1:], duration=20, loop=0)
         for i in range(n):
-            remove(f"../../res/to_delete_{'{:04}'.format(i)}.jpg")
+            remove(f"../../res/to_delete_{'{:04}'.format(i)}.png")
 
-    # animate_reference_frames(resolution=1, n=15)
+    # animate_reference_frames(resolution=1, n=30)
     plot_model_gain()
     plot_atmosphere_models()

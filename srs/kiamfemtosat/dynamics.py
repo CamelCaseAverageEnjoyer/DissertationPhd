@@ -190,15 +190,21 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float
 def get_matrices(v: Variables, t: float, obj: Union[CubeSat, FemtoSat], n: int):
     """Функция возвращает матрицы поворота.
     Инициализируется в dymancis.py, используется в spacecrafts, dynamics"""
+    E = t * v.W_ORB  # Эксцентрическая аномалия
+    f = 2 * np.arctan(np.sqrt((1 + v.ECCENTRICITY) / (1 - v.ECCENTRICITY)) * np.tan(E / 2))  # Истинная аномалия
     A = quart2dcm(obj.q[n])
-    U = np.array([[0., 1., 0.],
-                  [0., 0., 1.],
-                  [1., 0., 0.]]) @ \
-        np.array([[np.cos(t * v.W_ORB), np.sin(t * v.W_ORB), 0],
-                  [-np.sin(t * v.W_ORB), np.cos(t * v.W_ORB), 0],
-                  [0, 0, 1]])
+    U = np.array([[0, 1, 0],  # Поворот к экваториальной плоскости
+                  [0, 0, 1],
+                  [1, 0, 0]]) @ \
+        np.array([[np.cos(f), np.sin(f), 0],  # Разница между истинной аномалией и местной
+                  [-np.sin(f), np.cos(f), 0],
+                  [0, 0, 1]]) @ \
+        np.array([[1, 0, 0],
+                  [0, np.cos(deg2rad(v.INCLINATION)), np.sin(deg2rad(v.INCLINATION))],  # Поворот к плоскости орбиты
+                  [0, -np.sin(deg2rad(v.INCLINATION)), np.cos(deg2rad(v.INCLINATION))]])
     S = A @ U.T
-    R_orb = U.T @ np.array([0, 0, v.ORBIT_RADIUS])
+    # R_orb = U.T @ np.array([0, 0, v.ORBIT_RADIUS])
+    R_orb = U.T @ np.array([0, 0, v.P / (1 + v.ECCENTRICITY * np.cos(f))])
     return U, S, A, R_orb
 
 def i_o(a, v: Variables, U: np.ndarray, vec_type: str):
