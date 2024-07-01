@@ -2,8 +2,9 @@ class Variables:
     def __init__(self):
         from kiam_astro import kiam
         import numpy
+        from srs.kiamfemtosat.spacecrafts import Anchor
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
-        self.dT = 1.
+        self.dT = 10.
         self.TIME = 1e5
         self.CUBESAT_AMOUNT = 1
         self.CHIPSAT_AMOUNT = 1
@@ -39,21 +40,22 @@ class Variables:
 
 
         # >>>>>>>>>>>> Константы <<<<<<<<<<<<
-        self.ECCENTRICITY = 0.01
+        self.ECCENTRICITY = 0.0
         self.INCLINATION = 30  # В градусах
         self.SEC_IN_TURN = 24*3600*kiam.units('earth')['TimeUnit']*2*numpy.pi
         self.SEC_IN_RAD = 24*3600*kiam.units('earth')['TimeUnit']
         self.EARTH_RADIUS = kiam.units('earth')['DistUnit'] * 1e3
         self.ORBIT_RADIUS = self.EARTH_RADIUS + 400e3
 
+        # Параметры орбиты
         self.APOGEE = self.ORBIT_RADIUS  # Апогей
         self.PERIGEE = self.ORBIT_RADIUS * (1 - self.ECCENTRICITY)/(1 + self.ECCENTRICITY)  # Перигей
         self.P = self.APOGEE * (1 - self.ECCENTRICITY**2)  # Фокальный параметр
-
         self.MU = 5.972e24 * 6.67408e-11  # гравитационный параметр
         self.W_ORB = numpy.sqrt(self.MU / self.ORBIT_RADIUS ** 3)
         self.V_ORB = numpy.sqrt(self.MU / self.ORBIT_RADIUS)
         self.J2 = 1.082 * 1e-3
+
         self.CUBESAT_MODELS = ['1U', '1.5U', '2U', '3U', '6U', '12U']
         self.GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas']
         self.NAVIGATIONS = ['perfect', 'near', 'random']
@@ -69,6 +71,7 @@ class Variables:
 
         # >>>>>>>>>>>> Параметры для тестов <<<<<<<<<<<<
         self.IF_NAVIGATION = False
+        self.ANCHOR = Anchor(v=self)
 
     def test_mode(self):
         self.IF_TALK = False
@@ -140,7 +143,8 @@ if __name__ == "__main__":
         v_ = Variables()
         o = Objects(v=v_)
         # o.v.dT = o.v.SEC_IN_TURN / (n - 3)
-        o.v.dT = 2*np.pi / o.v.W_ORB / n
+        TIME = 2*np.pi / o.v.W_ORB
+        o.v.dT = TIME / n
         o.v.IF_NAVIGATION = False
 
         fig = plt.figure(figsize=(7, 7))
@@ -171,6 +175,6 @@ if __name__ == "__main__":
         for i in range(n):
             remove(f"../../res/to_delete_{'{:04}'.format(i)}.png")
 
-    # animate_reference_frames(resolution=1, n=30)
-    plot_model_gain()
-    plot_atmosphere_models()
+    animate_reference_frames(resolution=1, n=30)
+    # plot_model_gain()
+    # plot_atmosphere_models()

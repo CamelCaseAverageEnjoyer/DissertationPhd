@@ -7,9 +7,10 @@ class Objects:
         """Класс объединяет следующие другие классы: CubeSat, FemtoSat, PhysicModel"""
         # Классы
         self.v = v
+        self.a = v.ANCHOR
         self.c = CubeSat(v=v)
         self.f = FemtoSat(v=v)
-        self.p = PhysicModel(c=self.c, f=self.f, v=v)
+        self.p = PhysicModel(c=self.c, f=self.f, a=self.a, v=v)
 
     def integrate(self, t: float, animate: bool = False) -> None:
         my_print(f"Оборотов вокруг Земли: {round(t / (2 * np.pi / self.v.W_ORB), 2)}  "

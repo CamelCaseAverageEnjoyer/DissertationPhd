@@ -46,11 +46,42 @@ def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], mode3: bool = 
     return [1]
 
 # >>>>>>>>>>>> Классы аппаратов <<<<<<<<<<<<
+class Anchor:
+    def __init__(self, v: Variables):
+        """Класс фантомного КА, движущегося по орбите с нулевым разбросом скоростей и положений"""
+        from srs.kiamfemtosat.dynamics import get_matrices, o_i, get_c_hkw
+
+        # Общие параметры
+        self.name = "Anchor"
+        self.n = 1
+        self.mass = 1e10
+        self.size = [1., 1., 1.]
+
+        # Индивидуальные параметры движения
+        self.w_irf = [np.zeros(3) for _ in range(self.n)]
+        self.q = [np.array([1, 0, 0, 0]) for _ in range(self.n)]
+        # self.q = [[np.array([1, 0, 0, 0]) for _ in range(self.n)] for _ in range(1)]
+        # print(self.q)
+        self.r_orf = [np.zeros(3) for _ in range(self.n)]
+        self.v_orf = [np.zeros(3) for _ in range(self.n)]
+        U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=0, first_init=True)
+        self.r_irf = [o_i(v=v, a=self.r_orf[0], U=U, vec_type='r')]
+        self.v_irf = [o_i(v=v, a=self.v_orf[0], U=U, vec_type='v')]
+        self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
+            self.spin_difference, self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
+        self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
+
+        # Индивидуальные параметры измерений
+        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_irf[i])
+                    for i in range(self.n)]
+        self.rv_orf_calc = [prm_good[i] for i in range(self.n)]
+
+
 class FemtoSat:
     def __init__(self, v: Variables):
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
-        from srs.kiamfemtosat.dynamics import get_matrices, o_i
+        from srs.kiamfemtosat.dynamics import get_matrices, o_i, get_c_hkw
         if v.CHIPSAT_AMOUNT < 0:
             raise ValueError(f"Количество чипсатов {v.CHIPSAT_AMOUNT} должно быть не меньше 0!")
 
@@ -70,8 +101,8 @@ class FemtoSat:
         self.v_irf = [np.zeros(3) for _ in range(self.n)]
         self.w_irf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
         self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
-        self.c_hkw, self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
-            self.spin_difference, self.z_difference = [[[] for _ in range(self.n)] for _ in range(8)]
+        self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
+            self.spin_difference, self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
         for i in range(self.n):
             if v.SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
@@ -80,6 +111,7 @@ class FemtoSat:
             U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
             self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
             self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
+        self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
         # Индивидуальные параметры режимов работы
         self.operating_mode = [v.OPERATING_MODES[0] for _ in range(self.n)]
@@ -106,7 +138,7 @@ class CubeSat:
     def __init__(self, v: Variables):
         """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.\n
         Все величны представлены в СИ."""
-        from srs.kiamfemtosat.dynamics import get_matrices, o_i
+        from srs.kiamfemtosat.dynamics import get_matrices, o_i, get_c_hkw
         if v.CUBESAT_AMOUNT < 1:
             raise ValueError(f"Количество чипсатов {v.CUBESAT_AMOUNT} должно быть не меньше 1!")
 
@@ -135,7 +167,7 @@ class CubeSat:
         self.v_irf = [np.zeros(3) for _ in range(self.n)]
         self.w_irf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[2], v.RVW_CubeSat_SPREAD[2], 3) for _ in range(self.n)]
         self.q = [np.array([np.random.uniform(-1, 1) for _ in range(4)]) for _ in range(self.n)]
-        self.c_hkw, self.line_orf, self.line_irf = [[[] for _ in range(self.n)] for _ in range(3)]
+        self.line_orf, self.line_irf = [[[] for _ in range(self.n)] for _ in range(2)]
         for i in range(self.n):
             if v.SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
@@ -143,6 +175,7 @@ class CubeSat:
             U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
             self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
             self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
+        self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
         # Индивидуальные параметры режимов работы
         self.operating_mode = [v.OPERATING_MODES[0] for _ in range(self.n)]

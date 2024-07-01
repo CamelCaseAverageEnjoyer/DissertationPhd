@@ -286,7 +286,7 @@ def plot_the_earth_mpl(ax, v: Variables, res: int = 1, pth: str = "./", earth_im
     x = v.EARTH_RADIUS * np.outer(np.cos(lons), np.cos(lats)).T
     y = v.EARTH_RADIUS * np.outer(np.sin(lons), np.cos(lats)).T
     z = v.EARTH_RADIUS * np.outer(np.ones(np.size(lons)), np.sin(lats)).T
-    ax.plot_surface(x, y, z, rstride=4, cstride=4, facecolors=bm)
+    ax.plot_surface(x, y, z, rstride=4, cstride=4, facecolors=bm, alpha=1)
     ax.set_xlabel("x, тыс. км")
     ax.set_ylabel("y, тыс. км")
     ax.set_zlabel("z, тыс. км")
@@ -306,18 +306,17 @@ def plot_reference_frames(ax, o, txt: str, color: str = "gray", t: float = None)
     arrows = np.array([x, y, z]) * o.v.ORBIT_RADIUS
     start = np.zeros(3)
     if txt == "ОСК":
-        # Костыль на отсутствие вращения тела
-        # get_matrices(self, obj: Union[CubeSat, FemtoSat], n: int, t: float = None)
-        o.c.q[0] = [1, 0, 0, 0]
-        U, S, A, R_orb = get_matrices(obj=o.c, n=0, t=t, v=o.v)
+        U, _, _, R_orb = get_matrices(obj=o.a, n=0, t=t, v=o.v)
         arrows = np.array([U.T @ x, U.T @ y, U.T @ z]) * o.v.ORBIT_RADIUS / 2
         start = R_orb
     if txt == "ИСК":
         # Отрисовка кружочка
         x, y, z = ([], [], [])
-        n_round = 50
+        """n_round = 50
         for t in np.linspace(0, o.v.SEC_IN_TURN * 1.5, n_round):
-            U, _, _, R_orb = get_matrices(v=o.v, t=t, obj=o.c, n=0)
+            _, _, _, R_orb = get_matrices(v=o.v, t=t, obj=o.a, n=0)"""
+        for i in range(int(len(o.a.line_irf[0])//3)):
+            R_orb = o.a.line_irf[0][3*i:3*i+3]
             x += [R_orb[0]]
             y += [R_orb[1]]
             z += [R_orb[2]]
@@ -354,7 +353,8 @@ def plot_all(o, save: bool = False, count: int = None):
                                       f"{' +Лобовое сопротивление' if o.v.DYNAMIC_MODEL['aero drag'] else ''}"
                                       f"{' +Вторая гармоника' if o.v.DYNAMIC_MODEL['j2'] else ''}"
                                       f"{' )' if o.v.DYNAMIC_MODEL['aero drag'] or o.v.DYNAMIC_MODEL['j2'] else ''}"
-                                      f" | Время: {o.v.TIME} (дней: {round(o.v.TIME / (3600 * 24), 2)})"))
+                                      f" | Время: {o.v.TIME} ({round(o.v.TIME / (3600 * 24), 2)} дней)  |  "
+                                      f"i={o.v.INCLINATION}°, e={o.v.ECCENTRICITY}"))
     if save:
         fig.write_image('img/' + str('{:04}'.format(count)) + '.jpg')
     else:

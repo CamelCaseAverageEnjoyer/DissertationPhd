@@ -2,6 +2,7 @@
 ПЕРЕДЕЛАТЬ v_->v, v->u"""
 from datetime import datetime
 
+import numpy as np
 from kiam_astro import kiam
 from kiam_astro.trajectory import Trajectory
 
@@ -187,24 +188,33 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float
 
 
 # >>>>>>>>>>>> Перевод между системами координат <<<<<<<<<<<<
-def get_matrices(v: Variables, t: float, obj: Union[CubeSat, FemtoSat], n: int):
+def get_matrices(v: Variables, t: float, obj: Union[CubeSat, FemtoSat, Anchor], n: int, first_init: bool = False):
     """Функция возвращает матрицы поворота.
     Инициализируется в dymancis.py, используется в spacecrafts, dynamics"""
     E = t * v.W_ORB  # Эксцентрическая аномалия
     f = 2 * np.arctan(np.sqrt((1 + v.ECCENTRICITY) / (1 - v.ECCENTRICITY)) * np.tan(E / 2))  # Истинная аномалия
     A = quart2dcm(obj.q[n])
-    U = np.array([[0, 1, 0],  # Поворот к экваториальной плоскости
-                  [0, 0, 1],
-                  [1, 0, 0]]) @ \
-        np.array([[np.cos(f), np.sin(f), 0],  # Разница между истинной аномалией и местной
-                  [-np.sin(f), np.cos(f), 0],
-                  [0, 0, 1]]) @ \
-        np.array([[1, 0, 0],
-                  [0, np.cos(deg2rad(v.INCLINATION)), np.sin(deg2rad(v.INCLINATION))],  # Поворот к плоскости орбиты
-                  [0, -np.sin(deg2rad(v.INCLINATION)), np.cos(deg2rad(v.INCLINATION))]])
+    if 'hkw' in v.SOLVER or first_init:
+        U = np.array([[0, 1, 0],  # Поворот к экваториальной плоскости
+                      [0, 0, 1],
+                      [1, 0, 0]]) @ \
+            np.array([[np.cos(f), np.sin(f), 0],  # Разница между истинной аномалией и местной
+                      [-np.sin(f), np.cos(f), 0],
+                      [0, 0, 1]]) @ \
+            np.array([[1, 0, 0],
+                      [0, np.cos(deg2rad(v.INCLINATION)), np.sin(deg2rad(v.INCLINATION))],  # Поворот к плоскости орбиты
+                      [0, -np.sin(deg2rad(v.INCLINATION)), np.cos(deg2rad(v.INCLINATION))]])
+        translation = v.P / (1 + v.ECCENTRICITY * np.cos(f))
+    else:
+        e_z = vec2unit(v.ANCHOR.r_irf[0])
+        e_x = vec2unit(v.ANCHOR.v_irf[0])
+        e_y = vec2unit(np.cross(e_z, e_x))
+        e_x = vec2unit(np.cross(e_y, e_z))
+        U = np.array([e_x, e_y, e_z])
+        translation = np.linalg.norm(v.ANCHOR.r_irf[0])
     S = A @ U.T
     # R_orb = U.T @ np.array([0, 0, v.ORBIT_RADIUS])
-    R_orb = U.T @ np.array([0, 0, v.P / (1 + v.ECCENTRICITY * np.cos(f))])
+    R_orb = U.T @ np.array([0, 0, translation])
     return U, S, A, R_orb
 
 def i_o(a, v: Variables, U: np.ndarray, vec_type: str):
@@ -233,7 +243,7 @@ def o_i(a, v: Variables, U: np.ndarray, vec_type: str):
 
 # >>>>>>>>>>>> Класс динамики кубсатов и чипсатов <<<<<<<<<<<<
 class PhysicModel:
-    def __init__(self, f: FemtoSat, c: CubeSat, v: Variables):
+    def __init__(self, f: FemtoSat, c: CubeSat, a: Anchor, v: Variables):
         self.show_rate = 1
 
         # Неизменные параметры
@@ -242,6 +252,7 @@ class PhysicModel:
         self.v = v
         self.c = c
         self.f = f
+        self.a = a
         self.time_begin = datetime.now()
 
         self.to_delete = 0.
@@ -250,23 +261,17 @@ class PhysicModel:
         self.k = KalmanFilter(f=f, c=c, p=self)
 
         # Инициализация траектории kiam-astro
-        # s0 = [ORBIT_RADIUS / EARTH_RADIUS, ECCENTRICITY, kiam.deg2rad(INCLINATION), 0.0, 0.0, 0.0]  a, e, i, Ω, ω, M₀
-        # s0.extend(list(kiam.eye2vec(6)))  # Orbital_elements + State-transition matrix
-        # s0 = np.array(s0)
         self.jd0 = kiam.juliandate(2024, 1, 1, 0, 0, 0)  # (год, месяц, день, чч, мм, сс)
         self.tr = [[Trajectory(initial_state=np.zeros(6), initial_time=0, initial_jd=self.jd0, variables='rv',
-                               system='gcrs', units_name='earth') for _ in range(obj.n)] for obj in [self.c, self.f]]
-        for j in range(2):
-            obj = [self.c, self.f][j]
+                               system='gcrs', units_name='earth') for _ in range(obj.n)]
+                   for obj in [self.c, self.f, self.a]]
+        for j in range(3):
+            obj = [self.c, self.f, self.a][j]
             for i in range(obj.n):
                 s0 = np.append(obj.r_irf[i] / (kiam.units('earth')['DistUnit'] * 1e3),
                                obj.v_irf[i] / (kiam.units('earth')['VelUnit'] * 1e3))
                 self.tr[j][i] = Trajectory(initial_state=s0, initial_time=0, initial_jd=self.jd0, variables='rv',
                                            system='gcrs', units_name='earth')
-
-        # Расчёт движения Хилла-Клохесси-Уилтшира
-        self.c.c_hkw = [get_c_hkw(self.c.r_orf[i], self.c.v_orf[i], self.v.W_ORB) for i in range(self.c.n)]
-        self.f.c_hkw = [get_c_hkw(self.f.r_orf[i], self.f.v_orf[i], self.v.W_ORB) for i in range(self.f.n)]
 
     # Шаг по времени
     def time_step(self):
@@ -286,7 +291,7 @@ class PhysicModel:
 
         # Движение системы
         if 'rk4' in self.v.SOLVER:
-            for obj in [self.c, self.f]:
+            for obj in [self.a, self.c, self.f]:
                 for i in range(obj.n):
                     # Вращательное движение
                     obj.q[i], obj.w_irf[i] = rk4_attitude(v_=self.v, obj=obj, i=i)
@@ -304,8 +309,8 @@ class PhysicModel:
         elif 'kiamastro' in self.v.SOLVER:
             # Расчёт
             if self.iter == 1:
-                for i in range(2):
-                    obj = [self.c, self.f][i]
+                for i in range(3):
+                    obj = [self.a, self.c, self.f][i]
                     for j in range(obj.n):
                         self.tr[i][j].set_model(variables='rv', model_type='nbp', primary='earth',
                                                 sources_list=[] + ['j2'] if self.v.DYNAMIC_MODEL['j2'] else [] +
@@ -322,8 +327,8 @@ class PhysicModel:
                     self.tr[1][0].show(variables='3d', language='rus')
 
             # Запись положений КА и расчёт вращательного движения КА
-            for i in range(2):
-                obj = [self.c, self.f][i]
+            for i in range(3):
+                obj = [self.a, self.c, self.f][i]
                 for j in range(obj.n):
                     # Вращательное движение
                     obj.q[j], obj.w_irf[j] = rk4_attitude(v_=self.v, obj=obj, i=j)
@@ -349,7 +354,7 @@ class PhysicModel:
         guidance(v=self.v, c=self.c, f=self.f, earth_turn=self.t * self.v.W_ORB / 2 / np.pi)
 
         # Запись параметров
-        for obj in [self.c, self.f]:
+        for obj in [self.a, self.c, self.f]:
             for i in range(obj.n):
                 obj.line_orf[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
                 obj.line_irf[i] += [obj.r_irf[i][0], obj.r_irf[i][1], obj.r_irf[i][2]]

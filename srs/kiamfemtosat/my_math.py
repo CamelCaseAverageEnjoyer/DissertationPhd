@@ -8,6 +8,15 @@ def deg2rad(a: float) -> float:
 def rad2deg(a: float) -> float:
     return a * 180 / np.pi
 
+def vec2unit(a: np.ndarray) -> np.ndarray:
+    return a / np.linalg.norm(a)
+
+def my_cross(a, b):
+    """Функция векторного произведения"""
+    return np.array([a[1] * b[2] - a[2] * b[1],
+                     a[2] * b[0] - a[0] * b[2],
+                     a[0] * b[1] - a[1] * b[0]])
+
 def vec2quat(v: Union[list, np.ndarray]) -> list:
     """Перевод вектор-часть кватерниона в кватернион """
     if len(v) != 3:
