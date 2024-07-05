@@ -42,6 +42,6 @@ if __name__ == '__main__':
     tmp = np.array([np.linalg.norm(o.f.line_difference[0][i]) for i in range(len(o.f.line_difference[0]))])
     print(f"Математическое ожидание: {tmp.mean()}, Среднее отклонение: {tmp.std()}")
     talk_decision(cnd=o.v.IF_TALK)
-    plot_all(o)
-    # plot_distance(o)  # Можно не комментировать
+    # plot_all(o)
+    plot_distance(o)  # Можно не комментировать
     # plot_sigmas(o)

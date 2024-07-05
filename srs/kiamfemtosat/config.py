@@ -4,16 +4,16 @@ class Variables:
         import numpy
         from srs.kiamfemtosat.spacecrafts import Anchor
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
-        self.dT = 10.
-        self.TIME = 1e5
+        self.dT = 1.
+        self.TIME = 1e3
         self.CUBESAT_AMOUNT = 1
         self.CHIPSAT_AMOUNT = 1
-        self.DYNAMIC_MODEL = {'aero drag': True,
+        self.DYNAMIC_MODEL = {'aero drag': False,
                               'j2': False}
-        self.NAVIGATION_BY_ALL = False
-        self.NAVIGATION_ANGLES = False
+        self.NAVIGATION_BY_ALL = True
+        self.NAVIGATION_ANGLES = True
         self.START_NAVIGATION_TOLERANCE = 0.9
-        self.SOLVER = ['rk4 hkw', 'kiamastro'][0]
+        self.SOLVER = ['rk4 hkw', 'kiamastro'][0]  # Везде проверяется на hkw -> проверки на rk4, дальше может изменю
         self.START_NAVIGATION = ['perfect', 'near', 'random'][2]
         self.GAIN_MODEL_C = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][5]
         self.GAIN_MODEL_F = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][4]
@@ -22,7 +22,7 @@ class Variables:
 
         self.RVW_CubeSat_SPREAD = [1e1, 1e-1, 1e-5]
         self.RVW_ChipSat_SPREAD = [1e2, 1e-1, 1e-5]
-        self.KALMAN_COEF = {'q': [1e-12]*2, 'p': [1e-7]*4, 'r': 1e-1}
+        self.KALMAN_COEF = {'q': [1e-10, 1e-12], 'p': [1e-7]*4, 'r': 1e-1}
         self.CUBESAT_MODEL = ['1U', '1.5U', '2U', '3U', '6U', '12U'][0]
         self.SHAMANISM = {'KalmanQuaternionNormalize': True,   # Нормировка кватернионов в фильтре Калмана
                           'KalmanSpinLimit': [True, 1e-3],  # Ограничение скорости вращения в прогнозе фильтра Калмана
@@ -70,7 +70,7 @@ class Variables:
 
 
         # >>>>>>>>>>>> Параметры для тестов <<<<<<<<<<<<
-        self.IF_NAVIGATION = False
+        self.IF_NAVIGATION = True
         self.ANCHOR = Anchor(v=self)
 
     def test_mode(self):
@@ -86,29 +86,33 @@ if __name__ == "__main__":
     from srs.kiamfemtosat.main import Objects
     from srs.kiamfemtosat.cosmetic import my_print
 
-    def plot_model_gain(n: int = 30):
+    def plot_model_gain(n: int = 20):
         v_ = Variables()
         o = Objects(v=v_)
-        my_print(f"Диаграмма направленностей для ChipSat: {o.v.GAIN_MODEL_F}", color="b")
-        fig = plt.figure(figsize=(10, 10))
-        ax = fig.add_subplot(projection='3d')
+        fig = plt.figure(figsize=(20, 10))
 
-        u = np.linspace(0, 2 * np.pi, n)
-        v = np.linspace(-np.pi / 2, np.pi / 2, n)
-        U, V = np.meshgrid(u, v)
+        for i in range(2):
+            ax = fig.add_subplot(1, 2, i+1, projection='3d')
+            obj = [o.f, o.c][i]
+            my_print(f"Диаграмма направленностей для {obj.name}: {o.v.GAIN_MODEL_F}", color="b")
 
-        max_g = 0
-        for k in range(len(get_gain(v=v_, obj=o.f, r=pol2dec(1, u[0], v[0])))):
-            g = np.array([[get_gain(v=v_, obj=o.f, r=pol2dec(1, u[i], v[j]))[k] for i in range(n)] for j in range(n)])
-            X, Y, Z = pol2dec(g, U, V)
-            ax.plot_surface(X, Y, Z, cmap=o.v.MY_COLORMAPS[k])
-            max_g = max(max_g, np.max(g.flatten()))
+            u = np.linspace(0, 2 * np.pi, n)
+            v = np.linspace(-np.pi / 2, np.pi / 2, n)
+            U, V = np.meshgrid(u, v)
 
-        ax.set_xlim(-max_g, max_g)
-        ax.set_ylim(-max_g, max_g)
-        ax.set_zlim(-max_g, max_g)
-        ax.set_box_aspect([1, 1, 1])
-        ax.set_title(f"Диаграмма направленностей для ChipSat | GAIN_MODEL = {o.v.GAIN_MODEL_F}")
+            max_g = 0
+            for k in range(len(get_gain(v=v_, obj=obj, r=pol2dec(1, u[0], v[0])))):
+                g = np.array([[get_gain(v=v_, obj=obj, r=pol2dec(1, u[i], v[j]))[k]
+                               for i in range(n)] for j in range(n)])
+                X, Y, Z = pol2dec(g, U, V)
+                ax.plot_surface(X, Y, Z, cmap=o.v.MY_COLORMAPS[k])
+                max_g = max(max_g, np.max(g.flatten()))
+
+            ax.set_xlim(-max_g, max_g)
+            ax.set_ylim(-max_g, max_g)
+            ax.set_zlim(-max_g, max_g)
+            ax.set_box_aspect([1, 1, 1])
+            ax.set_title(f"Диаграмма направленностей для {obj.name} | GAIN_MODEL = {o.v.GAIN_MODEL_F}")
         plt.show()
 
     def plot_atmosphere_models(n: int = 100):
@@ -175,6 +179,6 @@ if __name__ == "__main__":
         for i in range(n):
             remove(f"../../res/to_delete_{'{:04}'.format(i)}.png")
 
-    animate_reference_frames(resolution=1, n=30)
-    # plot_model_gain()
+    # animate_reference_frames(resolution=1, n=30)
+    plot_model_gain()
     # plot_atmosphere_models()
