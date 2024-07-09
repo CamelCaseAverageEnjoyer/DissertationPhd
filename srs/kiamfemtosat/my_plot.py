@@ -22,7 +22,7 @@ def plot_signals(o):
     global TITLE_SIZE, CAPTION_SIZE
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
-            x = [o.p.show_rate * o.p.dt * i for i in range(len(o.c.signal_power[i_c][i_f]))]
+            x = [o.p.show_rate * o.v.dT * i for i in range(len(o.c.signal_power[i_c][i_f]))]
             plt.plot(x, o.c.signal_power[i_c][i_f], label=f"фемтоступтник № {i_f+ 1}")
         plt.xlabel("Время, с", fontsize=CAPTION_SIZE)
         plt.ylabel("Мощность сигнала, ?", fontsize=CAPTION_SIZE)
@@ -38,7 +38,7 @@ def plot_signals(o):
     for i_f1 in range(o.f.n):
         for i_f2 in range(o.f.n):
             if i_f1 != i_f2:
-                x = [o.p.show_rate * o.p.dt * i for i in range(len(o.f.signal_power[i_f1][i_f2]))]
+                x = [o.p.show_rate * o.v.dT * i for i in range(len(o.f.signal_power[i_f1][i_f2]))]
                 axes[i_f1].plot(x, o.f.signal_power[i_f1][i_f2], c=colors[i_f2])
         axes[i_f1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
         axes[i_f1].set_ylabel("?", fontsize=CAPTION_SIZE)
@@ -46,8 +46,8 @@ def plot_signals(o):
 
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
-    fig, ax = plt.subplots(2, 2 if o.p.k.orientation else 1, figsize=(15 if o.p.k.orientation else 8, 10))
-    axes = ax[0] if o.p.k.orientation else ax
+    fig, ax = plt.subplots(2, 2 if o.v.NAVIGATION_BY_ALL else 1, figsize=(15 if o.v.NAVIGATION_BY_ALL else 8, 10))
+    axes = ax[0] if o.v.NAVIGATION_BY_ALL else ax
     fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
@@ -55,10 +55,10 @@ def plot_distance(o):
                       "Ошибка дистанции (оцениваемая)",
                       "Ошибка определения положения"] \
                 if i_f == 0 else [None for _ in range(100)]
-            x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+            x = [o.v.dT * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
                          c=o.v.MY_COLORS[0], label=labels[0] if i_c == 0 else None)
-            axes[0].plot([o.p.dt * i for i in range(len(o.f.z_difference[i_f]))], o.f.z_difference[i_f],
+            axes[0].plot([o.v.dT * i for i in range(len(o.f.z_difference[i_f]))], o.f.z_difference[i_f],
                          c=o.v.MY_COLORS[3], label=labels[1] if i_c == 0 else None)
             axes[0].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][0] == o.v.NO_LINE_FLAG else
                              np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
@@ -71,7 +71,7 @@ def plot_distance(o):
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
             labels = ["ΔX", "ΔY", "ΔZ"]
-            x = [o.p.dt * i for i in range(len(o.c.real_dist[i_c][i_f]))]
+            x = [o.v.dT * i for i in range(len(o.c.real_dist[i_c][i_f]))]
             for j in range(3):
                 axes[1].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][j] == o.v.NO_LINE_FLAG else
                                  o.f.line_difference[i_f][i][j] for i in range(len(x))], c=o.v.MY_COLORS[j+3],
@@ -85,7 +85,7 @@ def plot_distance(o):
         for i_f in range(o.f.n):
             labels_q = ["ΔΛ⁰", "ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]  # "ΔΛ⁰",
             labels_w = ["Δωˣ", "Δωʸ", "Δωᶻ"]  # "ΔΛ⁰",
-            x = [o.p.dt * i for i in range(len(o.c.real_dist[0][i_f]))]
+            x = [o.v.dT * i for i in range(len(o.c.real_dist[0][i_f]))]
             for j in range(3):
                 ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][j] for i in range(len(x))],
                               c=o.v.MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
@@ -109,7 +109,7 @@ def plot_sigmas(o):
     fig, axes = plt.subplots(2, 1)
     fig.suptitle(f"Погрешности, оцениваемые фильтром Калмана", fontsize=TITLE_SIZE)
     colors = ['forestgreen', 'cornflowerblue', 'teal', 'peru']
-    x = [o.p.dt * i for i in range(len(o.p.k.sigmas[0]))]
+    x = [o.v.dT * i for i in range(len(o.p.k.sigmas[0]))]
     t = 9 if o.p.k.orientation else 6
     for n in range(o.f.n):
         for i in range(t):

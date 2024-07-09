@@ -80,6 +80,8 @@ class KalmanFilter:
         c_z_len = len(get_gain(v=self.v, obj=self.c, r=np.ones(3)))
         f_z_len = len(get_gain(v=self.v, obj=self.f, r=np.ones(3)))
         z_len = int(self.f.n * self.c.n * (c_z_len + f_z_len) + self.f.n * (self.f.n - 1) * f_z_len)
+        my_print(f"z_len: {z_len} = {self.f.n}*{self.c.n}*({c_z_len}+{f_z_len}) + {self.f.n}({self.f.n}-1)*{f_z_len}",
+                 color='r', if_print=self.p.iter == 1)
 
         # >>>>>>>>>>>> Этап экстраполяции <<<<<<<<<<<<
         # Моделирование орбитального движения на dT -> вектор состояния x_m
@@ -103,43 +105,104 @@ class KalmanFilter:
         # Измерения с поправкой на угловой коэффициент усиления G (signal_rate)
         z_ = np.array([])
         for i_c in range(self.c.n):
-            z_ = np.append(z_, [self.c.calc_dist[i_c][i][-1] for i in range(self.f.n)])
-        z_ = np.append(z_, flatten([[self.f.calc_dist[i][j][-1] for i in range(j)] for j in range(self.f.n)]))
+            for i_f in range(self.f.n):
+                tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
+                z_ = np.append(z_, [self.c.calc_dist[i_c][i_f][-1] for _ in range(len(tmp1))])
+                tmp2 = get_gain(v=self.v, obj=self.c, r=np.random.random(3))
+                z_ = np.append(z_, [self.c.calc_dist[i_c][i_f][-1] for _ in range(len(tmp2))])
+        my_print(f"Длина длин 1: {len(z_)}", color='r', if_print=self.p.iter == 1)
+        for i_f1 in range(self.f.n):
+            for i_f2 in range(i_f1 - 1):
+                tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
+                z_ = np.append(z_, [self.f.calc_dist[i_f1][i_f2][-1] for _ in range(len(tmp1))])
+                z_ = np.append(z_, [self.f.calc_dist[i_f1][i_f2][-1] for _ in range(len(tmp1))])
+        my_print(f"Длина длин 2: {len(z_)}", color='r', if_print=self.p.iter == 1)
 
         signal_rate = [] if self.v.NAVIGATION_ANGLES else np.array([1] * z_len)
         if self.v.NAVIGATION_ANGLES:
             for i_c in range(self.c.n):
                 for i_f in range(self.f.n):
+                    # Измерения чипсата сигналов от кубсата
                     tmp1 = get_gain(v=self.v, obj=self.f, r=quart2dcm(x_m[i_f*self.j+3:i_f*self.j+7]) @
                                                             (x_m[i_f*self.j+0:i_f*self.j+3] - self.c.r_orf[i_c]))
                     tmp2 = get_gain(v=self.v, obj=self.c, r=quart2dcm(self.c.q[i_c]) @
+                                                            (x_m[i_f*self.j+0:i_f*self.j+3] - self.c.r_orf[i_c]),
+                                    mode3=True)
+                    signal_rate = np.append(signal_rate, [tmp1[i] * tmp2[0] for i in range(len(tmp1))])
+                    # Измерения кубсата сигналов от чипсата
+                    tmp1 = get_gain(v=self.v, obj=self.f, r=quart2dcm(x_m[i_f*self.j+3:i_f*self.j+7]) @
+                                                            (x_m[i_f*self.j+0:i_f*self.j+3] - self.c.r_orf[i_c]),
+                                    mode3=True)
+                    tmp2 = get_gain(v=self.v, obj=self.c, r=quart2dcm(self.c.q[i_c]) @
                                                             (x_m[i_f*self.j+0:i_f*self.j+3] - self.c.r_orf[i_c]))
-                    signal_rate = np.append(signal_rate, [tmp1[i] * tmp2[i] for i in range(len(tmp1))])
-            # ОСТАНОВИЛСЯ ЗДЕСЬ!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            signal_rate = np.append(signal_rate, flatten(
-                [[get_gain(v=self.v, obj=self.f, r=quart2dcm(x_m[i*self.j + 3:i*self.j + 7]) @
-                           (x_m[i*self.j + 0:i*self.j + 3] - x_m[j*self.j + 0:j*self.j + 3]))[0] *
-                  get_gain(v=self.v, obj=self.f, r=quart2dcm(x_m[j*self.j + 3:j*self.j + 7]) @
-                           (x_m[i*self.j + 0:i*self.j + 3] - x_m[j*self.j + 0:j*self.j + 3]))[0]
-                  for i in range(j)] for j in range(self.f.n)]))
+                    signal_rate = np.append(signal_rate, [tmp1[0] * tmp2[i] for i in range(len(tmp2))])
+            my_print(f"Длина G 1: {len(signal_rate)}", color='r', if_print=self.p.iter == 1)
+            for i_f1 in range(self.f.n):
+                for i_f2 in range(i_f1 - 1):
+                    # Измерения чипсата 1 сигналов от чипсата 2
+                    tmp1 = get_gain(v=self.v, obj=self.f,
+                                    r=quart2dcm(x_m[i_f1*self.j+3:i_f1*self.j+7]) @
+                                      (x_m[i_f1*self.j+0:i_f1*self.j+3] - x_m[i_f2*self.j+0:i_f2*self.j+3]))
+                    tmp2 = get_gain(v=self.v, obj=self.f, mode3=True,
+                                    r=quart2dcm(x_m[i_f2*self.j+3:i_f2*self.j+7]) @
+                                      (x_m[i_f1*self.j+0:i_f1*self.j+3] - x_m[i_f2*self.j+0:i_f2*self.j+3]))
+                    signal_rate = np.append(signal_rate, [tmp1[i] * tmp2[0] for i in range(len(tmp1))])
+                    # Измерения чипсата 2 сигналов от чипсата 1
+                    tmp1 = get_gain(v=self.v, obj=self.f, mode3=True,
+                                    r=quart2dcm(x_m[i_f1*self.j+3:i_f1*self.j+7]) @
+                                      (x_m[i_f1*self.j+0:i_f1*self.j+3] - x_m[i_f2*self.j+0:i_f2*self.j+3]))
+                    tmp2 = get_gain(v=self.v, obj=self.f,
+                                    r=quart2dcm(x_m[i_f2*self.j+3:i_f2*self.j+7]) @
+                                      (x_m[i_f1*self.j+0:i_f1*self.j+3] - x_m[i_f2*self.j+0:i_f2*self.j+3]))
+                    signal_rate = np.append(signal_rate, [tmp1[0] * tmp2[i] for i in range(len(tmp2))])
+            my_print(f"Длина G 2: {len(signal_rate)}", color='r', if_print=self.p.iter == 1)
         z_ *= np.sqrt(signal_rate)
 
         # Измерения согласно модели
+        '''z_ = np.array([])
+        for i_c in range(self.c.n):
+            for i_f in range(self.f.n):
+                tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
+                z_ = np.append(z_, [self.c.calc_dist[i_c][i_f][-1] for _ in range(len(tmp1))])
+                tmp2 = get_gain(v=self.v, obj=self.c, r=np.random.random(3))
+                z_ = np.append(z_, [self.c.calc_dist[i_c][i_f][-1] for _ in range(len(tmp2))])
+        my_print(f"Длина длин 1: {len(z_)}", color='r')
+        for i_f1 in range(self.f.n):
+            for i_f2 in range(self.f.n):
+                tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
+                z_ = np.append(z_, [self.f.calc_dist[i_f1][i_f2][-1] for _ in range(len(tmp1))])
+                z_ = np.append(z_, [self.f.calc_dist[i_f1][i_f2][-1] for _ in range(len(tmp1))])
+        my_print(f"Длина длин 2: {len(z_)}", color='r')'''
         z_model = np.array([])
         for i_c in range(self.c.n):
-            z_model = np.append(z_model, [np.linalg.norm(x_m[i*self.j + 0:i*self.j + 3] - self.c.r_orf[0])
-                                          for i in range(self.f.n)])
-        z_model = np.append(z_model,
-                            flatten([[np.linalg.norm(x_m[j*self.j + 0:j*self.j + 3] - x_m[i*self.j + 0:i*self.j + 3])
-                                      for i in range(j)] for j in range(self.f.n)]))
+            for i_f in range(self.f.n):
+                tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
+                z_model = np.append(z_model, [np.linalg.norm(x_m[i_f*self.j+0:i_f*self.j+3] - self.c.r_orf[i_c])
+                                              for _ in range(len(tmp1))])
+                tmp2 = get_gain(v=self.v, obj=self.c, r=np.random.random(3))
+                z_model = np.append(z_model, [np.linalg.norm(x_m[i_f*self.j+0:i_f*self.j+3] - self.c.r_orf[i_c])
+                                              for _ in range(len(tmp2))])
+        my_print(f"Длина модельных длин 1: {len(z_model)}", color='r', if_print=self.p.iter == 1)
+        for i_f1 in range(self.f.n):
+            for i_f2 in range(i_f1 - 1):
+                tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
+                z_model = np.append(z_model, [np.linalg.norm(x_m[i_f2*self.j+0:i_f2*self.j+3] -
+                                                             x_m[i_f1*self.j+0:i_f1*self.j+3])
+                                              for _ in range(len(tmp1))])
+                z_model = np.append(z_model, [np.linalg.norm(x_m[i_f2*self.j+0:i_f2*self.j+3] -
+                                                             x_m[i_f1*self.j+0:i_f1*self.j+3])
+                                              for _ in range(len(tmp1))])
         for i in range(self.f.n):
-            self.f.z_difference[i] += [abs(z_model[i] - z_[i])]
+            tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
+            self.f.z_difference[i] += [np.linalg.norm(z_model[i*2*len(tmp1):i*2*len(tmp1)+1] -
+                                                      z_[i*2*len(tmp1):i*2*len(tmp1)+1])]
+        my_print(f"Длина модельных длин 2: {len(z_model)}", color='r', if_print=self.p.iter == 1)
 
-        q_tilda = self.Phi @ self.D @ self.Q @ self.D.T @ self.Phi.T * self.v.dT  # nt_nt
-        p_m = self.Phi @ self.P @ self.Phi.T + q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
+        # Расчёт матриц
+        Q_tilda = self.Phi @ self.D @ self.Q @ self.D.T @ self.Phi.T * self.v.dT  # nt_nt
+        P_m = self.Phi @ self.P @ self.Phi.T + Q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
 
         # >>>>>>>>>>>> Этап коррекции <<<<<<<<<<<<
-
         def local_h_func(i: int, j: int) -> list:
             """Функция для построения матрицы H:
             i - блок столбцов из f.n
@@ -153,11 +216,12 @@ class KalmanFilter:
             else:
                 return self.j * [0.]
 
-        h_ = np.vstack([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(z_len)])
+        H = np.vstack([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(z_len)])
 
         R = np.eye(z_len) * self.v.KALMAN_COEF['r']  # n + n(n-1)/2
-        k_ = p_m @ h_.T @ np.linalg.inv(h_ @ p_m @ h_.T + R)  # nt_nt @ nt_lt @ l_l -> nt_l
-        self.P = (np.eye(self.j * self.f.n) - k_ @ h_) @ p_m
+        k_ = P_m @ H.T @ np.linalg.inv(H @ P_m @ H.T + R)  # nt_nt @ nt_lt @ l_l -> nt_l
+        self.P = (np.eye(self.j * self.f.n) - k_ @ H) @ P_m
+        my_print(f"x-: {np.matrix(x_m).shape}, K: {k_.shape}, z: {(z_ - z_model).shape}", color='g', if_print=self.p.iter == 1)
         r_orf_estimation = np.matrix(x_m) + k_ @ (z_ - z_model)
         for i in range(self.f.n):
             tmp = np.array(r_orf_estimation)[0 + i * self.j:self.j + i * self.j]

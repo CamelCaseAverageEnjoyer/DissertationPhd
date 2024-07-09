@@ -5,9 +5,9 @@ class Variables:
         from srs.kiamfemtosat.spacecrafts import Anchor
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
         self.dT = 1.
-        self.TIME = 1e3
+        self.TIME = 1e4
         self.CUBESAT_AMOUNT = 1
-        self.CHIPSAT_AMOUNT = 1
+        self.CHIPSAT_AMOUNT = 3
         self.DYNAMIC_MODEL = {'aero drag': False,
                               'j2': False}
         self.NAVIGATION_BY_ALL = True
@@ -22,7 +22,7 @@ class Variables:
 
         self.RVW_CubeSat_SPREAD = [1e1, 1e-1, 1e-5]
         self.RVW_ChipSat_SPREAD = [1e2, 1e-1, 1e-5]
-        self.KALMAN_COEF = {'q': [1e-10, 1e-12], 'p': [1e-7]*4, 'r': 1e-1}
+        self.KALMAN_COEF = {'q': [1e-12, 1e-12], 'p': [1e-8]*4, 'r': 1e-1}
         self.CUBESAT_MODEL = ['1U', '1.5U', '2U', '3U', '6U', '12U'][0]
         self.SHAMANISM = {'KalmanQuaternionNormalize': True,   # Нормировка кватернионов в фильтре Калмана
                           'KalmanSpinLimit': [True, 1e-3],  # Ограничение скорости вращения в прогнозе фильтра Калмана
@@ -41,7 +41,7 @@ class Variables:
 
         # >>>>>>>>>>>> Константы <<<<<<<<<<<<
         self.ECCENTRICITY = 0.0
-        self.INCLINATION = 30  # В градусах
+        self.INCLINATION = 0  # В градусах
         self.SEC_IN_TURN = 24*3600*kiam.units('earth')['TimeUnit']*2*numpy.pi
         self.SEC_IN_RAD = 24*3600*kiam.units('earth')['TimeUnit']
         self.EARTH_RADIUS = kiam.units('earth')['DistUnit'] * 1e3
