@@ -33,7 +33,7 @@ if __name__ == '__main__':
     # Инициализация
     v_ = Variables()
     o = Objects(v=v_)
-    o.p.show_rate = 100
+    o.p.show_rate = 10
 
     # Интегрирование
     o.integrate(t=o.v.TIME, animate=False)

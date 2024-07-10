@@ -75,13 +75,18 @@ class KalmanFilter:
             my_print(f"Матрицы Ф:{self.Phi.shape}, Q:{self.Q.shape}, P:{self.P.shape}, D:{self.D.shape}", color='g')
 
     def new_calc(self) -> None:  # Считается, что NAVIGATION_BY_ALL = True
-        # ВАЖНО! ПОКА ЗАБИВАЕТСЯ НА ТО, ЧТО G ПРИХОДИТ КАК ВЕКТОР! СИГНАЛ-РЕЙТ ДОЛЖЕН БЫТЬ БОЛЬШЕ!!!
         from srs.kiamfemtosat.dynamics import rk4_translate, rk4_attitude
         c_z_len = len(get_gain(v=self.v, obj=self.c, r=np.ones(3)))
         f_z_len = len(get_gain(v=self.v, obj=self.f, r=np.ones(3)))
+        # Костыль при self.v.NAVIGATION_ANGLES=False, можно было бы записать поумнее
+        '''if self.v.NAVIGATION_ANGLES:'''
         z_len = int(self.f.n * self.c.n * (c_z_len + f_z_len) + self.f.n * (self.f.n - 1) * f_z_len)
-        my_print(f"z_len: {z_len} = {self.f.n}*{self.c.n}*({c_z_len}+{f_z_len}) + {self.f.n}({self.f.n}-1)*{f_z_len}",
+        my_print(f"z_len: {z_len} = {self.f.n}*{self.c.n}*({c_z_len}+{f_z_len})+{self.f.n}({self.f.n}-1){f_z_len}",
                  color='r', if_print=self.p.iter == 1)
+        '''else:
+            z_len = int(self.f.n * self.c.n * (c_z_len + 1) + self.f.n * (self.f.n - 1) / 2)
+            my_print(f"z_len: {z_len} = {self.f.n}*{self.c.n}*({c_z_len}+1) + {self.f.n}({self.f.n}-1)/2",
+                     color='r', if_print=self.p.iter == 1)'''
 
         # >>>>>>>>>>>> Этап экстраполяции <<<<<<<<<<<<
         # Моделирование орбитального движения на dT -> вектор состояния x_m
@@ -112,10 +117,10 @@ class KalmanFilter:
                 z_ = np.append(z_, [self.c.calc_dist[i_c][i_f][-1] for _ in range(len(tmp2))])
         my_print(f"Длина длин 1: {len(z_)}", color='r', if_print=self.p.iter == 1)
         for i_f1 in range(self.f.n):
-            for i_f2 in range(i_f1 - 1):
+            for i_f2 in range(i_f1):
                 tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
                 z_ = np.append(z_, [self.f.calc_dist[i_f1][i_f2][-1] for _ in range(len(tmp1))])
-                z_ = np.append(z_, [self.f.calc_dist[i_f1][i_f2][-1] for _ in range(len(tmp1))])
+                z_ = np.append(z_, [self.f.calc_dist[i_f2][i_f1][-1] for _ in range(len(tmp1))])
         my_print(f"Длина длин 2: {len(z_)}", color='r', if_print=self.p.iter == 1)
 
         signal_rate = [] if self.v.NAVIGATION_ANGLES else np.array([1] * z_len)
@@ -138,7 +143,7 @@ class KalmanFilter:
                     signal_rate = np.append(signal_rate, [tmp1[0] * tmp2[i] for i in range(len(tmp2))])
             my_print(f"Длина G 1: {len(signal_rate)}", color='r', if_print=self.p.iter == 1)
             for i_f1 in range(self.f.n):
-                for i_f2 in range(i_f1 - 1):
+                for i_f2 in range(i_f1):
                     # Измерения чипсата 1 сигналов от чипсата 2
                     tmp1 = get_gain(v=self.v, obj=self.f,
                                     r=quart2dcm(x_m[i_f1*self.j+3:i_f1*self.j+7]) @
@@ -184,7 +189,7 @@ class KalmanFilter:
                                               for _ in range(len(tmp2))])
         my_print(f"Длина модельных длин 1: {len(z_model)}", color='r', if_print=self.p.iter == 1)
         for i_f1 in range(self.f.n):
-            for i_f2 in range(i_f1 - 1):
+            for i_f2 in range(i_f1):
                 tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
                 z_model = np.append(z_model, [np.linalg.norm(x_m[i_f2*self.j+0:i_f2*self.j+3] -
                                                              x_m[i_f1*self.j+0:i_f1*self.j+3])
@@ -209,10 +214,12 @@ class KalmanFilter:
             j - строка из n (self.t строк выдаёт как блок в return)
             сперва int(self.f.n * self.c.n) строк
             потом  int(self.f.n * (self.f.n - 1) / 2) строк"""
+            # if self.v.MULTI_ANTENNA_USE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            i_c = 0
             r_k = x_m[i*self.j + 0:i*self.j + 3]
             if (self.c.n * self.f.n > j == i) or \
                     (i >= self.c.n * self.f.n and j in self.sequence_under_diagonal[i - self.c.n * self.f.n]):
-                return [(r_k[jj] - self.c.r_orf[i][jj]) / z_model[i] for jj in range(3)] + (self.j - 3) * [0.]
+                return [(r_k[jj] - self.c.r_orf[i_c][jj]) / z_model[j] * signal_rate[j]**2 for jj in range(3)] + (self.j - 3) * [0.]
             else:
                 return self.j * [0.]
 
@@ -221,10 +228,11 @@ class KalmanFilter:
         R = np.eye(z_len) * self.v.KALMAN_COEF['r']  # n + n(n-1)/2
         k_ = P_m @ H.T @ np.linalg.inv(H @ P_m @ H.T + R)  # nt_nt @ nt_lt @ l_l -> nt_l
         self.P = (np.eye(self.j * self.f.n) - k_ @ H) @ P_m
-        my_print(f"x-: {np.matrix(x_m).shape}, K: {k_.shape}, z: {(z_ - z_model).shape}", color='g', if_print=self.p.iter == 1)
+        my_print(f"x-: {np.matrix(x_m).shape}, K: {k_.shape}, z: {(z_ - z_model).shape}",
+                 color='g', if_print=self.p.iter == 1)
         r_orf_estimation = np.matrix(x_m) + k_ @ (z_ - z_model)
         for i in range(self.f.n):
-            tmp = np.array(r_orf_estimation)[0 + i * self.j:self.j + i * self.j]
+            tmp = np.array(r_orf_estimation)[0][(0 + i)*self.j:(1 + i)*self.j]
             if self.v.SHAMANISM["KalmanQuaternionNormalize"] and self.v.NAVIGATION_ANGLES:
                 tmp[3:7] = tmp[3:7] / np.linalg.norm(tmp[3:7])
             if self.v.SHAMANISM["KalmanSpinLimit"][0] and \

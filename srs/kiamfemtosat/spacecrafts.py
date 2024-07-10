@@ -32,17 +32,19 @@ def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], mode3: bool = 
     :param r: Направление сигнала в СК антенны
     :param mode3: Специальный флаг для возврата списка длины 1"""
     # Памятка: GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas']
-    r1 = r / np.linalg.norm(r)
+    e = r / np.linalg.norm(r)
     if obj.gain_mode == v.GAIN_MODES[1]:
-        return [np.linalg.norm([r1[0] * 1, r1[1] * 0.7, r1[2] * 0.8])]
+        return [np.linalg.norm([e[0] * 1, e[1] * 0.7, e[2] * 0.8])]
     if obj.gain_mode == v.GAIN_MODES[2]:
-        return [local_dipole(v, r1, 'z')]
-    if obj.gain_mode == v.GAIN_MODES[3] or (mode3 and obj.gain_mode == v.GAIN_MODES[4]):
-        return [local_dipole(v, r1, 'x') + local_dipole(v, r1, 'y')]
-    if obj.gain_mode == v.GAIN_MODES[4] and not mode3:
-        return [local_dipole(v, r1, 'x'), local_dipole(v, r1, 'y')]
-    if obj.gain_mode == v.GAIN_MODES[5] and not mode3:
-        return [local_dipole(v, r1, 'x'), local_dipole(v, r1, 'y'), local_dipole(v, r1, 'z')]
+        return [local_dipole(v, e, 'z')]
+    if obj.gain_mode == v.GAIN_MODES[3] or ((mode3 or v.MULTI_ANTENNA_USE) and obj.gain_mode == v.GAIN_MODES[4]):
+        return [local_dipole(v, e, 'x') + local_dipole(v, e, 'y')]
+    if obj.gain_mode == v.GAIN_MODES[4] and not (mode3 or v.MULTI_ANTENNA_USE):
+        return [local_dipole(v, e, 'x'), local_dipole(v, e, 'y')]
+    if (mode3 or v.MULTI_ANTENNA_USE) and obj.gain_mode == v.GAIN_MODES[5]:
+        return [local_dipole(v, e, 'x') + local_dipole(v, e, 'y') + local_dipole(v, e, 'z')]
+    if obj.gain_mode == v.GAIN_MODES[5] and not (mode3 or v.MULTI_ANTENNA_USE):
+        return [local_dipole(v, e, 'x'), local_dipole(v, e, 'y'), local_dipole(v, e, 'z')]
     return [1]
 
 # >>>>>>>>>>>> Классы аппаратов <<<<<<<<<<<<
@@ -75,7 +77,6 @@ class Anchor:
         prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_irf[i])
                     for i in range(self.n)]
         self.rv_orf_calc = [prm_good[i] for i in range(self.n)]
-
 
 class FemtoSat:
     def __init__(self, v: Variables):

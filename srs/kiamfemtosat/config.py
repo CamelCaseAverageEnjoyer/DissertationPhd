@@ -4,17 +4,18 @@ class Variables:
         import numpy
         from srs.kiamfemtosat.spacecrafts import Anchor
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
-        self.dT = 1.
+        self.dT = 10.
         self.TIME = 1e4
         self.CUBESAT_AMOUNT = 1
-        self.CHIPSAT_AMOUNT = 3
+        self.CHIPSAT_AMOUNT = 2
         self.DYNAMIC_MODEL = {'aero drag': False,
                               'j2': False}
         self.NAVIGATION_BY_ALL = True
-        self.NAVIGATION_ANGLES = True
+        self.NAVIGATION_ANGLES = False
+        self.MULTI_ANTENNA_USE = False
         self.START_NAVIGATION_TOLERANCE = 0.9
         self.SOLVER = ['rk4 hkw', 'kiamastro'][0]  # Везде проверяется на hkw -> проверки на rk4, дальше может изменю
-        self.START_NAVIGATION = ['perfect', 'near', 'random'][2]
+        self.START_NAVIGATION = ['perfect', 'near', 'random'][0]
         self.GAIN_MODEL_C = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][5]
         self.GAIN_MODEL_F = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][4]
         self.CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
@@ -22,7 +23,7 @@ class Variables:
 
         self.RVW_CubeSat_SPREAD = [1e1, 1e-1, 1e-5]
         self.RVW_ChipSat_SPREAD = [1e2, 1e-1, 1e-5]
-        self.KALMAN_COEF = {'q': [1e-12, 1e-12], 'p': [1e-8]*4, 'r': 1e-1}
+        self.KALMAN_COEF = {'q': [1e-12, 1e-12], 'p': [1e-10]*4, 'r': 1e-1}
         self.CUBESAT_MODEL = ['1U', '1.5U', '2U', '3U', '6U', '12U'][0]
         self.SHAMANISM = {'KalmanQuaternionNormalize': True,   # Нормировка кватернионов в фильтре Калмана
                           'KalmanSpinLimit': [True, 1e-3],  # Ограничение скорости вращения в прогнозе фильтра Калмана
