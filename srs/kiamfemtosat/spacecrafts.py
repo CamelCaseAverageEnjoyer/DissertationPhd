@@ -60,7 +60,8 @@ class Anchor:
         self.size = [1., 1., 1.]
 
         # Индивидуальные параметры движения
-        self.w_irf = [np.zeros(3) for _ in range(self.n)]
+        self.w_irf = [np.zeros(3) for _ in range(self.n)]  # Убрать потом !!!!!!!!!!!!!!
+        self.w_orf = [np.zeros(3) for _ in range(self.n)]  # Убрать потом !!!!!!!!!!!!!!
         self.q = [np.array([1, 0, 0, 0]) for _ in range(self.n)]
         # self.q = [[np.array([1, 0, 0, 0]) for _ in range(self.n)] for _ in range(1)]
         # print(self.q)
@@ -99,8 +100,9 @@ class FemtoSat:
         self.r_orf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3) for _ in range(self.n)]
         self.v_orf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[1], v.RVW_ChipSat_SPREAD[1], 3) for _ in range(self.n)]
         self.r_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
-        self.v_irf = [np.zeros(3) for _ in range(self.n)]
+        self.v_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
         self.w_irf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
+        self.w_orf = [np.zeros(3) for i in range(self.n)]  # Инициализируется ниже
         self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
         self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
             self.spin_difference, self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
@@ -112,6 +114,7 @@ class FemtoSat:
             U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
             self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
             self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
+            self.w_irf[i] = o_i(a=self.w_irf[i], v=v, U=U, vec_type='w')
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
         # Индивидуальные параметры режимов работы
@@ -128,7 +131,7 @@ class FemtoSat:
             np.append(np.append(np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3), self.q_[i]),
                       np.random.uniform(-v.RVW_ChipSat_SPREAD[1], v.RVW_ChipSat_SPREAD[1], 3)),
             np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3)) for i in range(self.n)]
-        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_irf[i])
+        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_orf[i])
                     for i in range(self.n)]
         start_navigation_tolerance = 1 if v.START_NAVIGATION == v.NAVIGATIONS[0] else v.START_NAVIGATION_TOLERANCE
         start_navigation_tolerance = 0 if v.START_NAVIGATION == v.NAVIGATIONS[2] else start_navigation_tolerance
@@ -165,8 +168,9 @@ class CubeSat:
         self.r_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[0], v.RVW_CubeSat_SPREAD[0], 3) for _ in range(self.n)]
         self.v_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[1], v.RVW_CubeSat_SPREAD[1], 3) for _ in range(self.n)]
         self.r_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
-        self.v_irf = [np.zeros(3) for _ in range(self.n)]
-        self.w_irf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[2], v.RVW_CubeSat_SPREAD[2], 3) for _ in range(self.n)]
+        self.v_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
+        self.w_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[2], v.RVW_CubeSat_SPREAD[2], 3) for _ in range(self.n)]
+        self.w_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
         self.q = [np.array([np.random.uniform(-1, 1) for _ in range(4)]) for _ in range(self.n)]
         self.line_orf, self.line_irf = [[[] for _ in range(self.n)] for _ in range(2)]
         for i in range(self.n):
@@ -176,6 +180,7 @@ class CubeSat:
             U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
             self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
             self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
+            self.w_irf[i] = o_i(a=self.w_irf[i], v=v, U=U, vec_type='w')
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
         # Индивидуальные параметры режимов работы

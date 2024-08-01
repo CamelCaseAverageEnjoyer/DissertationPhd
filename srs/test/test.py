@@ -23,6 +23,7 @@ def get_v():
     v.CHIPSAT_AMOUNT = 1
     v.IF_ANY_SHOW = False
     v.IF_ANY_PRINT = False
+    v.IF_TEST_PRINT = False
     v.AERO_DRAG = False
     v.NAVIGATION_BY_ALL = False
     return v
@@ -33,7 +34,7 @@ def copy_kinematic_params(o1: Objects, o2: Objects):
     o2.f.r_orf = o1.f.r_orf.copy()
     o2.f.v_orf = o1.f.v_orf.copy()
     o2.f.c_hkw = o1.f.c_hkw.copy()
-    o2.f.w_irf = o1.f.w_irf.copy()
+    o2.f.w_orf = o1.f.w_orf.copy()
     o2.f.q = o1.f.q.copy()
 
     o2.c.r_irf = o1.c.r_irf.copy()
@@ -41,7 +42,7 @@ def copy_kinematic_params(o1: Objects, o2: Objects):
     o2.c.r_orf = o1.c.r_orf.copy()
     o2.c.v_orf = o1.c.v_orf.copy()
     o2.c.c_hkw = o1.c.c_hkw.copy()
-    o2.c.w_irf = o1.c.w_irf.copy()
+    o2.c.w_orf = o1.c.w_orf.copy()
     o2.c.q = o1.c.q.copy()
     return o1, o2
 
@@ -146,7 +147,24 @@ class MyTests(unittest.TestCase):
                     tmp = abs(1 - np.linalg.det(A))
                     self.assertLess(tmp, FINE_ESTIMATION)
 
+    def test_zero_eccentricity(self):
+        """Функция проверяет, что при e=0 истинная аномалия равна эксцентрической.
+        Тогда матрица U задаётся корректно.
+
+        К сожалению, придётся копировать [E, f] ручками из dynamics.get_matrices"""
+        v = get_v()
+        v.ECCENTRICITY = 0
+        for t in np.linspace(0, v.SEC_IN_TURN, 100):
+            E = t * v.W_ORB  # Эксцентрическая аномалия
+            f = 2 * np.arctan(np.sqrt((1 + v.ECCENTRICITY) / (1 - v.ECCENTRICITY)) * np.tan(E / 2))  # Истинная аномалия
+            # self.assertEqual(E, f)
+            self.assertEqual(abs(E - f) % (2 * np.pi), 0)
+
     # >>>>>>>>>>>> Неочевидные проверки <<<<<<<<<<<<
+    def test_multi_antenna_use(self):
+        """Функция проверяет, что для 1 чипсата v.MULTI_ANTENNA_USE не влияет ни на что"""
+        pass
+
     def test_my_and_kiamastro(self):
         """Функция проверяет, что в детерминант матриц остаётся единичным"""
         def get_some_params(o_, k_: int):

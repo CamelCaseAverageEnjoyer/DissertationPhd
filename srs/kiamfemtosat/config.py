@@ -11,11 +11,11 @@ class Variables:
         self.DYNAMIC_MODEL = {'aero drag': False,
                               'j2': False}
         self.NAVIGATION_BY_ALL = True
-        self.NAVIGATION_ANGLES = False
-        self.MULTI_ANTENNA_USE = False
+        self.NAVIGATION_ANGLES = True  # Содержит ли искомый вектор состояния кватернионы и угловые скорости
+        self.MULTI_ANTENNA_USE = True  # Раскладывает ли КА приходящий сигнал на составляющие
         self.START_NAVIGATION_TOLERANCE = 0.9
-        self.SOLVER = ['rk4 hkw', 'kiamastro'][0]  # Везде проверяется на hkw -> проверки на rk4, дальше может изменю
-        self.START_NAVIGATION = ['perfect', 'near', 'random'][0]
+        self.SOLVER = ['rk4 hkw', 'kiamastro'][0]  # Везде проверяется на hkw -> проверки на rk4. Может изменить?
+        self.START_NAVIGATION = ['perfect', 'near', 'random'][1]
         self.GAIN_MODEL_C = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][5]
         self.GAIN_MODEL_F = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][4]
         self.CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
@@ -30,12 +30,14 @@ class Variables:
                           'ClohessyWiltshireC1=0': True}  # Траектории без дрейфа (зануление C1, даже при аэродинамике)
 
         self.ATMOSPHERE_MODEL = ['NASA', 'ПНБО', 'COESA62', 'COESA76'][3]
+        self.ATMOSPHERE_MODELS = ['NASA', 'ПНБО', 'COESA62', 'COESA76']
 
 
         # >>>>>>>>>>>> Параметры отображения <<<<<<<<<<<<
         self.IF_TALK = False
         self.IF_ANY_PRINT = True
-        self.IF_ANY_SHOW = False
+        self.IF_TEST_PRINT = True
+        self.IF_ANY_SHOW = False  # а ты к чему относишься?
         self.NO_LINE_FLAG = -10
         self.EARTH_FILE_NAME = ["earth1.jpg", "earth2.jpg", "earth3.webp"][2]
 
@@ -52,8 +54,9 @@ class Variables:
         self.APOGEE = self.ORBIT_RADIUS  # Апогей
         self.PERIGEE = self.ORBIT_RADIUS * (1 - self.ECCENTRICITY)/(1 + self.ECCENTRICITY)  # Перигей
         self.P = self.APOGEE * (1 - self.ECCENTRICITY**2)  # Фокальный параметр
-        self.MU = 5.972e24 * 6.67408e-11  # гравитационный параметр
+        self.MU = 5.972e24 * 6.67408e-11  # Гравитационный параметр
         self.W_ORB = numpy.sqrt(self.MU / self.ORBIT_RADIUS ** 3)
+        self.W_ORB_VEC_IRF = self.W_ORB * numpy.array([0, -numpy.sin(self.INCLINATION), numpy.cos(self.INCLINATION)])
         self.V_ORB = numpy.sqrt(self.MU / self.ORBIT_RADIUS)
         self.J2 = 1.082 * 1e-3
 
@@ -118,19 +121,18 @@ if __name__ == "__main__":
 
     def plot_atmosphere_models(n: int = 100):
         from srs.kiamfemtosat.dynamics import get_atm_params
-        atmosphere_models = ['NASA', 'ПНБО', 'COESA62', 'COESA76']
         v = Variables()
 
         range_km = [300, 500]
         fig, axs = plt.subplots(1, 2, figsize=(19, 5))
         fig.suptitle('Модели атмосферы')
-        for m in range(len(atmosphere_models)):
+        for m in range(len(v.ATMOSPHERE_MODELS)):
             for j in range(2):
                 z = np.linspace(100e3 if j == 0 else range_km[0]*1e3, range_km[1]*1e3, n)
-                rho = [get_atm_params(h=z[i], v=v, atm_model=atmosphere_models[m])[0] for i in range(n)]
-                tmp = ", используемая" if atmosphere_models[m] == v.ATMOSPHERE_MODEL else ""
-                axs[j].plot(z, rho, ls="-" if atmosphere_models[m] == v.ATMOSPHERE_MODEL else ":",
-                            label=f"Модель: {atmosphere_models[m]}{tmp}")  # , c=MY_COLORS[m])
+                rho = [get_atm_params(h=z[i], v=v, atm_model=v.ATMOSPHERE_MODELS[m])[0] for i in range(n)]
+                tmp = ", используемая" if v.ATMOSPHERE_MODELS[m] == v.ATMOSPHERE_MODEL else ""
+                axs[j].plot(z, rho, ls="-" if v.ATMOSPHERE_MODELS[m] == v.ATMOSPHERE_MODEL else ":",
+                            label=f"Модель: {v.ATMOSPHERE_MODELS[m]}{tmp}")  # , c=MY_COLORS[m])
                 axs[j].set_ylabel(f"Плотность ρ, кг/м³")
                 axs[j].set_xlabel(f"Высота z, м")
                 axs[j].legend()

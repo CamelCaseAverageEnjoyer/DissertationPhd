@@ -46,8 +46,8 @@ def plot_signals(o):
 
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
-    fig, ax = plt.subplots(2, 2 if o.v.NAVIGATION_BY_ALL else 1, figsize=(15 if o.v.NAVIGATION_BY_ALL else 8, 10))
-    axes = ax[0] if o.v.NAVIGATION_BY_ALL else ax
+    fig, ax = plt.subplots(2, 2 if o.v.NAVIGATION_ANGLES else 1, figsize=(15 if o.v.NAVIGATION_ANGLES else 8, 10))
+    axes = ax[0] if o.v.NAVIGATION_ANGLES else ax
     fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
@@ -81,7 +81,7 @@ def plot_distance(o):
     axes[1].legend(fontsize=CAPTION_SIZE)
     axes[1].grid(True)
 
-    if o.p.k.orientation:
+    if o.v.NAVIGATION_ANGLES:
         for i_f in range(o.f.n):
             labels_q = ["ΔΛ⁰", "ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]  # "ΔΛ⁰",
             labels_w = ["Δωˣ", "Δωʸ", "Δωᶻ"]  # "ΔΛ⁰",

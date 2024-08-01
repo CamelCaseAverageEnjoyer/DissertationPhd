@@ -223,8 +223,10 @@ def i_o(a, v: Variables, U: np.ndarray, vec_type: str):
     if len(a_np.shape) == 1 and vec_type == "r":
         return U @ a_np - np.array([0, 0, v.ORBIT_RADIUS])
     if len(a_np.shape) == 1 and vec_type == "v":
-        # print(f"a_np={U @ a_np}  ---------------> {U @ a_np - np.array([V_ORB, 0, 0])}")
         return U @ a_np - np.array([v.V_ORB, 0, 0])
+    if len(a_np.shape) == 1 and vec_type == "w":
+        return U @ (a_np - v.W_ORB_VEC_IRF)
+        # self.w = self.U @ (self.Om - self.w_hkw_vec)
     if len(a_np.shape) == 2:
         return U @ a_np @ U.T
     raise ValueError(f"Необходимо подать вектор или матрицу! Тип вектора {vec_type} должен быть из [r, v]")
@@ -236,6 +238,8 @@ def o_i(a, v: Variables, U: np.ndarray, vec_type: str):
         return U.T @ (a_np + np.array([0, 0, v.ORBIT_RADIUS]))
     if len(a_np.shape) == 1 and vec_type == "v":
         return U.T @ (a_np + np.array([v.V_ORB, 0, 0]))
+    if len(a_np.shape) == 1 and vec_type == "w":
+        return U.T @ a_np + v.W_ORB_VEC_IRF
     if len(a_np.shape) == 2:
         return U.T @ a_np @ U
     raise ValueError(f"Необходимо подать вектор или матрицу! Тип вектора {vec_type} должен быть из [r, v]")
@@ -306,6 +310,7 @@ class PhysicModel:
                     U, _, _, _ = get_matrices(v=self.v, t=self.t, obj=obj, n=i)
                     obj.r_irf[i] = o_i(v=self.v, a=obj.r_orf[i], U=U, vec_type='r')
                     obj.v_irf[i] = o_i(v=self.v, a=obj.v_orf[i], U=U, vec_type='v')
+                    obj.w_orf[i] = o_i(v=self.v, a=obj.w_irf[i], U=U, vec_type='w')
         elif 'kiamastro' in self.v.SOLVER:
             # Расчёт
             if self.iter == 1:
@@ -331,7 +336,7 @@ class PhysicModel:
                 obj = [self.a, self.c, self.f][i]
                 for j in range(obj.n):
                     # Вращательное движение
-                    obj.q[j], obj.w_irf[j] = rk4_attitude(v_=self.v, obj=obj, i=j)
+                    obj.q[j], obj.w_orf[j] = rk4_attitude(v_=self.v, obj=obj, i=j)
 
                     # Поступательное движение
                     obj.r_irf[j] = np.array([self.tr[i][j].states[ii][self.iter - 1]
@@ -373,7 +378,7 @@ class PhysicModel:
                             self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:7]
                                                                 - np.array(self.f.q[i_f])]
                             self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][10:13]
-                                                            - np.array(self.f.w_irf[i_f])]
+                                                            - np.array(self.f.w_orf[i_f])]
                     else:
                         self.c.kalm_dist[i_c][i_f] += [self.v.NO_LINE_FLAG]
                         self.f.line_kalman[i_f] += [self.v.NO_LINE_FLAG] * 3

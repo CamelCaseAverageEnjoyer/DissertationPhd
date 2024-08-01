@@ -82,7 +82,7 @@ class KalmanFilter:
         '''if self.v.NAVIGATION_ANGLES:'''
         z_len = int(self.f.n * self.c.n * (c_z_len + f_z_len) + self.f.n * (self.f.n - 1) * f_z_len)
         my_print(f"z_len: {z_len} = {self.f.n}*{self.c.n}*({c_z_len}+{f_z_len})+{self.f.n}({self.f.n}-1){f_z_len}",
-                 color='r', if_print=self.p.iter == 1)
+                 color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
         '''else:
             z_len = int(self.f.n * self.c.n * (c_z_len + 1) + self.f.n * (self.f.n - 1) / 2)
             my_print(f"z_len: {z_len} = {self.f.n}*{self.c.n}*({c_z_len}+1) + {self.f.n}({self.f.n}-1)/2",
@@ -115,13 +115,13 @@ class KalmanFilter:
                 z_ = np.append(z_, [self.c.calc_dist[i_c][i_f][-1] for _ in range(len(tmp1))])
                 tmp2 = get_gain(v=self.v, obj=self.c, r=np.random.random(3))
                 z_ = np.append(z_, [self.c.calc_dist[i_c][i_f][-1] for _ in range(len(tmp2))])
-        my_print(f"Длина длин 1: {len(z_)}", color='r', if_print=self.p.iter == 1)
+        my_print(f"Длина длин 1: {len(z_)}", color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
         for i_f1 in range(self.f.n):
             for i_f2 in range(i_f1):
                 tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
                 z_ = np.append(z_, [self.f.calc_dist[i_f1][i_f2][-1] for _ in range(len(tmp1))])
                 z_ = np.append(z_, [self.f.calc_dist[i_f2][i_f1][-1] for _ in range(len(tmp1))])
-        my_print(f"Длина длин 2: {len(z_)}", color='r', if_print=self.p.iter == 1)
+        my_print(f"Длина длин 2: {len(z_)}", color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
 
         signal_rate = [] if self.v.NAVIGATION_ANGLES else np.array([1] * z_len)
         if self.v.NAVIGATION_ANGLES:
@@ -141,7 +141,7 @@ class KalmanFilter:
                     tmp2 = get_gain(v=self.v, obj=self.c, r=quart2dcm(self.c.q[i_c]) @
                                                             (x_m[i_f*self.j+0:i_f*self.j+3] - self.c.r_orf[i_c]))
                     signal_rate = np.append(signal_rate, [tmp1[0] * tmp2[i] for i in range(len(tmp2))])
-            my_print(f"Длина G 1: {len(signal_rate)}", color='r', if_print=self.p.iter == 1)
+            my_print(f"Длина G 1: {len(signal_rate)}", color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
             for i_f1 in range(self.f.n):
                 for i_f2 in range(i_f1):
                     # Измерения чипсата 1 сигналов от чипсата 2
@@ -160,24 +160,10 @@ class KalmanFilter:
                                     r=quart2dcm(x_m[i_f2*self.j+3:i_f2*self.j+7]) @
                                       (x_m[i_f1*self.j+0:i_f1*self.j+3] - x_m[i_f2*self.j+0:i_f2*self.j+3]))
                     signal_rate = np.append(signal_rate, [tmp1[0] * tmp2[i] for i in range(len(tmp2))])
-            my_print(f"Длина G 2: {len(signal_rate)}", color='r', if_print=self.p.iter == 1)
+            my_print(f"Длина G 2: {len(signal_rate)}", color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
         z_ *= np.sqrt(signal_rate)
 
         # Измерения согласно модели
-        '''z_ = np.array([])
-        for i_c in range(self.c.n):
-            for i_f in range(self.f.n):
-                tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
-                z_ = np.append(z_, [self.c.calc_dist[i_c][i_f][-1] for _ in range(len(tmp1))])
-                tmp2 = get_gain(v=self.v, obj=self.c, r=np.random.random(3))
-                z_ = np.append(z_, [self.c.calc_dist[i_c][i_f][-1] for _ in range(len(tmp2))])
-        my_print(f"Длина длин 1: {len(z_)}", color='r')
-        for i_f1 in range(self.f.n):
-            for i_f2 in range(self.f.n):
-                tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
-                z_ = np.append(z_, [self.f.calc_dist[i_f1][i_f2][-1] for _ in range(len(tmp1))])
-                z_ = np.append(z_, [self.f.calc_dist[i_f1][i_f2][-1] for _ in range(len(tmp1))])
-        my_print(f"Длина длин 2: {len(z_)}", color='r')'''
         z_model = np.array([])
         for i_c in range(self.c.n):
             for i_f in range(self.f.n):
@@ -187,7 +173,8 @@ class KalmanFilter:
                 tmp2 = get_gain(v=self.v, obj=self.c, r=np.random.random(3))
                 z_model = np.append(z_model, [np.linalg.norm(x_m[i_f*self.j+0:i_f*self.j+3] - self.c.r_orf[i_c])
                                               for _ in range(len(tmp2))])
-        my_print(f"Длина модельных длин 1: {len(z_model)}", color='r', if_print=self.p.iter == 1)
+        my_print(f"Длина модельных длин 1: {len(z_model)}", color='r',
+                 if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
         for i_f1 in range(self.f.n):
             for i_f2 in range(i_f1):
                 tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
@@ -201,7 +188,8 @@ class KalmanFilter:
             tmp1 = get_gain(v=self.v, obj=self.f, r=np.random.random(3))
             self.f.z_difference[i] += [np.linalg.norm(z_model[i*2*len(tmp1):i*2*len(tmp1)+1] -
                                                       z_[i*2*len(tmp1):i*2*len(tmp1)+1])]
-        my_print(f"Длина модельных длин 2: {len(z_model)}", color='r', if_print=self.p.iter == 1)
+        my_print(f"Длина модельных длин 2: {len(z_model)}", color='r',
+                 if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
 
         # Расчёт матриц
         Q_tilda = self.Phi @ self.D @ self.Q @ self.D.T @ self.Phi.T * self.v.dT  # nt_nt
