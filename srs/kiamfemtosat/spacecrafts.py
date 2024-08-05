@@ -24,27 +24,28 @@ def local_dipole(v: Variables, r: Union[list, np.ndarray], ind: str = 'x') -> fl
              if_print=tmp < 0 and v.IF_ANY_PRINT)
     return clip(tmp, 0, 1e10)
 
-def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], mode3: bool = False) -> list:
+def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], if_take: bool = False, if_send: bool = False) -> list:
     """Внимание! Всё переделано - теперь возвращается только список для повышения градуса полиморфизма,
     интуитивизма, индуизма, культуризма, конституционализма, шовинизма, каннибализма
     :param v: Объект класса Variables
     :param obj: Переменная класса FemtoSat или CubeSat (any потому что не хочу ниже писать)
     :param r: Направление сигнала в СК антенны
-    :param mode3: Специальный флаг для возврата списка длины 1"""
-    # Памятка: GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas']
+    :param if_take: Флаг на принятый сигнал
+    :param if_send: Флаг на посланный сигнал"""
+    # Памятка: GAIN_MODES = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid']
     e = r / np.linalg.norm(r)
     if obj.gain_mode == v.GAIN_MODES[1]:
-        return [np.linalg.norm([e[0] * 1, e[1] * 0.7, e[2] * 0.8])]
+        return [local_dipole(v, e, 'x')]
     if obj.gain_mode == v.GAIN_MODES[2]:
-        return [local_dipole(v, e, 'z')]
-    if obj.gain_mode == v.GAIN_MODES[3] or ((mode3 or v.MULTI_ANTENNA_USE) and obj.gain_mode == v.GAIN_MODES[4]):
+        if (if_take and v.MULTI_ANTENNA_TAKE) or (if_send and v.MULTI_ANTENNA_SEND):
+            return [local_dipole(v, e, 'x'), local_dipole(v, e, 'y')]
         return [local_dipole(v, e, 'x') + local_dipole(v, e, 'y')]
-    if obj.gain_mode == v.GAIN_MODES[4] and not (mode3 or v.MULTI_ANTENNA_USE):
-        return [local_dipole(v, e, 'x'), local_dipole(v, e, 'y')]
-    if (mode3 or v.MULTI_ANTENNA_USE) and obj.gain_mode == v.GAIN_MODES[5]:
+    if obj.gain_mode == v.GAIN_MODES[3]:
+        if (if_take and v.MULTI_ANTENNA_TAKE) or (if_send and v.MULTI_ANTENNA_SEND):
+            return [local_dipole(v, e, 'x'), local_dipole(v, e, 'y'), local_dipole(v, e, 'z')]
         return [local_dipole(v, e, 'x') + local_dipole(v, e, 'y') + local_dipole(v, e, 'z')]
-    if obj.gain_mode == v.GAIN_MODES[5] and not (mode3 or v.MULTI_ANTENNA_USE):
-        return [local_dipole(v, e, 'x'), local_dipole(v, e, 'y'), local_dipole(v, e, 'z')]
+    if obj.gain_mode == v.GAIN_MODES[4]:
+        return [np.linalg.norm([e[0] * 1, e[1] * 0.7, e[2] * 0.8])]
     return [1]
 
 # >>>>>>>>>>>> Классы аппаратов <<<<<<<<<<<<
@@ -87,11 +88,19 @@ class FemtoSat:
         if v.CHIPSAT_AMOUNT < 0:
             raise ValueError(f"Количество чипсатов {v.CHIPSAT_AMOUNT} должно быть не меньше 0!")
 
+        # Предопределённые параметры
+        masses = [0.01, 0.1]
+        mass_center_errors = [[0.001, -0.001], [0.005, 0.003]]
+        sizes = [[0.03, 0.03], [0.4, 0.15]]
+
         # Общие параметры
         self.name = "FemtoSat"
         self.n = v.CHIPSAT_AMOUNT
-        self.mass = 0.01
-        self.size = [0.03, 0.03]
+        self.model = v.CHIPSAT_MODEL
+        self.model_number = v.CHIPSAT_MODELS.index(self.model)
+        self.mass = masses[self.model_number]
+        self.mass_center_error = mass_center_errors[self.model_number]
+        self.size = sizes[self.model_number]
         self.power_signal_full = 0.01
         self.length_signal_full = 0.001
         self.gain_mode = v.GAIN_MODEL_F
@@ -125,7 +134,7 @@ class FemtoSat:
         self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
 
         # Индивидуальные параметры измерений
-        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_ = \
+        self.signal_power, self.real_dist, self.dist_estimate, self.dist_based_measures = \
             [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
         prm_poor = [np.append(
             np.append(np.append(np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3), self.q_[i]),
@@ -191,7 +200,7 @@ class CubeSat:
         self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
 
         # Индивидуальные параметры измерений
-        self.signal_power, self.real_dist, self.calc_dist, self.calc_dist_, self.kalm_dist = \
+        self.signal_power, self.real_dist, self.dist_estimate, self.dist_based_measures, self.kalm_dist = \
             [[[[] for _ in range(v.CHIPSAT_AMOUNT)] for _ in range(self.n)] for _ in range(5)]
 
         # Прорисовка ножек

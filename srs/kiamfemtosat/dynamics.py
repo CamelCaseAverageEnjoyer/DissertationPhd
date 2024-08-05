@@ -349,9 +349,11 @@ class PhysicModel:
                     obj.v_orf[j] = i_o(v=self.v, a=obj.v_irf[j], U=U, vec_type='v')
                     self.to_delete = tr_time
         else:
-            raise ValueError(f"Уточни модель движения! DYNAMIC_MODEL={self.v.SOLVER}")
+            raise ValueError(f"Поменяй солвер! SOLVER={self.v.SOLVER}")
 
         # Комплекс первичной информации
+        self.v.MEASURES_VECTOR = []
+        self.v.MEASURES_VECTOR_NOTES = []
         measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
         measure_magnetic_field(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
 

@@ -5,26 +5,28 @@ class Variables:
         from srs.kiamfemtosat.spacecrafts import Anchor
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
         self.dT = 10.
-        self.TIME = 1e4
+        self.TIME = 1e3
         self.CUBESAT_AMOUNT = 1
         self.CHIPSAT_AMOUNT = 2
         self.DYNAMIC_MODEL = {'aero drag': False,
                               'j2': False}
         self.NAVIGATION_BY_ALL = True
-        self.NAVIGATION_ANGLES = True  # Содержит ли искомый вектор состояния кватернионы и угловые скорости
-        self.MULTI_ANTENNA_USE = True  # Раскладывает ли КА приходящий сигнал на составляющие
+        self.NAVIGATION_ANGLES = False  # Содержит ли искомый вектор состояния кватернионы и угловые скорости
+        self.MULTI_ANTENNA_TAKE = True  # Разделяет ли КА приходящий сигнал на составляющие
+        self.MULTI_ANTENNA_SEND = True  # Разделяет ли КА исходящий сигнал на составляющие
         self.START_NAVIGATION_TOLERANCE = 0.9
-        self.SOLVER = ['rk4 hkw', 'kiamastro'][0]  # Везде проверяется на hkw -> проверки на rk4. Может изменить?
         self.START_NAVIGATION = ['perfect', 'near', 'random'][1]
-        self.GAIN_MODEL_C = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][5]
-        self.GAIN_MODEL_F = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas'][4]
+        self.GAIN_MODEL_C = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][3]
+        self.GAIN_MODEL_F = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][2]
+        self.SOLVER = ['rk4 hkw', 'kiamastro'][0]  # Везде проверяется на hkw -> проверки на rk4. Может изменить?
         self.CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
         self.DISTORTION = 0.  # Искривление диаграммы направленности
 
-        self.RVW_CubeSat_SPREAD = [1e1, 1e-1, 1e-5]
+        self.RVW_CubeSat_SPREAD = [1e1, 1e-1, 1e-5]  # r (м), v (м/с), ω (рад/с)
         self.RVW_ChipSat_SPREAD = [1e2, 1e-1, 1e-5]
         self.KALMAN_COEF = {'q': [1e-12, 1e-12], 'p': [1e-10]*4, 'r': 1e-1}
         self.CUBESAT_MODEL = ['1U', '1.5U', '2U', '3U', '6U', '12U'][0]
+        self.CHIPSAT_MODEL = ['KickSat', 'Трисат'][0]
         self.SHAMANISM = {'KalmanQuaternionNormalize': True,   # Нормировка кватернионов в фильтре Калмана
                           'KalmanSpinLimit': [True, 1e-3],  # Ограничение скорости вращения в прогнозе фильтра Калмана
                           'ClohessyWiltshireC1=0': True}  # Траектории без дрейфа (зануление C1, даже при аэродинамике)
@@ -61,7 +63,8 @@ class Variables:
         self.J2 = 1.082 * 1e-3
 
         self.CUBESAT_MODELS = ['1U', '1.5U', '2U', '3U', '6U', '12U']
-        self.GAIN_MODES = ['isotropic', 'ellipsoid', '1 antenna', '2 antennas', '1+1 antennas', '1+1+1 antennas']
+        self.CHIPSAT_MODELS = ['KickSat', 'Трисат']
+        self.GAIN_MODES = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid']
         self.NAVIGATIONS = ['perfect', 'near', 'random']
         self.OPERATING_MODES = ['free_flying', 'swarm_stabilize', 'lost']
         self.OPERATING_MODES_CHANGE = ['const', 'while_sun_visible']
@@ -72,6 +75,9 @@ class Variables:
                           'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy', 'deepskyblue', 'maroon', 'gold',
                           'aquamarine', 'indigo', 'olivedrab', 'slategray', 'pink', 'salmon', 'steelblue', 'peru']
 
+        # >>>>>>>>>>>> Изменяемые параметры по ходу работы кода <<<<<<<<<<<<
+        self.MEASURES_VECTOR = []
+        self.MEASURES_VECTOR_NOTES = []
 
         # >>>>>>>>>>>> Параметры для тестов <<<<<<<<<<<<
         self.IF_NAVIGATION = True
@@ -91,32 +97,41 @@ if __name__ == "__main__":
     from srs.kiamfemtosat.cosmetic import my_print
 
     def plot_model_gain(n: int = 20):
+        from srs.kiamfemtosat.my_plot import show_chipsat
         v_ = Variables()
         o = Objects(v=v_)
-        fig = plt.figure(figsize=(20, 10))
+        fig = plt.figure(figsize=(15, 10))
 
         for i in range(2):
-            ax = fig.add_subplot(1, 2, i+1, projection='3d')
-            obj = [o.f, o.c][i]
-            my_print(f"Диаграмма направленностей для {obj.name}: {o.v.GAIN_MODEL_F}", color="b")
+            for j in range(2):
+                ax = fig.add_subplot(2, 2, i+1+j*2, projection='3d')
+                obj = [o.f, o.c][i]
+                my_print(f"Диаграмма направленностей для {obj.name}: {o.v.GAIN_MODEL_F}", color="b")
 
-            u = np.linspace(0, 2 * np.pi, n)
-            v = np.linspace(-np.pi / 2, np.pi / 2, n)
-            U, V = np.meshgrid(u, v)
+                u = np.linspace(0, 2 * np.pi, n)
+                v = np.linspace(-np.pi / 2, np.pi / 2, n)
+                U, V = np.meshgrid(u, v)
 
-            max_g = 0
-            for k in range(len(get_gain(v=v_, obj=obj, r=pol2dec(1, u[0], v[0])))):
-                g = np.array([[get_gain(v=v_, obj=obj, r=pol2dec(1, u[i], v[j]))[k]
-                               for i in range(n)] for j in range(n)])
-                X, Y, Z = pol2dec(g, U, V)
-                ax.plot_surface(X, Y, Z, cmap=o.v.MY_COLORMAPS[k])
-                max_g = max(max_g, np.max(g.flatten()))
+                max_g = 0
+                for k in range(len(get_gain(v=v_, obj=obj, r=pol2dec(1, u[0], v[0]), if_send=j == 0, if_take=j == 1))):
+                    g = np.array([[get_gain(v=v_, obj=obj, r=pol2dec(1, u[ii], v[jj]), if_send=j == 0, if_take=j == 1)[k]
+                                   for ii in range(n)] for jj in range(n)])
+                    X, Y, Z = pol2dec(g, U, V)
+                    ax.plot_surface(X, Y, Z, cmap=o.v.MY_COLORMAPS[k])
+                    max_g = max(max_g, np.max(g.flatten()))
 
-            ax.set_xlim(-max_g, max_g)
-            ax.set_ylim(-max_g, max_g)
-            ax.set_zlim(-max_g, max_g)
-            ax.set_box_aspect([1, 1, 1])
-            ax.set_title(f"Диаграмма направленностей для {obj.name} | GAIN_MODEL = {o.v.GAIN_MODEL_F}")
+                if obj.name == "FemtoSat":
+                    max_g = max(max_g, 2 * np.max(o.f.size))
+                    show_chipsat(o=o, j=0, reference_frame="BRF", return_go=False, ax=ax, clr=None, opacity=None)
+
+                ax.set_xlim(-max_g, max_g)
+                ax.set_ylim(-max_g, max_g)
+                ax.set_zlim(-max_g, max_g)
+                ax.set_box_aspect([1, 1, 1])
+                title_text = f"Диаграмма направленностей для {obj.name} | " \
+                             f"GAIN_MODEL = {o.v.GAIN_MODEL_F if  obj.name == 'FemtoSat' else o.v.GAIN_MODEL_C}\n" \
+                             f"Отправленный сигнал"
+                ax.set_title(title_text if j == 0 else "Принятый сигнал")
         plt.show()
 
     def plot_atmosphere_models(n: int = 100):

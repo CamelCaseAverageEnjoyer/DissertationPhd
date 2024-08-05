@@ -56,7 +56,7 @@ def plot_distance(o):
                       "Ошибка определения положения"] \
                 if i_f == 0 else [None for _ in range(100)]
             x = [o.v.dT * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-            axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.calc_dist[i_c][i_f])),
+            axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.dist_estimate[i_c][i_f])),
                          c=o.v.MY_COLORS[0], label=labels[0] if i_c == 0 else None)
             axes[0].plot([o.v.dT * i for i in range(len(o.f.z_difference[i_f]))], o.f.z_difference[i_f],
                          c=o.v.MY_COLORS[3], label=labels[1] if i_c == 0 else None)
@@ -125,19 +125,21 @@ def plot_sigmas(o):
 
 
 # >>>>>>>>>>>> 3D отображение в ОСК <<<<<<<<<<<<
-def show_chipsat(o, j, clr, opacity, reference_frame: str) -> list:
+def show_chipsat(o, j, clr, opacity, reference_frame: str, return_go: bool = True, ax=None) -> list:
     global FEMTO_RATE
+    rate = FEMTO_RATE if reference_frame != "BRF" else 2 / np.min(o.f.size)
     x, y, z = ([], [], [0 for _ in range(4)])
-    for x_shift in [-o.f.size[0] * FEMTO_RATE, o.f.size[0] * FEMTO_RATE]:
-        for y_shift in [-o.f.size[1] * FEMTO_RATE, o.f.size[1] * FEMTO_RATE]:
+    for x_shift in [-o.f.size[0] * rate, o.f.size[0] * rate]:
+        for y_shift in [-o.f.size[1] * rate, o.f.size[1] * rate]:
             x += [x_shift]
             y += [y_shift]
     A = quart2dcm(o.f.q[j])
-    for i in range(4):
-        r = A.T @ np.array([x[i], y[i], z[i]])
-        x[i] = r[0] + o.f.r_orf[j][0] if reference_frame == "ORF" else r[0] + o.f.r_irf[j][0]
-        y[i] = r[1] + o.f.r_orf[j][1] if reference_frame == "ORF" else r[1] + o.f.r_irf[j][1]
-        z[i] = r[2] + o.f.r_orf[j][2] if reference_frame == "ORF" else r[2] + o.f.r_irf[j][2]
+    if reference_frame != "BRF":
+        for i in range(4):
+            r = A.T @ np.array([x[i], y[i], z[i]])
+            x[i] = r[0] + o.f.r_orf[j][0] if reference_frame == "ORF" else r[0] + o.f.r_irf[j][0]
+            y[i] = r[1] + o.f.r_orf[j][1] if reference_frame == "ORF" else r[1] + o.f.r_irf[j][1]
+            z[i] = r[2] + o.f.r_orf[j][2] if reference_frame == "ORF" else r[2] + o.f.r_irf[j][2]
     xl, yl, zl = ([], [], [])
     for i in range(int(len(o.f.line_orf[j]) // 3)):
         xl += [o.f.line_orf[j][i * 3 + 0]] if reference_frame == "ORF" else [o.f.line_irf[j][i * 3 + 0]]
@@ -148,8 +150,13 @@ def show_chipsat(o, j, clr, opacity, reference_frame: str) -> list:
         xk += [o.f.line_kalman[j][i * 3 + 0]]
         yk += [o.f.line_kalman[j][i * 3 + 1]]
         zk += [o.f.line_kalman[j][i * 3 + 2]]
-    return [go.Mesh3d(x=x, y=y, z=z, color=clr, opacity=opacity), go.Scatter3d(x=xl, y=yl, z=zl, mode='lines'),
-            go.Scatter3d(x=xk, y=yk, z=zk, mode='lines')]
+    if return_go:
+        return [go.Mesh3d(x=x, y=y, z=z, color=clr, opacity=opacity), go.Scatter3d(x=xl, y=yl, z=zl, mode='lines'),
+                go.Scatter3d(x=xk, y=yk, z=zk, mode='lines')]
+    # По умолчанию, при return_go=False считается, что reference_frame="BRF"
+    ax.plot([x[0], x[2], x[3], x[1], x[0]],
+            [y[0], y[2], y[3], y[1], y[0]],
+            [z[0], z[2], z[3], z[1], z[0]], c='gray', linewidth=3)
 
 def show_cubesat(o, j, reference_frame: str) -> list:
     global CUBE_RATE

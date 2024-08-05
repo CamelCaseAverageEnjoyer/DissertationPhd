@@ -109,7 +109,7 @@ def params_search(method_navigation: str = 'kalman_filter rvq', t_integrate: flo
                         o.p.is_aero = aero
                         o.p.integrate(t=t_integrate)
 
-                        tmp += np.sum(np.abs(np.array(o.c.real_dist[0][0]) - np.array(o.c.calc_dist[0][0])))
+                        tmp += np.sum(np.abs(np.array(o.c.real_dist[0][0]) - np.array(o.c.dist_estimate[0][0])))
                     if tmp < min_discrepancy:
                         min_discrepancy = tmp
                         best_params = [q, p1, p2, p2, r]
