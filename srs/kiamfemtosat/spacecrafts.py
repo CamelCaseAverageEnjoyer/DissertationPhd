@@ -111,7 +111,7 @@ class FemtoSat:
         self.r_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
         self.v_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
         self.w_irf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
-        self.w_orf = [np.zeros(3) for i in range(self.n)]  # Инициализируется ниже
+        self.w_orf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
         self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
         self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
             self.spin_difference, self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]

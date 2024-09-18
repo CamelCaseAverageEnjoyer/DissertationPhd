@@ -1,5 +1,6 @@
 """Ёбаный пиздец блять в каком же я ахуе просто ебааать"""
 from srs.kiamfemtosat.spacecrafts import *
+from srs.kiamfemtosat.data.observability_mapping_partial_derivatives import *
 
 # >>>>>>>>>>>> Guidance <<<<<<<<<<<<
 def guidance(c: CubeSat, f: FemtoSat, v: Variables, earth_turn: float) -> None:
@@ -215,7 +216,11 @@ class KalmanFilter:
             else:
                 return self.j * [0.]
 
-        H = np.vstack([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(z_len)])
+        # H = np.vstack([flatten([local_h_func(i, j) for i in range(self.f.n)]) for j in range(z_len)])
+        H, _, _ = h_matrix(c_ant=self.v.N_ANTENNA_C, f_ant=self.v.N_ANTENNA_F, fn=self.f.n, cn=self.c.n,
+                           angles_navigation=self.v.NAVIGATION_ANGLES, r_f=self.f.r_orf, r_c=self.c.r_orf,
+                           multy_antenna_send=self.v.MULTI_ANTENNA_SEND, multy_antenna_take=self.v.MULTI_ANTENNA_TAKE,
+                           w_0=self.v.W_ORB, t=self.p.t, q_f=self.f.q, q_c=self.c.q)
         if self.p.iter == 1:
             for j in range(z_len):
                 print(self.v.MEASURES_VECTOR_NOTES[j])

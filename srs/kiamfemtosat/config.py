@@ -7,17 +7,17 @@ class Variables:
         self.dT = 10.
         self.TIME = 1e3
         self.CUBESAT_AMOUNT = 1
-        self.CHIPSAT_AMOUNT = 2
+        self.CHIPSAT_AMOUNT = 5
         self.DYNAMIC_MODEL = {'aero drag': False,
                               'j2': False}
         self.NAVIGATION_BY_ALL = True
-        self.NAVIGATION_ANGLES = False  # Содержит ли искомый вектор состояния кватернионы и угловые скорости
+        self.NAVIGATION_ANGLES = True  # Содержит ли искомый вектор состояния кватернионы и угловые скорости
         self.MULTI_ANTENNA_TAKE = True  # Разделяет ли КА приходящий сигнал на составляющие
         self.MULTI_ANTENNA_SEND = True  # Разделяет ли КА исходящий сигнал на составляющие
         self.START_NAVIGATION_TOLERANCE = 0.9
         self.START_NAVIGATION = ['perfect', 'near', 'random'][1]
-        self.GAIN_MODEL_C = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][3]
-        self.GAIN_MODEL_F = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][2]
+        self.GAIN_MODEL_C = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][1]
+        self.GAIN_MODEL_F = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][1]
         self.SOLVER = ['rk4 hkw', 'kiamastro'][0]  # Везде проверяется на hkw -> проверки на rk4. Может изменить?
         self.CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
         self.DISTORTION = 0.  # Искривление диаграммы направленности
@@ -33,6 +33,11 @@ class Variables:
 
         self.ATMOSPHERE_MODEL = ['NASA', 'ПНБО', 'COESA62', 'COESA76'][3]
         self.ATMOSPHERE_MODELS = ['NASA', 'ПНБО', 'COESA62', 'COESA76']
+
+        self.N_ANTENNA_C = {'isotropic': 1, '1 antenna': 1, '2 antennas': 2, '3 antennas': 3,
+                            'ellipsoid': 1}[self.GAIN_MODEL_C]
+        self.N_ANTENNA_F = {'isotropic': 1, '1 antenna': 1, '2 antennas': 2, '3 antennas': 3,
+                            'ellipsoid': 1}[self.GAIN_MODEL_F]
 
 
         # >>>>>>>>>>>> Параметры отображения <<<<<<<<<<<<
@@ -114,8 +119,8 @@ if __name__ == "__main__":
 
                 max_g = 0
                 for k in range(len(get_gain(v=v_, obj=obj, r=pol2dec(1, u[0], v[0]), if_send=j == 0, if_take=j == 1))):
-                    g = np.array([[get_gain(v=v_, obj=obj, r=pol2dec(1, u[ii], v[jj]), if_send=j == 0, if_take=j == 1)[k]
-                                   for ii in range(n)] for jj in range(n)])
+                    g = np.array([[get_gain(v=v_, obj=obj, r=pol2dec(1, u[ii], v[jj]),
+                                            if_send=j == 0, if_take=j == 1)[k] for ii in range(n)] for jj in range(n)])
                     X, Y, Z = pol2dec(g, U, V)
                     ax.plot_surface(X, Y, Z, cmap=o.v.MY_COLORMAPS[k])
                     max_g = max(max_g, np.max(g.flatten()))

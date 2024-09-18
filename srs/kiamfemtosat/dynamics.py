@@ -2,7 +2,6 @@
 ПЕРЕДЕЛАТЬ v_->v, v->u"""
 from datetime import datetime
 
-import numpy as np
 from kiam_astro import kiam
 from kiam_astro.trajectory import Trajectory
 
