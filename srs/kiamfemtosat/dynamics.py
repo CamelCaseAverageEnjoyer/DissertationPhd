@@ -353,7 +353,7 @@ class PhysicModel:
         # Комплекс первичной информации
         self.v.MEASURES_VECTOR = []
         self.v.MEASURES_VECTOR_NOTES = []
-        measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
+        measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']), produce=True)
         measure_magnetic_field(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
 
         # Изменение режимов работы

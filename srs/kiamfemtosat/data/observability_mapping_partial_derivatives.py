@@ -33,7 +33,7 @@ def h_element(i_x, i_y, i_n, i, j, i_all, j_all, fn, cn, relation, angles_naviga
 
     ff_sequence = []  # Последовательность номеров непустых столбцов, длина ff_sequence - кол-во строк нижней подматицы
     for i_f1 in range(fn):
-        for i_f2 in range(i_f1):
+        for i_f2 in range(fn):
             if i_f1 != i_f2:
                 ff_sequence += [[i_f1, i_f2]]
 
@@ -242,7 +242,7 @@ def h_element(i_x, i_y, i_n, i, j, i_all, j_all, fn, cn, relation, angles_naviga
                        ])
 
 
-def h_matrix(c_ant, f_ant, fn, cn, angles_navigation, r_f, r_c, multy_antenna_send: bool, multy_antenna_take: bool, w_0, t, q_f: None, q_c: None) -> tuple:
+def h_matrix(c_ant, f_ant, fn, cn, angles_navigation, r_f, r_c, multy_antenna_send: bool, multy_antenna_take: bool, w_0, t, q_f: None, q_c: None) -> np.ndarray:
     '''Возвращает матрицу частных производных Н.
     :param c_ant: Количество антенн у кубсата
     :param f_ant: Количество антенн у чипсата
