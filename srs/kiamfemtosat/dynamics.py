@@ -309,7 +309,7 @@ class PhysicModel:
                     U, _, _, _ = get_matrices(v=self.v, t=self.t, obj=obj, n=i)
                     obj.r_irf[i] = o_i(v=self.v, a=obj.r_orf[i], U=U, vec_type='r')
                     obj.v_irf[i] = o_i(v=self.v, a=obj.v_orf[i], U=U, vec_type='v')
-                    obj.w_orf[i] = o_i(v=self.v, a=obj.w_irf[i], U=U, vec_type='w')
+                    obj.w_orf[i] = i_o(v=self.v, a=obj.w_irf[i], U=U, vec_type='w')
         elif 'kiamastro' in self.v.SOLVER:
             # Расчёт
             if self.iter == 1:
@@ -346,6 +346,7 @@ class PhysicModel:
                     U, _, _, _ = get_matrices(v=self.v, t=tr_time, obj=obj, n=j)
                     obj.r_orf[j] = i_o(v=self.v, a=obj.r_irf[j], U=U, vec_type='r')
                     obj.v_orf[j] = i_o(v=self.v, a=obj.v_irf[j], U=U, vec_type='v')
+                    obj.w_orf[j] = i_o(v=self.v, a=obj.w_irf[j], U=U, vec_type='w')
                     self.to_delete = tr_time
         else:
             raise ValueError(f"Поменяй солвер! SOLVER={self.v.SOLVER}")
@@ -365,28 +366,31 @@ class PhysicModel:
                 obj.line_orf[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
                 obj.line_irf[i] += [obj.r_irf[i][0], obj.r_irf[i][1], obj.r_irf[i][2]]
         if self.iter % self.show_rate == 0:
+            for i_f in range(self.f.n):
+                if self.f.operating_mode[i_f] != self.v.OPERATING_MODES[-1]:
+                    self.f.line_kalman[i_f] += [self.k.r_orf_estimation[i_f][0],
+                                                self.k.r_orf_estimation[i_f][1],
+                                                self.k.r_orf_estimation[i_f][2]]
+                    self.f.line_difference[i_f] += \
+                        [np.array(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
+                    if self.v.NAVIGATION_ANGLES:
+                        self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:7]
+                                                            - np.array(self.f.q[i_f])]
+                        self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][10:13]
+                                                        - np.array(self.f.w_orf[i_f])]
+                else:
+                    self.f.line_kalman[i_f] += [self.v.NO_LINE_FLAG] * 3
+                    self.f.line_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(3)]
+                    if self.v.NAVIGATION_ANGLES:
+                        self.f.attitude_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(4)]
+                        self.f.spin_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(3)]
             for i_c in range(self.c.n):
                 for i_f in range(self.f.n):
                     if self.f.operating_mode[i_f] != self.v.OPERATING_MODES[-1]:
                         self.c.kalm_dist[i_c][i_f] += [np.linalg.norm(self.f.r_orf[i_f] -
                                                                       self.k.r_orf_estimation[i_f][0:3])]
-                        self.f.line_kalman[i_f] += [self.k.r_orf_estimation[i_f][0],
-                                                    self.k.r_orf_estimation[i_f][1],
-                                                    self.k.r_orf_estimation[i_f][2]]
-                        self.f.line_difference[i_f] += \
-                            [np.array(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
-                        if self.v.NAVIGATION_ANGLES:
-                            self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:7]
-                                                                - np.array(self.f.q[i_f])]
-                            self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][10:13]
-                                                            - np.array(self.f.w_orf[i_f])]
                     else:
                         self.c.kalm_dist[i_c][i_f] += [self.v.NO_LINE_FLAG]
-                        self.f.line_kalman[i_f] += [self.v.NO_LINE_FLAG] * 3
-                        self.f.line_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(3)]
-                        if self.v.NAVIGATION_ANGLES:
-                            self.f.attitude_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(4)]
-                            self.f.spin_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(3)]
 
         # Навигация чипсатов
         if self.v.IF_NAVIGATION:

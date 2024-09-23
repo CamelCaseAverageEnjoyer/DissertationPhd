@@ -49,6 +49,7 @@ def plot_distance(o):
     fig, ax = plt.subplots(2, 2 if o.v.NAVIGATION_ANGLES else 1, figsize=(15 if o.v.NAVIGATION_ANGLES else 8, 10))
     axes = ax[0] if o.v.NAVIGATION_ANGLES else ax
     fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
+    m = 0
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
             labels = ["Ошибка дистанции (реальная)",
@@ -56,26 +57,30 @@ def plot_distance(o):
                       "Ошибка определения положения"] \
                 if i_f == 0 else [None for _ in range(100)]
             x = [o.v.dT * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-            axes[0].plot(x, np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.dist_estimate[i_c][i_f])),
-                         c=o.v.MY_COLORS[0], label=labels[0] if i_c == 0 else None)
-            axes[0].plot([o.v.dT * i for i in range(len(o.f.z_difference[i_f]))], o.f.z_difference[i_f],
+            y1 = np.abs(np.array(o.c.real_dist[i_c][i_f]) - np.array(o.c.dist_estimate[i_c][i_f]))
+            y2 = o.c.z_difference[i_c][i_f]
+            y3 = [(-1)**i*10 if o.f.line_difference[i_f][i][0] == o.v.NO_LINE_FLAG else
+                  np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))]
+            axes[0].plot(x, y1, c=o.v.MY_COLORS[0], label=labels[0] if i_c == 0 else None)
+            axes[0].plot([o.v.dT * i for i in range(len(o.c.z_difference[i_c][i_f]))], y2,
                          c=o.v.MY_COLORS[3], label=labels[1] if i_c == 0 else None)
-            axes[0].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][0] == o.v.NO_LINE_FLAG else
-                             np.linalg.norm(o.f.line_difference[i_f][i]) for i in range(len(x))],
-                         c=o.v.MY_COLORS[2], label=labels[2] if i_c == 0 else None)
+            axes[0].plot(x, y3, c=o.v.MY_COLORS[2], label=labels[2] if i_c == 0 else None)
+            m = max(m, max(y1), max(y2), max(y3))
     axes[0].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[0].set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
     axes[0].legend(fontsize=CAPTION_SIZE)
     axes[0].grid(True)
+    if m > 1e3:
+        axes[0].set_ylim([0, 1e3])
 
-    for i_c in range(o.c.n):
-        for i_f in range(o.f.n):
-            labels = ["ΔX", "ΔY", "ΔZ"]
-            x = [o.v.dT * i for i in range(len(o.c.real_dist[i_c][i_f]))]
-            for j in range(3):
-                axes[1].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][j] == o.v.NO_LINE_FLAG else
+    # for i_c in range(o.c.n):
+    for i_f in range(o.f.n):
+        labels = ["ΔX", "ΔY", "ΔZ"]
+        x = [o.v.dT * i for i in range(len(o.c.real_dist[0][i_f]))]
+        for j in range(3):
+            axes[1].plot(x, [(-1)**i*10 if o.f.line_difference[i_f][i][j] == o.v.NO_LINE_FLAG else
                                  o.f.line_difference[i_f][i][j] for i in range(len(x))], c=o.v.MY_COLORS[j+3],
-                             label=labels[j] if i_f == 0 and i_c == 0 else None)
+                         label=labels[j] if i_f == 0 else None)
     axes[1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
     axes[1].set_ylabel(f"Компоненты r, м", fontsize=CAPTION_SIZE)
     axes[1].legend(fontsize=CAPTION_SIZE)

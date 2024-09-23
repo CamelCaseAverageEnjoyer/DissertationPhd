@@ -72,7 +72,7 @@ class Anchor:
         self.r_irf = [o_i(v=v, a=self.r_orf[0], U=U, vec_type='r')]
         self.v_irf = [o_i(v=v, a=self.v_orf[0], U=U, vec_type='v')]
         self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
-            self.spin_difference, self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
+            self.spin_difference = [[[] for _ in range(self.n)] for _ in range(6)]
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
         # Индивидуальные параметры измерений
@@ -110,11 +110,13 @@ class FemtoSat:
         self.v_orf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[1], v.RVW_ChipSat_SPREAD[1], 3) for _ in range(self.n)]
         self.r_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
         self.v_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
-        self.w_irf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
-        self.w_orf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
+        self.w_orf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
+        self.w_orf_ = [np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
+        self.w_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
+        self.w_irf_ = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
         self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
         self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
-            self.spin_difference, self.z_difference = [[[] for _ in range(self.n)] for _ in range(7)]
+            self.spin_difference = [[[] for _ in range(self.n)] for _ in range(6)]
         for i in range(self.n):
             if v.SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
@@ -123,7 +125,8 @@ class FemtoSat:
             U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
             self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
             self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
-            self.w_irf[i] = o_i(a=self.w_irf[i], v=v, U=U, vec_type='w')
+            self.w_irf[i] = o_i(a=self.w_orf[i], v=v, U=U, vec_type='w')
+            self.w_irf_[i] = o_i(a=self.w_orf_[i], v=v, U=U, vec_type='w')
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
         # Индивидуальные параметры режимов работы
@@ -137,8 +140,8 @@ class FemtoSat:
         self.signal_power, self.real_dist, self.dist_estimate, self.dist_based_measures = \
             [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
         prm_poor = [np.append(
-            np.append(np.append(np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3), self.q_[i]),
-                      np.random.uniform(-v.RVW_ChipSat_SPREAD[1], v.RVW_ChipSat_SPREAD[1], 3)),
+            np.append(np.append(np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3),
+                                self.q_[i]), self.w_irf_[i]),
             np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3)) for i in range(self.n)]
         prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_orf[i])
                     for i in range(self.n)]
@@ -189,7 +192,7 @@ class CubeSat:
             U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
             self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
             self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
-            self.w_irf[i] = o_i(a=self.w_irf[i], v=v, U=U, vec_type='w')
+            self.w_irf[i] = o_i(a=self.w_orf[i], v=v, U=U, vec_type='w')
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
         # Индивидуальные параметры режимов работы
@@ -202,6 +205,7 @@ class CubeSat:
         # Индивидуальные параметры измерений
         self.signal_power, self.real_dist, self.dist_estimate, self.dist_based_measures, self.kalm_dist = \
             [[[[] for _ in range(v.CHIPSAT_AMOUNT)] for _ in range(self.n)] for _ in range(5)]
+        self.z_difference = [[[] for _ in range(v.CHIPSAT_AMOUNT)] for _ in range(self.n)]
 
         # Прорисовка ножек
         self.legs_x = 0.0085
