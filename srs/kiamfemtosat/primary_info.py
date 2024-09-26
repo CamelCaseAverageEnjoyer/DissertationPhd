@@ -80,8 +80,8 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
             elif get_signal_rates or get_model_state:
                 dr = x_m[i_f1*j + 0: i_f1*j + 3] - x_m[i_f2*j + 0: i_f2*j + 3]
                 if get_signal_rates:
-                    A_1 = quart2dcm(x_m[i_f1*j + 3: i_f1*j + 7])
-                    A_2 = quart2dcm(x_m[i_f2*j + 3: i_f2*j + 7])
+                    A_1 = quart2dcm(x_m[i_f1*j + 3: i_f1*j + 6])
+                    A_2 = quart2dcm(x_m[i_f2*j + 3: i_f2*j + 6])
 
             for direction in ["2->1", "1->2"]:
                 take_len = len(get_gain(v=v, obj=f, r=randy, if_take=True))

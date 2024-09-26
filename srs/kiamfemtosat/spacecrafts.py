@@ -49,13 +49,13 @@ def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], if_take: bool 
     return [1]
 
 # >>>>>>>>>>>> Классы аппаратов <<<<<<<<<<<<
-class Anchor:
+class Apparatus:
     def __init__(self, v: Variables):
         """Класс фантомного КА, движущегося по орбите с нулевым разбросом скоростей и положений"""
         from srs.kiamfemtosat.dynamics import get_matrices, o_i, get_c_hkw
 
         # Общие параметры
-        self.name = "Anchor"
+        self.name = "No exist"
         self.n = 1
         self.mass = 1e10
         self.size = [1., 1., 1.]
@@ -64,8 +64,6 @@ class Anchor:
         self.w_irf = [np.zeros(3) for _ in range(self.n)]  # Убрать потом !!!!!!!!!!!!!!
         self.w_orf = [np.zeros(3) for _ in range(self.n)]  # Убрать потом !!!!!!!!!!!!!!
         self.q = [np.array([1, 0, 0, 0]) for _ in range(self.n)]
-        # self.q = [[np.array([1, 0, 0, 0]) for _ in range(self.n)] for _ in range(1)]
-        # print(self.q)
         self.r_orf = [np.zeros(3) for _ in range(self.n)]
         self.v_orf = [np.zeros(3) for _ in range(self.n)]
         U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=0, first_init=True)
@@ -76,11 +74,18 @@ class Anchor:
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
         # Индивидуальные параметры измерений
-        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_irf[i])
+        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i][1:4]), self.v_orf[i]), self.w_irf[i])
                     for i in range(self.n)]
         self.rv_orf_calc = [prm_good[i] for i in range(self.n)]
 
-class FemtoSat:
+
+class Anchor(Apparatus):
+    def __init__(self, v: Variables):
+        """Класс фантомного КА, движущегося по орбите с нулевым разбросом скоростей и положений"""
+        super().__init__(v)
+        self.name = "Anchor"
+
+class FemtoSat(Apparatus):
     def __init__(self, v: Variables):
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
@@ -141,16 +146,16 @@ class FemtoSat:
             [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
         prm_poor = [np.append(
             np.append(np.append(np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3),
-                                self.q_[i]), self.w_irf_[i]),
+                                self.q_[i][1:4]), self.w_irf_[i]),
             np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3)) for i in range(self.n)]
-        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i]), self.v_orf[i]), self.w_orf[i])
+        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i][1:4]), self.v_orf[i]), self.w_orf[i])
                     for i in range(self.n)]
         start_navigation_tolerance = 1 if v.START_NAVIGATION == v.NAVIGATIONS[0] else v.START_NAVIGATION_TOLERANCE
         start_navigation_tolerance = 0 if v.START_NAVIGATION == v.NAVIGATIONS[2] else start_navigation_tolerance
         self.rv_orf_calc = [prm_good[i] * start_navigation_tolerance +
                             prm_poor[i] * (1 - start_navigation_tolerance) for i in range(self.n)]
 
-class CubeSat:
+class CubeSat(Apparatus):
     def __init__(self, v: Variables):
         """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.\n
         Все величны представлены в СИ."""

@@ -187,7 +187,7 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float
 
 
 # >>>>>>>>>>>> Перевод между системами координат <<<<<<<<<<<<
-def get_matrices(v: Variables, t: float, obj: Union[CubeSat, FemtoSat, Anchor], n: int, first_init: bool = False):
+def get_matrices(v: Variables, t: float, obj: Apparatus, n: int, first_init: bool = False):  # Union[CubeSat, FemtoSat, Anchor]
     """Функция возвращает матрицы поворота.
     Инициализируется в dymancis.py, используется в spacecrafts, dynamics"""
     E = t * v.W_ORB  # Эксцентрическая аномалия
@@ -374,15 +374,15 @@ class PhysicModel:
                     self.f.line_difference[i_f] += \
                         [np.array(self.k.r_orf_estimation[i_f][0:3] - np.array(self.f.r_orf[i_f]))]
                     if self.v.NAVIGATION_ANGLES:
-                        self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:7]
-                                                            - np.array(self.f.q[i_f])]
-                        self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][10:13]
+                        self.f.attitude_difference[i_f] += [self.k.r_orf_estimation[i_f][3:6]
+                                                            - np.array(self.f.q[i_f][1:4])]
+                        self.f.spin_difference[i_f] += [self.k.r_orf_estimation[i_f][9:12]
                                                         - np.array(self.f.w_orf[i_f])]
                 else:
                     self.f.line_kalman[i_f] += [self.v.NO_LINE_FLAG] * 3
                     self.f.line_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(3)]
                     if self.v.NAVIGATION_ANGLES:
-                        self.f.attitude_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(4)]
+                        self.f.attitude_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(3)]
                         self.f.spin_difference[i_f] += [self.v.NO_LINE_FLAG * np.ones(3)]
             for i_c in range(self.c.n):
                 for i_f in range(self.f.n):

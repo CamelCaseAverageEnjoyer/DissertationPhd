@@ -96,8 +96,8 @@ def plot_distance(o):
                               c=o.v.MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
                 ax[1][1].plot(x, [o.f.spin_difference[i_f][i][j] for i in range(len(x))],
                               c=o.v.MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
-            ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][3] for i in range(len(x))],
-                          c=o.v.MY_COLORS[3+3], label=labels_q[3] if i_f == 0 else None)
+            ax[1][0].plot(x, [o.f.attitude_difference[i_f][i][2] for i in range(len(x))],
+                        c=o.v.MY_COLORS[3+3], label=labels_q[3] if i_f == 0 else None)
         ax[1][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
         ax[1][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
         for j in range(2):
