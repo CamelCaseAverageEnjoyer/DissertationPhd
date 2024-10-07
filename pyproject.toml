@@ -2,14 +2,11 @@
 name = "kiam-femtosat"
 version = "1.0"
 dependencies = [
-  "numpy",
-  "matplotlib",
-  "typing",
-  "plotly",
-  "playsound3", "gtts", "colorama", "random", "os"  # Удалить перед отправкой на РИД
+  "numpy", "matplotlib", "typing", "plotly", "random",
+  "playsound3", "gtts", "colorama"
 ]
 authors = [
-  {name = "Vladislav Orlov", email = "orlov.vv@phystech.edu"},
+  {name = "Vladislav Orlov", email = "orlov-vladislove@yandex.ru"},
 ]
 description = "Numerical modeling of space mission with using free-flying femto satellites."
 readme = "ReadMe.md"

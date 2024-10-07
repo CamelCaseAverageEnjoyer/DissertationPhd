@@ -6,25 +6,25 @@ class Variables:
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
         self.dT = 1.
         self.TIME = 1e4
-        self.CUBESAT_AMOUNT = 4
+        self.CUBESAT_AMOUNT = 10
         self.CHIPSAT_AMOUNT = 1
         self.DYNAMIC_MODEL = {'aero drag': False,
                               'j2': False}
         self.NAVIGATION_BY_ALL = True
         self.NAVIGATION_ANGLES = False  # Содержит ли искомый вектор состояния кватернионы и угловые скорости
-        self.MULTI_ANTENNA_TAKE = True  # Разделяет ли КА приходящий сигнал на составляющие
-        self.MULTI_ANTENNA_SEND = True  # Разделяет ли КА исходящий сигнал на составляющие
+        self.MULTI_ANTENNA_TAKE = False  # Разделяет ли КА приходящий сигнал на составляющие
+        self.MULTI_ANTENNA_SEND = False  # Разделяет ли КА исходящий сигнал на составляющие
         self.START_NAVIGATION_TOLERANCE = 0.9
         self.START_NAVIGATION = ['perfect', 'near', 'random'][1]
-        self.GAIN_MODEL_C = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][0]
-        self.GAIN_MODEL_F = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][0]
+        self.GAIN_MODEL_C = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][4]
+        self.GAIN_MODEL_F = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][4]
         self.SOLVER = ['rk4 hkw', 'kiamastro'][0]  # Везде проверяется на hkw -> проверки на rk4. Может изменить?
         self.CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
         self.DISTORTION = 0.  # Искривление диаграммы направленности
 
-        self.RVW_CubeSat_SPREAD = [1e2, 1e-1, 1e-5]  # r (м), v (м/с), ω (рад/с)
-        self.RVW_ChipSat_SPREAD = [1e2, 1e-1, 1e-5]
-        self.KALMAN_COEF = {'q': [1e-5]*2, 'p': [1e-5]*4, 'd': 1e-10, 'r': 1e-1}
+        self.RVW_CubeSat_SPREAD = [1e2, 1e-1, 1e-6]  # r (м), v (м/с), ω (рад/с)
+        self.RVW_ChipSat_SPREAD = [1e2, 1e-1, 1e-6]
+        self.KALMAN_COEF = {'q': [1e-15]*2, 'p': [1e-8]*4, 'r': 1e-1}
         self.CUBESAT_MODEL = ['1U', '1.5U', '2U', '3U', '6U', '12U'][0]
         self.CHIPSAT_MODEL = ['KickSat', 'Трисат'][0]
         self.SHAMANISM = {'KalmanQuaternionNormalize': True,   # Нормировка кватернионов в фильтре Калмана
