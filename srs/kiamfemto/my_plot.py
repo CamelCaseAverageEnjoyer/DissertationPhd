@@ -6,8 +6,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
 from matplotlib import animation
-from srs.kiamfemtosat.my_math import *
-from srs.kiamfemtosat.config import *
+from my_math import *
+from config import *
 
 
 FEMTO_RATE = 1e2
@@ -305,13 +305,13 @@ def plot_the_earth_mpl(ax, v: Variables, res: int = 1, pth: str = "./", earth_im
     return ax
 
 def plot_the_earth_go(v: Variables):
-    spherical_earth_map = np.load('data/map_sphere.npy')
+    spherical_earth_map = np.load('kiamfemto/data/map_sphere.npy')
     xm, ym, zm = spherical_earth_map.T * v.EARTH_RADIUS
 
     return go.Scatter3d(x=xm, y=ym, z=zm, mode='lines')
 
 def plot_reference_frames(ax, o, txt: str, color: str = "gray", t: float = None):
-    from srs.kiamfemtosat.dynamics import get_matrices
+    from dynamics import get_matrices
     x = np.array([1, 0, 0])
     y = np.array([0, 1, 0])
     z = np.array([0, 0, 1])
@@ -368,6 +368,6 @@ def plot_all(o, save: bool = False, count: int = None):
                                       f" | Время: {o.v.TIME} ({round(o.v.TIME / (3600 * 24), 2)} дней)  |  "
                                       f"i={o.v.INCLINATION}°, e={o.v.ECCENTRICITY}"))
     if save:
-        fig.write_image('img/' + str('{:04}'.format(count)) + '.jpg')
+        fig.write_image('../../img/' + str('{:04}'.format(count)) + '.jpg')
     else:
         fig.show()

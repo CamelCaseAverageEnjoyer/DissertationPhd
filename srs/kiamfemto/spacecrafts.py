@@ -1,7 +1,7 @@
 """Функции, связанные с архитектурой КА"""
-from srs.kiamfemtosat.my_math import *
-from srs.kiamfemtosat.config import Variables
-from srs.kiamfemtosat.cosmetic import my_print
+from my_math import *
+from config import Variables
+from cosmetic import my_print
 
 # >>>>>>>>>>>> Диаграмма направленности антенн связи <<<<<<<<<<<<
 def local_dipole(v: Variables, r: Union[list, np.ndarray], ind: str = 'x') -> float:
@@ -52,7 +52,7 @@ def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], if_take: bool 
 class Apparatus:
     def __init__(self, v: Variables):
         """Класс фантомного КА, движущегося по орбите с нулевым разбросом скоростей и положений"""
-        from srs.kiamfemtosat.dynamics import get_matrices, o_i, get_c_hkw
+        from dynamics import get_matrices, o_i, get_c_hkw
 
         # Общие параметры
         self.name = "No exist"
@@ -89,7 +89,7 @@ class FemtoSat(Apparatus):
     def __init__(self, v: Variables):
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
-        from srs.kiamfemtosat.dynamics import get_matrices, o_i, get_c_hkw
+        from dynamics import get_matrices, o_i, get_c_hkw
         if v.CHIPSAT_AMOUNT < 0:
             raise ValueError(f"Количество чипсатов {v.CHIPSAT_AMOUNT} должно быть не меньше 0!")
 
@@ -156,10 +156,10 @@ class FemtoSat(Apparatus):
                             prm_poor[i] * (1 - start_navigation_tolerance) for i in range(self.n)]
 
 class CubeSat(Apparatus):
+    """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.
+    Все величны представлены в СИ."""
     def __init__(self, v: Variables):
-        """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.\n
-        Все величны представлены в СИ."""
-        from srs.kiamfemtosat.dynamics import get_matrices, o_i, get_c_hkw
+        from dynamics import get_matrices, o_i, get_c_hkw
         if v.CUBESAT_AMOUNT < 1:
             raise ValueError(f"Количество чипсатов {v.CUBESAT_AMOUNT} должно быть не меньше 1!")
 

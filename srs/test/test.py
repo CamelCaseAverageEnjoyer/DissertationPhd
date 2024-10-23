@@ -1,10 +1,8 @@
 """Проверка эквивалентности способов расчёта"""
 import unittest
-import numpy as np
-from srs.kiamfemtosat.main import Objects
-from srs.kiamfemtosat.config import Variables
-from srs.kiamfemtosat.cosmetic import *
-from srs.kiamfemtosat.my_math import *
+from srs.kiamfemto.config import Variables, Objects
+from srs.kiamfemto.cosmetic import *
+from srs.kiamfemto.my_math import *
 
 dT_optimal = 0.1
 TOTAL_TIME = 1e4

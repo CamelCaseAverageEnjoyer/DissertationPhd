@@ -5,9 +5,9 @@ from datetime import datetime
 from kiam_astro import kiam
 from kiam_astro.trajectory import Trajectory
 
-from srs.kiamfemtosat.primary_info import *
-from srs.kiamfemtosat.gnc_systems import *
-from srs.kiamfemtosat.my_plot import *
+from primary_info import *
+from gnc_systems import *
+from my_plot import *
 
 # >>>>>>>>>>>> Задание движения Хилла-Клохесси-Уилтшира <<<<<<<<<<<<
 def get_c_hkw(r: Union[list, np.ndarray], v: Union[list, np.ndarray], w: float) -> list:
@@ -247,7 +247,7 @@ def o_i(a, v: Variables, U: np.ndarray, vec_type: str):
 # >>>>>>>>>>>> Класс динамики кубсатов и чипсатов <<<<<<<<<<<<
 class PhysicModel:
     def __init__(self, f: FemtoSat, c: CubeSat, a: Anchor, v: Variables):
-        self.show_rate = 1
+        self.show_rate = 1  # line_difference в my_plot, line 63
 
         # Неизменные параметры
         self.t = 0.
@@ -280,17 +280,6 @@ class PhysicModel:
     def time_step(self):
         self.iter += 1
         self.t = self.iter * self.v.dT
-
-        if self.iter == 1 and self.v.IF_ANY_PRINT:
-            # Вывод основных параметров
-            tmp = ", ориентации" if self.v.NAVIGATION_ANGLES else ""
-            my_print(f"Диаграмма антенн кубсата: {self.c.gain_mode}\n"
-                     f"Диаграмма антенн фемтосатов: {self.f.gain_mode}\n"
-                     f"Учёт аэродинамики: {self.v.DYNAMIC_MODEL['aero drag']}\n"
-                     f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}\n" 
-                     f"Фильтр Калмана основан на: "
-                     f"{'всех чипсатах' if self.v.NAVIGATION_BY_ALL else 'одном чипсате'}", color='c')
-            my_print(f"Внимание: IF_NAVIGATION={self.v.IF_NAVIGATION}! ", color='m', if_print=not self.v.IF_NAVIGATION)
 
         # Движение системы
         if 'rk4' in self.v.SOLVER:

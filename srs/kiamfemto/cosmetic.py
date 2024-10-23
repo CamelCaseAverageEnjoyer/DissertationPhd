@@ -6,17 +6,21 @@ import random
 import os
 
 
-def my_print(txt: any, color: str = None, if_print: bool = True, bold: bool = False) -> None:
+def my_print(txt: any, color: str = None, if_print: bool = True, bold: bool = False, if_return: bool = False) -> None:
     """Функция вывода цветного текста
     :param txt: Выводимый текст
     :param color: Цвет текста {b, g, y, r, c, m}
     :param if_print: Флаг вывода для экономии места
-    :param bold: Жирный текст"""
+    :param bold: Жирный текст
+    :param if_return: Надо ли возвращать строку"""
     color_bar = {"b": colorama.Fore.BLUE, "g": colorama.Fore.GREEN, "y": colorama.Fore.YELLOW, "r": colorama.Fore.RED,
                  "c": colorama.Fore.CYAN, "m": colorama.Fore.MAGENTA, None: colorama.Style.RESET_ALL}
     _txt = f"\033[1m{txt}\033[0m" if bold else txt
+    anw = color_bar[color] + f"{_txt}" + colorama.Style.RESET_ALL
     if if_print and color in color_bar.keys():
-        print(color_bar[color] + f"{_txt}" + colorama.Style.RESET_ALL)
+        print(anw)
+    if if_return:
+        return anw
 
 def real_workload_time(n: int, n_total: int, time_begin, time_now) -> str:
     n_remain = n_total - n

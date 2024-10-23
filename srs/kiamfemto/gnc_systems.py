@@ -1,6 +1,6 @@
 """Ёбаный пиздец блять в каком же я ахуе просто ебааать"""
-from srs.kiamfemtosat.spacecrafts import *
-from srs.kiamfemtosat.data.observability_mapping_partial_derivatives import *
+from spacecrafts import *
+from data.observability_mapping_partial_derivatives import *
 
 # >>>>>>>>>>>> Guidance <<<<<<<<<<<<
 def guidance(c: CubeSat, f: FemtoSat, v: Variables, earth_turn: float) -> None:
@@ -88,8 +88,8 @@ class KalmanFilter:
             my_print(f"Матрицы Ф:{self.Phi.shape}, Q:{self.Q.shape}, P:{self.P.shape}, D:{self.D.shape}", color='g')
 
     def calc(self) -> None:  # Считается, что NAVIGATION_BY_ALL = True
-        from srs.kiamfemtosat.primary_info import measure_antennas_power
-        from srs.kiamfemtosat.dynamics import rk4_translate, rk4_attitude
+        from primary_info import measure_antennas_power
+        from dynamics import rk4_translate, rk4_attitude
 
         c_take_len = len(get_gain(v=self.v, obj=self.c, r=np.ones(3), if_take=True))
         c_send_len = len(get_gain(v=self.v, obj=self.c, r=np.ones(3), if_send=True))
@@ -188,7 +188,7 @@ class KalmanFilter:
 
         # Запись и отображение
         if self.p.iter == 1:
-            with open("data/measures_vector_notes_last.txt", "w") as f:
+            with open("kiamfemto/data/measures_vector_notes_last.txt", "w") as f:
                 f.write("# Рассчитано в PyCharm\n# Параметры: {rel} {N_1} {N_2} {i_1} {i_2} {send_len} {take_len}\n")
                 f.write(f"# Параметр CUBESAT_AMOUNT {self.v.CUBESAT_AMOUNT}\n")
                 f.write(f"# Параметр CHIPSAT_AMOUNT {self.v.CHIPSAT_AMOUNT}\n")

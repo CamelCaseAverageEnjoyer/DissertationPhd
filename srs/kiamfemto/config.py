@@ -1,12 +1,44 @@
+import numpy
+import pandas as pd
+from cosmetic import *
+
 class Variables:
+    def get_saving_params(self):
+        return [self.DESCRIPTION, self.dT, self.TIME, self.CUBESAT_AMOUNT, self.CHIPSAT_AMOUNT, self.DYNAMIC_MODEL,
+                self.NAVIGATION_BY_ALL, self.NAVIGATION_ANGLES, self.MULTI_ANTENNA_TAKE, self.MULTI_ANTENNA_SEND]
+
+    def load_params(self, i: int = 0):
+        """Подгрузка параметров"""
+        self.config_choose = pd.read_csv(self.path, sep=";")
+        for j, p in enumerate(self.get_saving_params()):
+            p = self.config_choose.iloc[i, j]
+        my_print(f"Параметры i={i} подгружены: \n{self.config_choose.iloc[i, :]}\n{p}", color='c')
+
+    def save_params(self):
+        """Сохранение параметров"""
+        df = self.config_choose
+        df.loc[len(df.index)] = self.get_saving_params()
+        # ЗДЕСЬ НАДО ПЕРЕДЕЛАТЬ ИНДЕКСЫ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        df.to_csv(self.path, sep=";")
+        with open(self.path, 'r') as f:
+            s = f.read()
+        with open(self.path, 'w') as f:
+            f.write(s[1:])
+        my_print(f"Параметры сохранены!")
+
     def __init__(self):
         from kiam_astro import kiam
-        import numpy
-        from srs.kiamfemtosat.spacecrafts import Anchor
+        from spacecrafts import Anchor
+
+        self.path = "kiamfemto/data/config_choose.csv"
+        self.config_choose = pd.read_csv(self.path, sep=";")
+
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
-        self.dT = 1.
+        self.DESCRIPTION = "По умолчанию"
+
+        self.dT = 10.
         self.TIME = 1e4
-        self.CUBESAT_AMOUNT = 10
+        self.CUBESAT_AMOUNT = 1
         self.CHIPSAT_AMOUNT = 1
         self.DYNAMIC_MODEL = {'aero drag': False,
                               'j2': False}
@@ -16,8 +48,8 @@ class Variables:
         self.MULTI_ANTENNA_SEND = False  # Разделяет ли КА исходящий сигнал на составляющие
         self.START_NAVIGATION_TOLERANCE = 0.9
         self.START_NAVIGATION = ['perfect', 'near', 'random'][1]
-        self.GAIN_MODEL_C = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][4]
-        self.GAIN_MODEL_F = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][4]
+        self.GAIN_MODEL_C = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][0]
+        self.GAIN_MODEL_F = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid'][0]
         self.SOLVER = ['rk4 hkw', 'kiamastro'][0]  # Везде проверяется на hkw -> проверки на rk4. Может изменить?
         self.CHIPSAT_OPERATING_MODE = ['const', 'while_sun_visible'][0]
         self.DISTORTION = 0.  # Искривление диаграммы направленности
@@ -97,15 +129,66 @@ class Variables:
         self.IF_NAVIGATION = False
 
 
+class Objects:
+    def __init__(self, v: Variables):
+        """Класс объединяет следующие другие классы: CubeSat, FemtoSat, PhysicModel"""
+        from dynamics import PhysicModel
+        from spacecrafts import CubeSat, FemtoSat
+
+        # Классы
+        self.v = v
+        self.a = v.ANCHOR
+        self.c = CubeSat(v=v)
+        self.f = FemtoSat(v=v)
+        self.p = PhysicModel(c=self.c, f=self.f, a=self.a, v=v)
+
+    def integrate(self, t: float, animate: bool = False) -> None:
+        from cosmetic import real_workload_time, my_print
+        from my_plot import plot_all
+        from datetime import datetime
+
+        my_print(f"Оборотов вокруг Земли: {round(t / (2 * numpy.pi / self.v.W_ORB), 2)}  "
+                 f"(дней: {round(t / (3600 * 24), 2)})", color='b', if_print=self.v.IF_ANY_PRINT)
+        n = int(t // self.v.dT)
+        flag = [0., 0.]
+        frames = []
+        for i in range(n):
+            # Отображение в вывод
+            if i == 1 and self.v.IF_ANY_PRINT:
+                # Вывод основных параметров
+                tmp = ", ориентации" if self.v.NAVIGATION_ANGLES else ""
+                my_print(f"Диаграмма антенн кубсата: {self.c.gain_mode}\n"
+                         f"Диаграмма антенн фемтосатов: {self.f.gain_mode}\n"
+                         f"Учёт аэродинамики: {self.v.DYNAMIC_MODEL['aero drag']}\n"
+                         f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}\n"
+                         f"Фильтр Калмана основан на: "
+                         f"{'всех чипсатах' if self.v.NAVIGATION_BY_ALL else 'одном чипсате'}", color='c')
+                my_print(f"Внимание: IF_NAVIGATION={self.v.IF_NAVIGATION}! ", color='m',
+                         if_print=not self.v.IF_NAVIGATION)
+            if i / n > (flag[0] + 0.1):
+                flag[0] += 0.1
+                per = int(10 * i / n)
+                my_print(f"{10 * per}% [{'#' * per + ' ' * (10 - per)}]" +
+                         real_workload_time(n=per, n_total=10, time_begin=self.p.time_begin,
+                                            time_now=datetime.now()), color='m', if_print=self.v.IF_ANY_PRINT)
+
+            # Отображение в анимацию
+            if animate and i / n > (flag[1] + 0.01):
+                flag[1] += 0.01
+                frames.append(plot_all(self, save=True, count=int(flag[1] // 0.01)))
+
+            # Шаг по времени
+            self.p.time_step()
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    from srs.kiamfemtosat.spacecrafts import *
-    from srs.kiamfemtosat.my_math import pol2dec
-    from srs.kiamfemtosat.main import Objects
-    from srs.kiamfemtosat.cosmetic import my_print
+    from spacecrafts import *
+    from my_math import pol2dec
+    from cosmetic import my_print
 
     def plot_model_gain(n: int = 20):
-        from srs.kiamfemtosat.my_plot import show_chipsat
+        from my_plot import show_chipsat
         v_ = Variables()
         o = Objects(v=v_)
         fig = plt.figure(figsize=(15, 10))
@@ -143,7 +226,7 @@ if __name__ == "__main__":
         plt.show()
 
     def plot_atmosphere_models(n: int = 100):
-        from srs.kiamfemtosat.dynamics import get_atm_params
+        from dynamics import get_atm_params
         v = Variables()
 
         range_km = [300, 500]
@@ -165,8 +248,7 @@ if __name__ == "__main__":
         plt.show()
 
     def animate_reference_frames(resolution: int = 3, n: int = 5):
-        from srs.kiamfemtosat.my_plot import plot_the_earth_mpl, plot_reference_frames
-        from srs.kiamfemtosat.main import Objects
+        from my_plot import plot_the_earth_mpl, plot_reference_frames
         from PIL import Image
         from os import remove
 

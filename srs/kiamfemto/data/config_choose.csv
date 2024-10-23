@@ -1,0 +1,9 @@
+DESCRIPTION;dT;TIME;CUBESAT_AMOUNT;CHIPSAT_AMOUNT;DYNAMIC_MODEL;NAVIGATION_BY_ALL;NAVIGATION_ANGLES;MULTI_ANTENNA_TAKE;MULTI_ANTENNA_SEND
+0;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
+1;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
+2;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
+3;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
+4;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
+5;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
+6;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
+7;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False

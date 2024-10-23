@@ -1,6 +1,6 @@
 """Комплекс первичной информации. Функции ничего не возвращают, так как запись измерений проводится в элементах
 классов КА."""
-from srs.kiamfemtosat.spacecrafts import *
+from spacecrafts import *
 
 
 def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float = None, produce: bool = False,
