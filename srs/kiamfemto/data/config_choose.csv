@@ -1,9 +1,2 @@
-DESCRIPTION;dT;TIME;CUBESAT_AMOUNT;CHIPSAT_AMOUNT;DYNAMIC_MODEL;NAVIGATION_BY_ALL;NAVIGATION_ANGLES;MULTI_ANTENNA_TAKE;MULTI_ANTENNA_SEND
-0;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
-1;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
-2;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
-3;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
-4;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
-5;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
-6;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
-7;По умолчанию;10.0;10000.0;1;1;{'aero drag': False, 'j2': False};True;False;False;False
+DESCRIPTION;dT;TIME;CUBESAT_AMOUNT;CHIPSAT_AMOUNT;DYNAMIC_MODEL_aero;DYNAMIC_MODEL_j2;NAVIGATION_BY_ALL;NAVIGATION_ANGLES;MULTI_ANTENNA_TAKE;MULTI_ANTENNA_SEND;START_NAVIGATION_N;GAIN_MODEL_C_N;GAIN_MODEL_F_N;IF_NAVIGATION;CUBESAT_MODEL_N;CHIPSAT_MODEL_N
+0;По умолчанию;10.0;10000.0;1;1;False;False;True;False;False;False;1;0;0;True;0;0
