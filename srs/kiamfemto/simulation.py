@@ -1,12 +1,29 @@
-"""Здесь функции расчёта красивых графиков для красивых презентаций"""
-from typing import List, Any
-
+"""Здесь много всего так-то"""
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
 import math
-from main_objects import *
-from tiny_functions import *
+import time
+
+from config import *
+
+def timer(func):
+    def wrapper_timer(*args, **kwargs):
+        start_time = time.perf_counter()
+        value = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        run_time = end_time - start_time
+        print(f'Выполнено "{func.__name__}" за {run_time:.4f} секунд')
+        return value
+    return wrapper_timer
+
+def save_simulation_trajectories(o: Objects, text: str):
+    o.p.record.to_csv(f'{text}.csv', index=False, sep=";")
+    my_print(f"В файл {text} записаны траектории", color='y')
+
+def load_simulation_trajectories(o: Objects, text: str):
+    from pandas import read_csv
+    o.p.record = read_csv(text, sep=";")
+    my_print(f"Из файла {text} прочитаны траектории", color='y')
 
 def do_tolerance_table(t_integrate: float = 1e4, dt: float = 10., aero: bool = False, repeat: int = 3) -> None:
     """Богом гонимая таблца точностей при разном количестве аппаратов, при разных точностях
@@ -464,9 +481,3 @@ def solve_minimization(aero: bool = False, quaternion: bool = False, quaternion_
         plt.xlabel("Время, с")
         plt.ylabel("Ошибка, м")
         plt.show()
-
-
-if __name__ == '__main__':
-    pass
-    # params_search()
-    # do_tolerance_table()

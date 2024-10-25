@@ -2,10 +2,8 @@ from PIL import Image
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
-from matplotlib import animation
 from my_math import *
 from config import *
 

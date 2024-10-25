@@ -2,9 +2,10 @@ import sys
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
-
-# from cosmetic import *
 from my_plot import *
+from simulation import save_simulation_trajectories, load_simulation_trajectories
+
+ICON_SIZE = 70
 
 class Window(QWidget):
     def __init__(self, o):
@@ -65,8 +66,10 @@ class Window(QWidget):
                 label = QLabel()
                 pix = QPixmap(name)
                 label.setPixmap(pix)
-                # label.setPixmap(pix.scaled(500, 500, Qt.AspectRatioMode.KeepAspectRatio,
-                #                            Qt.TransformationMode.FastTransformation))
+                if ";" in t:
+                    s = int(t.split(";")[1])
+                    label.setPixmap(pix.scaled(s, s, Qt.AspectRatioMode.KeepAspectRatio,
+                                               Qt.TransformationMode.FastTransformation))
                 self.grid.addWidget(label, *position, *wh)
             elif 'edit' in t:
                 textbox = QLineEdit()
@@ -109,79 +112,94 @@ class Window(QWidget):
     def buttons_and_labels(self):
         data = self.o.v.config_choose
         params = data.iloc[self.config_choose_n, :]
-        N_right = 8
-        N_down = 9
+        n_down = 50
+        n = 0
 
-        # Ручное редактирование сетки
-        self.name_type_func[0][0] = [self.path + "robot1.png", "button", talk, (1, 1)]  # Поболтать
-        self.name_type_func[1][0] = [self.path + "integral.png", "button", self.main_run, (1, 1)]  # Моделирование
-        self.name_type_func[2][0] = [self.path + "antenna.png", "button", plot_model_gain, (1, 1)]  # Диаграммы
-        self.name_type_func[3][0] = [self.path + "air.png", "button", plot_atmosphere_models, (1, 1)]
-        self.name_type_func[4][0] = [self.path + "animation.png", "button", animate_reference_frames, (1, 1)]
+        # >>>>>>>>>>>> Кнопки <<<<<<<<<<<<
+        self.name_type_func[0][n] = [self.path + "robot1.png", "button", talk, (1, 1)]  # Поболтать
+        self.name_type_func[1][n] = [self.path + "integral.png", "button", self.main_run, (1, 1)]  # Моделирование
+        self.name_type_func[2][n] = [self.path + "antenna.png", "button", plot_model_gain, (1, 1)]  # Диаграммы
+        self.name_type_func[3][n] = [self.path + "air.png", "button", plot_atmosphere_models, (1, 1)]
+        self.name_type_func[4][n] = [self.path + "animation.png", "button", animate_reference_frames, (1, 1)]
+        self.name_type_func[5][n] = [self.path + "save.png", "button", self.local_save_trajectories, (1, 1)]
+        self.name_type_func[6][n] = [self.path + "load.png", "button", self.local_load_trajectories, (1, 1)]
+        self.name_type_func[7][n] = [self.path + "eraser.png", "button", self.local_remove_trajectories, (1, 1)]
+        n += 1
 
-        # Автоматическое заполнение сохранений
-        self.name_type_func[0][N_right+0] = ["Параметры", "edit;Название", None, (1, 2)]
-        self.name_type_func[0][N_right+2] = ["Сохранить", "button", self.local_save_params, (1, 1)]
-        for i in range(len(self.o.v.config_choose)):
-            self.name_type_func[i+1][N_right+0] = [data.iloc[i, 0], "label", None, (1, 1)]
-            self.name_type_func[i+1][N_right+1] = [f"Загрузить", "button", lambda j=i: self.local_load_params(i=j),
-                                                   (1, 1)]
-            self.name_type_func[i+1][N_right+2] = [f"Удалить", "button", lambda j=i: self.local_remove_params(i=j),
-                                                   (1, 1)]
-        # Отрисовка
-        self.name_type_func[N_down][1] = [f"Разложения сигналов: {params['MULTI_ANTENNA_SEND']} -> "
-                                          f"{params['MULTI_ANTENNA_TAKE']}", "label", None, (1, 3)]
-        self.name_type_func[N_down+1][1] = [self.path + "send0_take0.png", "image", None, (1, 3)]
-        self.name_type_func[N_down][4] = [self.o.time_message(params['TIME']), "label", None, (1, 3)]
+        # >>>>>>>>>>>> Отрисовка <<<<<<<<<<<<
+        # Диаграмма разложения сигналов
+        self.name_type_func[n_down+0][n+0] = [f"Разложения сигналов: {params['MULTI_ANTENNA_SEND']} -> "
+                                              f"{params['MULTI_ANTENNA_TAKE']}", "label", None, (1, 3)]
+        self.name_type_func[n_down+1][n+0] = [self.path + "send0_take0.png", "image", None, (3, 3)]
 
-        # Параметры численного моделирования
-        self.name_type_func[0][1] = ["Параметры численного моделирования", "label", None, (1, N_right - 2)]
+        # Текст о долготе полёта
+        self.name_type_func[n_down][n+3] = [self.o.time_message(params['TIME']), "label", None, (1, 3)]
+
+        # >>>>>>>>>>>> Параметры численного моделирования <<<<<<<<<<<<
 
         # Первый столбец
-        self.name_type_func[1][1] = ["Шаг по времени dT", "label", None, (1, 1)]
-        self.name_type_func[1][2] = ["dT", f"combo;{params['dT']}", "0.1;1.0;10.0", (1, 1)]
-        self.name_type_func[2][1] = ["Время интегрирования T", "label", "", (1, 1)]
-        self.name_type_func[2][2] = ["TIME", f"combo;{params['TIME']}", "1000.0;10000.0;100000.0", (1, 1)]
-        self.name_type_func[3][1] = ["Априорная информация", "label", "", (1, 1)]
-        self.name_type_func[3][2] = ["START_NAVIGATION_N",
-                                     f"combo;{self.o.v.NAVIGATIONS[params['START_NAVIGATION_N']]}",
-                                     ";".join(self.o.v.NAVIGATIONS), (1, 1)]
-        self.name_type_func[4][1] = ["Антенны кубсатов", "label", "", (1, 1)]
-        self.name_type_func[4][2] = ["GAIN_MODEL_C_N",
-                                     f"combo;{self.o.v.GAIN_MODES[params['GAIN_MODEL_C_N']]}",
-                                     ";".join(self.o.v.GAIN_MODES), (1, 1)]
-        self.name_type_func[5][1] = ["Антенны чипсатов", "label", "", (1, 1)]
-        self.name_type_func[5][2] = ["GAIN_MODEL_F_N",
-                                     f"combo;{self.o.v.GAIN_MODES[params['GAIN_MODEL_F_N']]}",
-                                     ";".join(self.o.v.GAIN_MODES), (1, 1)]
-        self.name_type_func[6][1] = ["Модель кубсата", "label", "", (1, 1)]
-        self.name_type_func[6][2] = ["CUBESAT_MODEL_N",
-                                     f"combo;{self.o.v.CUBESAT_MODELS[params['CUBESAT_MODEL_N']]}",
-                                     ";".join(self.o.v.CUBESAT_MODELS), (1, 1)]
-        self.name_type_func[7][1] = ["Модель чипсата", "label", "", (1, 1)]
-        self.name_type_func[7][2] = ["CHIPSAT_MODEL_N",
-                                     f"combo;{self.o.v.CHIPSAT_MODELS[params['CHIPSAT_MODEL_N']]}",
-                                     ";".join(self.o.v.CHIPSAT_MODELS), (1, 1)]
+        self.name_type_func[1][n+0] = ["Шаг по времени dT", "label", None, (1, 1)]
+        self.name_type_func[1][n+1] = ["dT", f"combo;{params['dT']}", ";".join(self.o.v.dTs), (1, 1)]
+        self.name_type_func[2][n+0] = ["Время интегрирования T", "label", "", (1, 1)]
+        self.name_type_func[2][n+1] = ["TIME", f"combo;{params['TIME']}", ";".join(self.o.v.Ts), (1, 1)]
+        self.name_type_func[3][n+0] = ["Априорная информация", "label", "", (1, 1)]
+        self.name_type_func[3][n+1] = ["START_NAVIGATION_N",
+                                       f"combo;{self.o.v.NAVIGATIONS[params['START_NAVIGATION_N']]}",
+                                       ";".join(self.o.v.NAVIGATIONS), (1, 1)]
+        self.name_type_func[4][n+0] = ["Антенны кубсатов", "label", "", (1, 1)]
+        self.name_type_func[4][n+1] = ["GAIN_MODEL_C_N",
+                                       f"combo;{self.o.v.GAIN_MODES[params['GAIN_MODEL_C_N']]}",
+                                       ";".join(self.o.v.GAIN_MODES), (1, 1)]
+        self.name_type_func[5][n+0] = ["Антенны чипсатов", "label", "", (1, 1)]
+        self.name_type_func[5][n+1] = ["GAIN_MODEL_F_N",
+                                       f"combo;{self.o.v.GAIN_MODES[params['GAIN_MODEL_F_N']]}",
+                                       ";".join(self.o.v.GAIN_MODES), (1, 1)]
+        self.name_type_func[6][n+0] = ["Модель кубсата", "label", "", (1, 1)]
+        self.name_type_func[6][n+1] = ["CUBESAT_MODEL_N",
+                                       f"combo;{self.o.v.CUBESAT_MODELS[params['CUBESAT_MODEL_N']]}",
+                                       ";".join(self.o.v.CUBESAT_MODELS), (1, 1)]
+        self.name_type_func[7][n+0] = ["Модель чипсата", "label", "", (1, 1)]
+        self.name_type_func[7][n+1] = ["CHIPSAT_MODEL_N",
+                                       f"combo;{self.o.v.CHIPSAT_MODELS[params['CHIPSAT_MODEL_N']]}",
+                                       ";".join(self.o.v.CHIPSAT_MODELS), (1, 1)]
+        n += 2
 
         # Второй столбец
-        self.name_type_func[1][3] = ["Кубсаты", "label", None, (1, 1)]
-        self.name_type_func[1][4] = ["CUBESAT_AMOUNT", f"edit;{params['CUBESAT_AMOUNT']}", None, (1, 1)]
-        self.name_type_func[2][3] = ["Чипсаты", "label", None, (1, 1)]
-        self.name_type_func[2][4] = ["CHIPSAT_AMOUNT", f"edit;{params['CHIPSAT_AMOUNT']}", None, (1, 1)]
+        self.name_type_func[1][n+0] = ["Кубсаты", "label", None, (1, 1)]
+        self.name_type_func[1][n+1] = [self.path + f"{self.o.v.CUBESAT_MODELS[params['CUBESAT_MODEL_N']]}.png",
+                                       f"image;{ICON_SIZE}", None, (1, 1)]
+        self.name_type_func[1][n+2] = ["CUBESAT_AMOUNT", f"edit;{params['CUBESAT_AMOUNT']}", None, (1, 1)]
+        self.name_type_func[2][n+0] = ["Чипсаты", "label", None, (1, 1)]
+        self.name_type_func[2][n+1] = [self.path + f"chipsat.png", f"image;{ICON_SIZE}", None, (1, 1)]
+        self.name_type_func[2][n+2] = ["CHIPSAT_AMOUNT", f"edit;{params['CHIPSAT_AMOUNT']}", None, (1, 1)]
+        n += 3
 
         # Третий столбец
-        self.name_type_func[1][5] = ["Лобовое сопротивление", "label", None, (1, 1)]
-        self.name_type_func[1][6] = ["DYNAMIC_MODEL_aero", f"check;{int(params['DYNAMIC_MODEL_aero'])}", None, (1, 1)]
-        self.name_type_func[2][5] = ["Гармоника J₂", "label", None, (1, 1)]
-        self.name_type_func[2][6] = ["DYNAMIC_MODEL_j2", f"check;{int(params['DYNAMIC_MODEL_j2'])}", None, (1, 1)]
-        self.name_type_func[3][5] = ["Оценка ориентации", "label", None, (1, 1)]
-        self.name_type_func[3][6] = ["NAVIGATION_ANGLES", f"check;{int(params['NAVIGATION_ANGLES'])}", None, (1, 1)]
-        self.name_type_func[4][5] = ["Разложение сигнала на выходе", "label", None, (1, 1)]
-        self.name_type_func[4][6] = ["MULTI_ANTENNA_TAKE", f"check;{int(params['MULTI_ANTENNA_TAKE'])}", None, (1, 1)]
-        self.name_type_func[5][5] = ["Разложение сигнала на входе", "label", None, (1, 1)]
-        self.name_type_func[5][6] = ["MULTI_ANTENNA_SEND", f"check;{int(params['MULTI_ANTENNA_SEND'])}", None, (1, 1)]
-        self.name_type_func[6][5] = ["Навигация (при отладке выключить)", "label", None, (1, 1)]
-        self.name_type_func[6][6] = ["IF_NAVIGATION", f"check;{int(params['IF_NAVIGATION'])}", None, (1, 1)]
+        self.name_type_func[1][n+0] = ["Лобовое сопротивление", "label", None, (1, 1)]
+        self.name_type_func[1][n+1] = ["DYNAMIC_MODEL_aero", f"check;{int(params['DYNAMIC_MODEL_aero'])}", None, (1, 1)]
+        self.name_type_func[2][n+0] = ["Гармоника J₂", "label", None, (1, 1)]
+        self.name_type_func[2][n+1] = ["DYNAMIC_MODEL_j2", f"check;{int(params['DYNAMIC_MODEL_j2'])}", None, (1, 1)]
+        self.name_type_func[3][n+0] = ["Оценка ориентации", "label", None, (1, 1)]
+        self.name_type_func[3][n+1] = ["NAVIGATION_ANGLES", f"check;{int(params['NAVIGATION_ANGLES'])}", None, (1, 1)]
+        self.name_type_func[4][n+0] = ["Разложение сигнала на выходе", "label", None, (1, 1)]
+        self.name_type_func[4][n+1] = ["MULTI_ANTENNA_TAKE", f"check;{int(params['MULTI_ANTENNA_TAKE'])}", None, (1, 1)]
+        self.name_type_func[5][n+0] = ["Разложение сигнала на входе", "label", None, (1, 1)]
+        self.name_type_func[5][n+1] = ["MULTI_ANTENNA_SEND", f"check;{int(params['MULTI_ANTENNA_SEND'])}", None, (1, 1)]
+        self.name_type_func[6][n+0] = ["Навигация (при отладке выключить)", "label", None, (1, 1)]
+        self.name_type_func[6][n+1] = ["IF_NAVIGATION", f"check;{int(params['IF_NAVIGATION'])}", None, (1, 1)]
+        n += 2
+
+        self.name_type_func[0][1] = ["Параметры численного моделирования", "label", None, (1, n - 1)]
+
+        # >>>>>>>>>>>> Автоматическое заполнение сохранений <<<<<<<<<<<<
+        self.name_type_func[0][n+0] = ["Параметры", "edit;Название", None, (1, 2)]
+        self.name_type_func[0][n+2] = ["Сохранить", "button", self.local_save_params, (1, 1)]
+        for i in range(len(self.o.v.config_choose)):
+            self.name_type_func[i+1][n+0] = [data.iloc[i, 0], "label", None, (1, 1)]
+            self.name_type_func[i+1][n+1] = [f"Загрузить", "button", lambda j=i: self.local_load_params(i=j),
+                                                   (1, 1)]
+            self.name_type_func[i+1][n+2] = [f"Удалить", "button", lambda j=i: self.local_remove_params(i=j),
+                                                   (1, 1)]
 
     def local_save_params(self):
         """Сохранение настроенных параметров"""
@@ -228,6 +246,25 @@ class Window(QWidget):
             self.config_choose_n -= 1
         self.close()
         self.initUI()
+
+    def local_save_trajectories(self):
+        text, ok = QInputDialog.getText(self, 'Сохранение траектории', 'Введите название файла:')
+        if ok:
+            save_simulation_trajectories(o=self.o, text=f"{self.o.v.path_sources}trajectories/{text}")
+
+    def local_load_trajectories(self):
+        path = f"{self.o.v.path_sources}trajectories/"
+        text = QFileDialog.getOpenFileName(self, 'Open file', path)[0]
+        if text != "":
+            load_simulation_trajectories(o=self.o, text=path + text.split(path)[1])
+
+    def local_remove_trajectories(self):
+        from os import listdir, remove
+        items = sorted([s for s in listdir(f"{self.o.v.path_sources}trajectories")])
+        if len(items) > 0:
+            text, ok = QInputDialog.getItem(self, "Удаление", "Выберите траекторию для удаления", items, 0, False)
+            if ok:
+                remove(f"{self.o.v.path_sources}trajectories/{text}")
 
     def main_run(self):
         """Функция запуска численного моделирования, выводы результатов

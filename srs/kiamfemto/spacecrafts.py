@@ -51,7 +51,7 @@ def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], if_take: bool 
 # >>>>>>>>>>>> Классы аппаратов <<<<<<<<<<<<
 class Apparatus:
     def __init__(self, v: Variables):
-        """Класс фантомного КА, движущегося по орбите с нулевым разбросом скоростей и положений"""
+        """Пустой класс КА"""
         from dynamics import get_matrices, o_i, get_c_hkw
 
         # Общие параметры
@@ -61,8 +61,8 @@ class Apparatus:
         self.size = [1., 1., 1.]
 
         # Индивидуальные параметры движения
-        self.w_irf = [np.zeros(3) for _ in range(self.n)]  # Убрать потом !!!!!!!!!!!!!!
-        self.w_orf = [np.zeros(3) for _ in range(self.n)]  # Убрать потом !!!!!!!!!!!!!!
+        self.w_irf = [np.zeros(3) for _ in range(self.n)]
+        self.w_orf = [np.zeros(3) for _ in range(self.n)]
         self.q = [np.array([1, 0, 0, 0]) for _ in range(self.n)]
         self.r_orf = [np.zeros(3) for _ in range(self.n)]
         self.v_orf = [np.zeros(3) for _ in range(self.n)]
@@ -89,6 +89,7 @@ class FemtoSat(Apparatus):
     def __init__(self, v: Variables):
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
+        super().__init__(v)
         from dynamics import get_matrices, o_i, get_c_hkw
         if v.CHIPSAT_AMOUNT < 0:
             raise ValueError(f"Количество чипсатов {v.CHIPSAT_AMOUNT} должно быть не меньше 0!")
@@ -159,6 +160,7 @@ class CubeSat(Apparatus):
     """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.
     Все величны представлены в СИ."""
     def __init__(self, v: Variables):
+        super().__init__(v)
         from dynamics import get_matrices, o_i, get_c_hkw
         if v.CUBESAT_AMOUNT < 1:
             raise ValueError(f"Количество чипсатов {v.CUBESAT_AMOUNT} должно быть не меньше 1!")

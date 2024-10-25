@@ -31,7 +31,7 @@ class Variables:
 
     def load_params(self, i: int = 0):
         """Подгрузка параметров из файла config_choose.csv"""
-        self.config_choose = pd.read_csv(self.path, sep=";")
+        self.config_choose = pd.read_csv(self.path_config_data, sep=";")
         self.config_choose = self.config_choose.astype(get_types_dict())
 
         self.set_saving_params(self.config_choose.iloc[i, :].to_list())
@@ -43,10 +43,10 @@ class Variables:
         if add_now_params:  # Нужно для специфики self.remove_params()
             self.config_choose.loc[len(self.config_choose), :] = self.get_saving_params()
         self.config_choose = self.config_choose.astype(get_types_dict())  # Костыль на типы данных
-        self.config_choose.to_csv(self.path, sep=";")
-        with open(self.path, 'r') as f:  # Костыль на то, чтобы убрать ";"
+        self.config_choose.to_csv(self.path_config_data, sep=";")
+        with open(self.path_config_data, 'r') as f:  # Костыль на то, чтобы убрать ";"
             s = f.read()
-        with open(self.path, 'w') as f:
+        with open(self.path_config_data, 'w') as f:
             f.write(s[1:])
         my_print(f"Параметры сохранены!")
         self.load_params(i=len(self.config_choose)-1)
@@ -63,7 +63,8 @@ class Variables:
         from spacecrafts import Anchor
 
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
-        self.path = "kiamfemto/data/config_choose.csv"
+        self.path_sources = "kiamfemto/data/"
+        self.path_config_data = self.path_sources + "config_choose.csv"
         self.DESCRIPTION = "По умолчанию"
 
         self.dT = 10.
@@ -101,6 +102,8 @@ class Variables:
         self.CHIPSAT_MODEL_N = 0
         self.ATMOSPHERE_MODEL_N = 0  # Стояло 3 (20 сен)
 
+        self.dTs = ["0.1", "1.0", "10.0"]
+        self.Ts = ["1000.0", "10000.0", "100000.0"]
         self.CUBESAT_MODELS = ['1U', '1.5U', '2U', '3U', '6U', '12U']
         self.CHIPSAT_MODELS = ['KickSat', 'Трисат']
         self.GAIN_MODES = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid']
@@ -199,7 +202,7 @@ class Objects:
         n = int(t // self.v.dT)
         flag = [0., 0.]
         frames = []
-        for i in range(n):
+        for i in range(self.p.iter, n + self.p.iter):
             # Отображение в вывод
             if i == 1 and self.v.IF_ANY_PRINT:
                 # Вывод основных параметров

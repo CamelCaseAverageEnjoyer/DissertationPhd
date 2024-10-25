@@ -2,6 +2,7 @@
 from interface import *
 
 if __name__ == '__main__':
+    # Инициализация объектов
     o = Objects(v=Variables())
 
     # Интерфейс

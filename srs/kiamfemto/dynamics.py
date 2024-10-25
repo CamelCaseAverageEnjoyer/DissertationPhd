@@ -187,7 +187,7 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float
 
 
 # >>>>>>>>>>>> Перевод между системами координат <<<<<<<<<<<<
-def get_matrices(v: Variables, t: float, obj: Apparatus, n: int, first_init: bool = False):  # Union[CubeSat, FemtoSat, Anchor]
+def get_matrices(v: Variables, t: float, obj: Apparatus, n: int, first_init: bool = False):
     """Функция возвращает матрицы поворота.
     Инициализируется в dymancis.py, используется в spacecrafts, dynamics"""
     E = t * v.W_ORB  # Эксцентрическая аномалия
@@ -247,7 +247,7 @@ def o_i(a, v: Variables, U: np.ndarray, vec_type: str):
 # >>>>>>>>>>>> Класс динамики кубсатов и чипсатов <<<<<<<<<<<<
 class PhysicModel:
     def __init__(self, f: FemtoSat, c: CubeSat, a: Anchor, v: Variables):
-        self.show_rate = 1  # line_difference в my_plot, line 63
+        from pandas import DataFrame
 
         # Неизменные параметры
         self.t = 0.
@@ -256,25 +256,49 @@ class PhysicModel:
         self.c = c
         self.f = f
         self.a = a
+        self.spacecrafts_cd = [self.c, self.f]
+        self.spacecrafts_all = [self.a, self.c, self.f]
         self.time_begin = datetime.now()
 
-        self.to_delete = 0.
+        self.to_delete = 0.  # Что ты за попугай?
+        self.show_rate = 1  # line_difference в my_plot, line 63
 
         # Инициализация фильтра
         self.k = KalmanFilter(f=f, c=c, p=self)
 
         # Инициализация траектории kiam-astro
-        self.jd0 = kiam.juliandate(2024, 1, 1, 0, 0, 0)  # (год, месяц, день, чч, мм, сс)
-        self.tr = [[Trajectory(initial_state=np.zeros(6), initial_time=0, initial_jd=self.jd0, variables='rv',
-                               system='gcrs', units_name='earth') for _ in range(obj.n)]
-                   for obj in [self.c, self.f, self.a]]
-        for j in range(3):
-            obj = [self.c, self.f, self.a][j]
+        if 'kiamastro' in self.v.SOLVER:
+            self.jd0 = kiam.juliandate(2024, 1, 1, 0, 0, 0)  # (год, месяц, день, чч, мм, сс)
+            self.tr = [[Trajectory(initial_state=np.zeros(6), initial_time=0, initial_jd=self.jd0, variables='rv',
+                                   system='gcrs', units_name='earth') for _ in range(obj.n)]
+                       for obj in [self.c, self.f, self.a]]
+            for j in range(3):
+                obj = [self.c, self.f, self.a][j]
+                for i in range(obj.n):
+                    s0 = np.append(obj.r_irf[i] / (kiam.units('earth')['DistUnit'] * 1e3),
+                                   obj.v_irf[i] / (kiam.units('earth')['VelUnit'] * 1e3))
+                    self.tr[j][i] = Trajectory(initial_state=s0, initial_time=0, initial_jd=self.jd0, variables='rv',
+                                               system='gcrs', units_name='earth')
+
+        # Запись параметров
+        self.record = DataFrame()
+        self.do_report()  # Продублировать в конце time_step()
+        self.record = self.record.astype({'i': 'int32', 'FemtoSat n': 'int32', 'CubeSat n': 'int32'})
+
+    def do_report(self):
+        i = self.iter
+        d = self.record
+        d.loc[i, f'i'] = self.iter
+        d.loc[i, f't'] = self.t
+        for obj in self.spacecrafts_cd:
+            d.loc[i, f'{obj.name} n'] = obj.n
             for i in range(obj.n):
-                s0 = np.append(obj.r_irf[i] / (kiam.units('earth')['DistUnit'] * 1e3),
-                               obj.v_irf[i] / (kiam.units('earth')['VelUnit'] * 1e3))
-                self.tr[j][i] = Trajectory(initial_state=s0, initial_time=0, initial_jd=self.jd0, variables='rv',
-                                           system='gcrs', units_name='earth')
+                for v in ['r', 'q', 'v', 'w']:
+                    tmp = {'r': [obj.r_irf[i], obj.r_orf[i]], 'v': [obj.v_irf[i], obj.v_orf[i]],
+                           'q': [obj.q[i][1:4]], 'w': [obj.w_irf[i], obj.w_orf[i]]}[v]
+                    for i_1, frame in enumerate(['orf', 'irf'] if v != 'q' else ['irf']):  # Кватернионы только в ИСК
+                        for i_2, c in enumerate('xyz'):
+                            d.loc[i, f'{obj.name} {v} {c} {frame} {i}'] = tmp[i_1][i_2]
 
     # Шаг по времени
     def time_step(self):
@@ -283,7 +307,7 @@ class PhysicModel:
 
         # Движение системы
         if 'rk4' in self.v.SOLVER:
-            for obj in [self.a, self.c, self.f]:
+            for obj in self.spacecrafts_all:
                 for i in range(obj.n):
                     # Вращательное движение
                     obj.q[i], obj.w_irf[i] = rk4_attitude(v_=self.v, obj=obj, i=i)
@@ -302,8 +326,7 @@ class PhysicModel:
         elif 'kiamastro' in self.v.SOLVER:
             # Расчёт
             if self.iter == 1:
-                for i in range(3):
-                    obj = [self.a, self.c, self.f][i]
+                for i, obj in enumerate(self.spacecrafts_all):
                     for j in range(obj.n):
                         self.tr[i][j].set_model(variables='rv', model_type='nbp', primary='earth',
                                                 sources_list=[] + ['j2'] if self.v.DYNAMIC_MODEL['j2'] else [] +
@@ -320,8 +343,7 @@ class PhysicModel:
                     self.tr[1][0].show(variables='3d', language='rus')
 
             # Запись положений КА и расчёт вращательного движения КА
-            for i in range(3):
-                obj = [self.a, self.c, self.f][i]
+            for i, obj in enumerate(self.spacecrafts_all):
                 for j in range(obj.n):
                     # Вращательное движение
                     obj.q[j], obj.w_orf[j] = rk4_attitude(v_=self.v, obj=obj, i=j)
@@ -338,7 +360,7 @@ class PhysicModel:
                     obj.w_orf[j] = i_o(v=self.v, a=obj.w_irf[j], U=U, vec_type='w')
                     self.to_delete = tr_time
         else:
-            raise ValueError(f"Поменяй солвер! SOLVER={self.v.SOLVER}")
+            raise ValueError(f"Поменяй солвер! SOLVER={self.v.SOLVER}, должен быть среди {self.v.SOLVERS}")
 
         # Комплекс первичной информации
         self.v.MEASURES_VECTOR = []
@@ -350,7 +372,8 @@ class PhysicModel:
         guidance(v=self.v, c=self.c, f=self.f, earth_turn=self.t * self.v.W_ORB / 2 / np.pi)
 
         # Запись параметров
-        for obj in [self.a, self.c, self.f]:
+        self.do_report()
+        for obj in self.spacecrafts_all:
             for i in range(obj.n):
                 obj.line_orf[i] += [obj.r_orf[i][0], obj.r_orf[i][1], obj.r_orf[i][2]]
                 obj.line_irf[i] += [obj.r_irf[i][0], obj.r_irf[i][1], obj.r_irf[i][2]]
