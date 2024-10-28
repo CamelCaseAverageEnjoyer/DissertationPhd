@@ -69,9 +69,10 @@ class Apparatus:
         U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=0, first_init=True)
         self.r_irf = [o_i(v=v, a=self.r_orf[0], U=U, vec_type='r')]
         self.v_irf = [o_i(v=v, a=self.v_orf[0], U=U, vec_type='v')]
-        self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
-            self.spin_difference = [[[] for _ in range(self.n)] for _ in range(6)]
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
+
+        # Индивидуальные параметры режимов работы
+        self.operating_mode = [v.OPERATING_MODES[0] for _ in range(self.n)]
 
         # Индивидуальные параметры измерений
         prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i][1:4]), self.v_orf[i]), self.w_irf[i])
@@ -95,34 +96,34 @@ class FemtoSat(Apparatus):
             raise ValueError(f"Количество чипсатов {v.CHIPSAT_AMOUNT} должно быть не меньше 0!")
 
         # Предопределённые параметры
-        masses = [0.01, 0.1]
-        mass_center_errors = [[0.001, -0.001], [0.005, 0.003]]
-        sizes = [[0.03, 0.03], [0.4, 0.15]]
+        chipsat_property = {'KickSat': {'mass': 0.01,
+                                        'mass_center_error': [0.001, -0.001],
+                                        'dims': [0.03, 0.03]},
+                            '1.Трисат': {'mass': 0.1,
+                                         'mass_center_error': [0.005, 0.003],
+                                         'dims': [0.4, 0.15]}}
 
         # Общие параметры
         self.name = "FemtoSat"
         self.n = v.CHIPSAT_AMOUNT
-        self.model = v.CHIPSAT_MODEL
-        self.model_number = v.CHIPSAT_MODELS.index(self.model)
-        self.mass = masses[self.model_number]
-        self.mass_center_error = mass_center_errors[self.model_number]
-        self.size = sizes[self.model_number]
+        self.gain_mode = v.GAIN_MODEL_F
+        self.mass = chipsat_property[v.CHIPSAT_MODEL]['mass']
+        self.mass_center_error = chipsat_property[v.CHIPSAT_MODEL]['mass_center_error']
+        self.size = chipsat_property[v.CHIPSAT_MODEL]['dims']
         self.power_signal_full = 0.01
         self.length_signal_full = 0.001
-        self.gain_mode = v.GAIN_MODEL_F
+
+        def spread(_i: int):
+            return np.random.uniform(-v.RVW_ChipSat_SPREAD[_i], v.RVW_ChipSat_SPREAD[_i], 3)
 
         # Индивидуальные параметры движения
-        self.r_orf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3) for _ in range(self.n)]
-        self.v_orf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[1], v.RVW_ChipSat_SPREAD[1], 3) for _ in range(self.n)]
-        self.r_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
-        self.v_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
-        self.w_orf = [np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
-        self.w_orf_ = [np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3) for _ in range(self.n)]
-        self.w_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
-        self.w_irf_ = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
+        self.r_orf = [spread(0) for _ in range(self.n)]
+        self.v_orf = [spread(1) for _ in range(self.n)]
+        self.w_orf = [spread(2) for _ in range(self.n)]
+        self.w_orf_ = [spread(2) for _ in range(self.n)]
+        # Инициализируется автоматически
+        self.r_irf, self.v_irf, self.w_irf, self.w_irf_ = [[np.zeros(3) for _ in range(self.n)] for _ in range(4)]
         self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
-        self.line_orf, self.line_irf, self.line_kalman, self.line_difference, self.attitude_difference, \
-            self.spin_difference = [[[] for _ in range(self.n)] for _ in range(6)]
         for i in range(self.n):
             if v.SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
@@ -135,26 +136,30 @@ class FemtoSat(Apparatus):
             self.w_irf_[i] = o_i(a=self.w_orf_[i], v=v, U=U, vec_type='w')
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
-        # Индивидуальные параметры режимов работы
-        self.operating_mode = [v.OPERATING_MODES[0] for _ in range(self.n)]
-        self.operating_modes = [v.CHIPSAT_OPERATING_MODE for _ in range(self.n)]
-
         # Индивидуальные параметры управления
         self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
 
         # Индивидуальные параметры измерений
-        self.signal_power, self.real_dist, self.dist_estimate, self.dist_based_measures = \
-            [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
-        prm_poor = [np.append(
-            np.append(np.append(np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3),
-                                self.q_[i][1:4]), self.w_irf_[i]),
-            np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3)) for i in range(self.n)]
-        prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i][1:4]), self.v_orf[i]), self.w_orf[i])
-                    for i in range(self.n)]
-        start_navigation_tolerance = 1 if v.START_NAVIGATION == v.NAVIGATIONS[0] else v.START_NAVIGATION_TOLERANCE
-        start_navigation_tolerance = 0 if v.START_NAVIGATION == v.NAVIGATIONS[2] else start_navigation_tolerance
-        self.rv_orf_calc = [prm_good[i] * start_navigation_tolerance +
-                            prm_poor[i] * (1 - start_navigation_tolerance) for i in range(self.n)]
+        # self.signal_power, self.real_dist, self.dist_estimate, self.dist_based_measures = \
+        #     [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
+        # prm_poor = [np.append(
+        #     np.append(np.append(np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3),
+        #                         self.q_[i][1:4]), self.w_irf_[i]),
+        #     np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3)) for i in range(self.n)]
+        # prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i][1:4]), self.v_orf[i]), self.w_orf[i])
+        #             for i in range(self.n)]
+        # self.rv_orf_calc = [prm_good[i] * tol +
+        #                     prm_poor[i] * (1 - tol) for i in range(self.n)]
+
+        tol = 1 if v.START_NAVIGATION == v.NAVIGATIONS[0] else v.START_NAVIGATION_TOLERANCE
+        tol = 0 if v.START_NAVIGATION == v.NAVIGATIONS[2] else tol
+
+        # Новый формат
+        self.apriori_params = {'r orf': [self.r_orf[i] * tol + spread(0) * (1 - tol) for i in range(self.n)],
+                               'v orf': [self.v_orf[i] * tol + spread(1) * (1 - tol) for i in range(self.n)],
+                               'w irf': [self.w_irf[i] * tol + self.w_irf_[i] * (1 - tol) for i in range(self.n)],
+                               'q-3 irf': [self.q[i][1:4] * tol + self.q_[i][1:4] * (1 - tol) for i in range(self.n)],
+                               }
 
 class CubeSat(Apparatus):
     """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.
@@ -166,32 +171,41 @@ class CubeSat(Apparatus):
             raise ValueError(f"Количество чипсатов {v.CUBESAT_AMOUNT} должно быть не меньше 1!")
 
         # Предопределённые параметры
-        masses = [2., 3., 4., 6., 12., 24.]
-        mass_center_errors = [[0.02, 0.02, 0.02], [0.02, 0.02, 0.03], [0.02, 0.02, 0.045],
-                              [0.02, 0.02, 0.07], [4.5, 2., 7.], [4.5, 4.5, 7.]]
-        sizes = [[0.1, 0.1, 0.1135], [0.1, 0.1, 0.1702], [0.1, 0.1, 0.227],
-                 [0.1, 0.1, 0.3405], [0.2263, 0.1, 0.366], [0.2263, 0.2263, 0.366]]
+        cubesat_property = {'1U': {'mass': 2.,
+                                   'mass_center_error': [0.02, 0.02, 0.02],
+                                   'dims': [0.1, 0.1, 0.1135]},
+                            '1.5U': {'mass': 3.,
+                                     'mass_center_error': [0.02, 0.02, 0.03],
+                                     'dims': [0.1, 0.1, 0.1702]},
+                            '2U': {'mass': 4.,
+                                   'mass_center_error': [0.02, 0.02, 0.045],
+                                   'dims': [0.1, 0.1, 0.227]},
+                            '3U': {'mass': 6.,
+                                   'mass_center_error': [0.02, 0.02, 0.07],
+                                   'dims': [0.1, 0.1, 0.3405]},
+                            '6U': {'mass': 12.,
+                                   'mass_center_error': [4.5, 2., 7.],
+                                   'dims': [0.2263, 0.1, 0.366]},
+                            '12U': {'mass': 24.,
+                                    'mass_center_error': [4.5, 4.5, 7.],
+                                    'dims': [0.2263, 0.2263, 0.366]}}
 
         # Общие параметры
         self.name = "CubeSat"
         self.n = v.CUBESAT_AMOUNT
-        self.model = v.CUBESAT_MODEL
-        self.model_number = v.CUBESAT_MODELS.index(self.model)
-        self.mass = masses[self.model_number]
-        self.mass_center_error = mass_center_errors[self.model_number]
-        self.r_mass_center = np.array([np.random.uniform(-i, i) for i in self.mass_center_error])
-        self.size = sizes[self.model_number]
         self.gain_mode = v.GAIN_MODEL_C
+        self.mass = cubesat_property[v.CUBESAT_MODEL]['mass']
+        self.size = cubesat_property[v.CUBESAT_MODEL]['dims']
+        self.mass_center_error = cubesat_property[v.CUBESAT_MODEL]['mass_center_error']
+        self.r_mass_center = np.array([np.random.uniform(-i, i) for i in self.mass_center_error])
 
         # Индивидуальные параметры движения
         self.r_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[0], v.RVW_CubeSat_SPREAD[0], 3) for _ in range(self.n)]
         self.v_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[1], v.RVW_CubeSat_SPREAD[1], 3) for _ in range(self.n)]
-        self.r_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
-        self.v_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
         self.w_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[2], v.RVW_CubeSat_SPREAD[2], 3) for _ in range(self.n)]
-        self.w_irf = [np.zeros(3) for _ in range(self.n)]  # Инициализируется ниже
+        # Инициализируется автоматически
+        self.r_irf, self.v_irf, self.w_irf = [[np.zeros(3) for _ in range(self.n)] for _ in range(3)]
         self.q = [np.array([np.random.uniform(-1, 1) for _ in range(4)]) for _ in range(self.n)]
-        self.line_orf, self.line_irf = [[[] for _ in range(self.n)] for _ in range(2)]
         for i in range(self.n):
             if v.SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
@@ -202,17 +216,8 @@ class CubeSat(Apparatus):
             self.w_irf[i] = o_i(a=self.w_orf[i], v=v, U=U, vec_type='w')
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
-        # Индивидуальные параметры режимов работы
-        self.operating_mode = [v.OPERATING_MODES[0] for _ in range(self.n)]
-        self.operating_modes = [v.OPERATING_MODES_CHANGE[0] for _ in range(self.n)]
-
         # Индивидуальные параметры управления
         self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
-
-        # Индивидуальные параметры измерений
-        self.signal_power, self.real_dist, self.dist_estimate, self.dist_based_measures, self.kalm_dist = \
-            [[[[] for _ in range(v.CHIPSAT_AMOUNT)] for _ in range(self.n)] for _ in range(5)]
-        self.z_difference = [[[] for _ in range(v.CHIPSAT_AMOUNT)] for _ in range(self.n)]
 
         # Прорисовка ножек
         self.legs_x = 0.0085

@@ -1,4 +1,3 @@
-"""Ёбаный пиздец блять в каком же я ахуе просто ебааать"""
 from spacecrafts import *
 from data.observability_mapping_partial_derivatives import *
 
@@ -7,63 +6,52 @@ def guidance(c: CubeSat, f: FemtoSat, v: Variables, earth_turn: float) -> None:
     """Функция обновляет для объектов CubeSat и FemtoSat параметры b_env"""
     for obj in [c, f]:
         for i in range(obj.n):
-            if obj.operating_modes[i] == v.OPERATING_MODES_CHANGE[1]:  # Отсутствие аккумулятора на чипсате
-                if earth_turn % 1 < 0.5 and obj.operating_mode[i] == v.OPERATING_MODES[-1]:
-                    obj.operating_mode[i] = v.OPERATING_MODES[0]
-                if earth_turn % 1 > 0.5 and obj.operating_mode[i] != v.OPERATING_MODES[-1]:
-                    obj.operating_mode[i] = v.OPERATING_MODES[-1]
+            pass
+            # if obj.operating_modes[i] == v.OPERATING_MODES_CHANGE[1]:  # Отсутствие аккумулятора на чипсате
+            #     if earth_turn % 1 < 0.5 and obj.operating_mode[i] == v.OPERATING_MODES[-1]:
+            #         obj.operating_mode[i] = v.OPERATING_MODES[0]
+            #     if earth_turn % 1 > 0.5 and obj.operating_mode[i] != v.OPERATING_MODES[-1]:
+            #         obj.operating_mode[i] = v.OPERATING_MODES[-1]
 
 # >>>>>>>>>>>> Navigation <<<<<<<<<<<<
 class KalmanFilter:
+    """Оцениваемые параметры: ['r orf', 'q-3 irf', 'v orf', 'w irf']; согласовано с spacecrafts.py"""
     def __init__(self, f: FemtoSat, c: CubeSat, p: any):
         # Общие параметры
         self.f = f  # Фемтоспутники
         self.c = c  # Кубсаты
         self.p = p  # Динамическая модель
         self.v = p.v
-        self.j = len(f.rv_orf_calc[0]) if self.v.NAVIGATION_ANGLES else 6  # Вектор состояния 1 чипсата
-        self.sequence_under_diagonal = flatten([[[i, j] for i in range(j)] for j in range(self.f.n)])
-        self.sigmas, self.real_sigmas = [[[] for _ in range(self.j * self.f.n)] for _ in range(2)]  # rename -> errors
+        # self.sequence_under_diagonal = flatten([[[i, j] for i in range(j)] for j in range(self.f.n)])  # Удалить?
+
+        self.estimation_params = self.params_dict2vec(d=f.apriori_params, separate_spacecraft=True)
+        self.j = len(self.estimation_params[0])  # Вектор состояния 1 чипсата
 
         # Матрицы фильтра в начальный момент времени
-        if not self.v.NAVIGATION_ANGLES:
-            self.r_orf_estimation = np.array([np.append(f.rv_orf_calc[i][0:3],
-                                                        f.rv_orf_calc[i][6:9]) for i in range(f.n)])
+        w0 = self.v.W_ORB
+        if not self.v.NAVIGATION_ANGLES:  # Вектор состояния содержит только положение и скорость
             self.Phi = np.array([[0, 0, 0, 1, 0, 0],
                                  [0, 0, 0, 0, 1, 0],
                                  [0, 0, 0, 0, 0, 1],
-                                 [0, 0, 0, 0, 0, -2*self.v.W_ORB],
-                                 [0, - self.v.W_ORB**2, 0, 0, 0, 0],
-                                 [0, 0, 3*self.v.W_ORB**2,  2*self.v.W_ORB, 0, 0]]) * self.v.dT + np.eye(6)  # !!!!!!!!!
+                                 [0, 0, 0, 0, 0, -2*w0],
+                                 [0, - w0**2, 0, 0, 0, 0],
+                                 [0, 0, 3*w0**2,  2*w0, 0, 0]]) * self.v.dT + np.eye(self.j)
             self.D = np.vstack([np.zeros((3, 3)), np.eye(3)])
             self.P = [np.diag([self.v.KALMAN_COEF['p'][0]] * 3 + [self.v.KALMAN_COEF['p'][1]] * 3) for _ in range(f.n)]
             self.Q = np.diag([self.v.KALMAN_COEF['q'][0]] * 3)
-        else:  # Вектор состояния содержит угловые переменные и скорости
-            self.r_orf_estimation = np.array(f.rv_orf_calc)
+        else:  # Вектор состояния содержит ещё и угловые переменные
             self.Phi = np.array([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
                                  [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
                                  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 1/2, 0, 0],
+                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1/2, 0],
+                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1/2],
+                                 [0, 0, 0, 0, 0, 0, 0, 0, -2*w0, 0, 0, 0],
+                                 [0, -w0**2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                 [0, 0, 3*w0**2, 0, 0, 0, 2*w0, 0, 0, 0, 0, 0],
                                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 0, 0, 0, -2*self.v.W_ORB, 0, 0, 0],
-                                 [0, -self.v.W_ORB**2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                 [0, 0, 3*self.v.W_ORB**2, 0, 0, 0, 2*self.v.W_ORB, 0, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]) * self.v.dT + np.eye(self.j) + \
-                       np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 1 / 2, 0, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 / 2, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 / 2],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]) * self.v.dT + np.eye(self.j)
             self.P = [np.diag([self.v.KALMAN_COEF['p'][0]] * 3 + [self.v.KALMAN_COEF['p'][2]] * 3 +
                               [self.v.KALMAN_COEF['p'][1]] * 3 + [self.v.KALMAN_COEF['p'][3]] * 3) for _ in range(f.n)]
             self.D = np.vstack([np.zeros((6, 6)), np.eye(6)])
@@ -87,10 +75,46 @@ class KalmanFilter:
         if self.v.IF_ANY_PRINT:
             my_print(f"Матрицы Ф:{self.Phi.shape}, Q:{self.Q.shape}, P:{self.P.shape}, D:{self.D.shape}", color='g')
 
+    def params_vec2dict(self, params: list = None, j: int = None, separate_spacecraft: bool = True):
+        p = self.estimation_params if params is None else params
+        j = self.j if j is None else j
+        if self.v.NAVIGATION_ANGLES:
+            if separate_spacecraft:
+                r_orf = [p[i][0: 3] for i in range(self.f.n)]
+                q_irf = [p[i][3: 6] for i in range(self.f.n)]
+                v_orf = [p[i][6: 9] for i in range(self.f.n)]
+                w_irf = [p[i][9: 12] for i in range(self.f.n)]
+            else:
+                r_orf = [p[i*j + 0: i*j + 3] for i in range(self.f.n)]
+                q_irf = [p[i*j + 3: i*j + 6] for i in range(self.f.n)]
+                v_orf = [p[i*j + 6: i*j + 9] for i in range(self.f.n)]
+                w_irf = [p[i*j + 9: i*j + 12] for i in range(self.f.n)]
+        else:
+            if separate_spacecraft:
+                r_orf = [p[i][0: 3] for i in range(self.f.n)]
+                v_orf = [p[i][3: 6] for i in range(self.f.n)]
+            else:
+                r_orf = [p[i*j + 0: i*j + 3] for i in range(self.f.n)]
+                v_orf = [p[i*j + 3: i*j + 6] for i in range(self.f.n)]
+            q_irf, w_irf = [[None for _ in range(self.f.n)] for _ in range(2)]
+        return {'r orf': r_orf, 'v orf': v_orf, 'w irf': w_irf, 'q-3 irf': q_irf}
+
+    def params_dict2vec(self, d: dict, separate_spacecraft: bool = True):
+        variables = ['r orf', 'q-3 irf', 'v orf', 'w irf'] if self.v.NAVIGATION_ANGLES else ['r orf', 'v orf']
+        if separate_spacecraft:  # Вроде как, нужен только этот вариант
+            return [np.array([d[v][i][j] for v in variables for j in range(3)]) for i in range(self.f.n)]
+        else:
+            return np.array([d[v][i][j] for i in range(self.f.n) for v in variables for j in range(3)])
+
+    def get_estimation(self, i_f: int, v: str):
+        d = self.params_vec2dict()
+        return d[v][i_f]
+
     def calc(self) -> None:  # Считается, что NAVIGATION_BY_ALL = True
         from primary_info import measure_antennas_power
         from dynamics import rk4_translate, rk4_attitude
 
+        # >>>>>>>>>>>> Предварительный расчёт <<<<<<<<<<<<
         c_take_len = len(get_gain(v=self.v, obj=self.c, r=np.ones(3), if_take=True))
         c_send_len = len(get_gain(v=self.v, obj=self.c, r=np.ones(3), if_send=True))
         f_take_len = len(get_gain(v=self.v, obj=self.f, r=np.ones(3), if_take=True))
@@ -102,23 +126,28 @@ class KalmanFilter:
                  color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
 
         # >>>>>>>>>>>> Этап экстраполяции <<<<<<<<<<<<
+        d = self.params_vec2dict()
+
         # Моделирование орбитального движения на dT -> вектор состояния x_m
-        if self.v.DYNAMIC_MODEL['aero drag']:  # ПЕРЕДЕЛАТЬ ВЕСЬ РАСЧЁТ (вроде всё хорошо, примечание можно убрать)
-            rv_m = [rk4_translate(v_=self.v, obj=self.f, i=i, r=self.r_orf_estimation[i][0:3],
-                                  v=self.r_orf_estimation[i][6:9] if self.v.NAVIGATION_ANGLES else
-                                  self.r_orf_estimation[i][3:6]) for i in range(self.f.n)]
-            tmp = int(self.v.NAVIGATION_ANGLES)
-            x_m = np.array(flatten([np.append(np.append(np.append(rv_m[i][0], [0]*4*tmp), rv_m[i][1]), [0]*3*tmp)
-                                    for i in range(self.f.n)]))
+        if np.any(self.v.DYNAMIC_MODEL.values()):  # Если J2 или aero drag
+            rv_m = [rk4_translate(v_=self.v, obj=self.f, i=i, r=d['r orf'][i], v=d['v orf'][i])
+                    for i in range(self.f.n)]
+            x_m = self.params_dict2vec(d={'r orf': [rv_m[i][0] for i in range(self.f.n)],
+                                          'v orf': [rv_m[i][1] for i in range(self.f.n)],
+                                          'q-3 irf': np.zeros(3), 'w irf': np.zeros(3)}, separate_spacecraft=False)
+            # tmp = int(self.v.NAVIGATION_ANGLES)
+            # x_m = np.array(flatten([np.append(np.append(np.append(rv_m[i][0], [0]*4*tmp), rv_m[i][1]), [0]*3*tmp)
+            #                         for i in range(self.f.n)]))
         else:
-            x_m = np.array(self.Phi @ np.array(flatten(self.r_orf_estimation)))[0]  # flatten -> [1..j] + ... (f.n раз)
+            x_m = np.array(self.Phi @ np.array(flatten(self.estimation_params)))[0]
 
         # Моделирование углового движения на dT -> вектор состояния x_m
         if self.v.NAVIGATION_ANGLES:
+            tmp = self.params_vec2dict(x_m)
             for i in range(self.f.n):
-                qw_m = rk4_attitude(v_=self.v, obj=self.f, i=i,
-                                    q=self.r_orf_estimation[i][3:6], w=self.r_orf_estimation[i][9:12])
-                x_m[i*self.j + 3:i*self.j + 6], x_m[i*self.j + 9:i*self.j + 12] = (qw_m[0], qw_m[1])
+                tmp['q-3 irf'][i], tmp['w irf'][i] = rk4_attitude(v_=self.v, obj=self.f, i=i,
+                                                                  q=d['q-3 irf'][i], w=d['w irf'][i])
+            x_m = self.params_dict2vec(tmp)
 
         # Измерения с поправкой на угловой коэффициент усиления G (signal_rate)
         dr_cf, dr_ff, notes = measure_antennas_power(c=self.c, f=self.f, v=self.v, get_ready_measurements=True)
@@ -184,7 +213,7 @@ class KalmanFilter:
             if self.v.SHAMANISM["KalmanPositionLimit"][0] and \
                     np.linalg.norm(tmp[0:3]) > self.v.SHAMANISM["KalmanPositionLimit"][1]:
                 tmp[0:3] = tmp[0:3] / np.linalg.norm(tmp[0:3]) * self.v.SHAMANISM["KalmanPositionLimit"][1]
-            self.r_orf_estimation[i] = tmp
+            self.estimation_params[i] = tmp
 
         # Запись и отображение
         if self.p.iter == 1:

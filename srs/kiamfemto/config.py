@@ -73,7 +73,7 @@ class Variables:
         self.CHIPSAT_AMOUNT = 1
         self.DYNAMIC_MODEL = {'aero drag': False,
                               'j2': False}
-        self.NAVIGATION_BY_ALL = True
+        self.NAVIGATION_BY_ALL = True  # УДАЛИТЬ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         self.NAVIGATION_ANGLES = False  # Содержит ли искомый вектор состояния кватернионы и угловые скорости
         self.MULTI_ANTENNA_TAKE = False  # Разделяет ли КА приходящий сигнал на составляющие
         self.MULTI_ANTENNA_SEND = False  # Разделяет ли КА исходящий сигнал на составляющие
@@ -97,7 +97,6 @@ class Variables:
         self.GAIN_MODEL_C_N = 0
         self.GAIN_MODEL_F_N = 0
         self.SOLVER_N = 0  # Везде проверяется на hkw -> проверки на rk4. Может изменить?
-        self.CHIPSAT_OPERATING_MODE_N = 0
         self.CUBESAT_MODEL_N = 0
         self.CHIPSAT_MODEL_N = 0
         self.ATMOSPHERE_MODEL_N = 0  # Стояло 3 (20 сен)
@@ -110,7 +109,7 @@ class Variables:
         self.N_ANTENNAS = {'isotropic': 1, '1 antenna': 1, '2 antennas': 2, '3 antennas': 3, 'ellipsoid': 1}
         self.NAVIGATIONS = ['perfect', 'near', 'random']
         self.SOLVERS = ['rk4 hkw', 'kiamastro']
-        self.OPERATING_MODES = ['free_flying', 'swarm_stabilize', 'lost']
+        self.OPERATING_MODES = ['free_flying', 'swarm_stabilize', 'lost']  # Пока что нигде не используется
         self.OPERATING_MODES_CHANGE = ['const', 'while_sun_visible']
         self.MY_COLORMAPS = ['cool', 'winter', 'summer', 'spring', 'gray', 'bone''autumn']
         self.ATMOSPHERE_MODELS = ['NASA', 'ПНБО', 'COESA62', 'COESA76']
@@ -123,7 +122,6 @@ class Variables:
         self.GAIN_MODEL_C = self.GAIN_MODES[self.GAIN_MODEL_C_N]
         self.GAIN_MODEL_F = self.GAIN_MODES[self.GAIN_MODEL_F_N]
         self.SOLVER = self.SOLVERS[self.SOLVER_N]
-        self.CHIPSAT_OPERATING_MODE = self.OPERATING_MODES_CHANGE[self.CHIPSAT_OPERATING_MODE_N]
         self.CUBESAT_MODEL = self.CUBESAT_MODELS[self.CUBESAT_MODEL_N]
         self.CHIPSAT_MODEL = self.CHIPSAT_MODELS[self.CHIPSAT_MODEL_N]
         self.ATMOSPHERE_MODEL = self.ATMOSPHERE_MODELS[self.ATMOSPHERE_MODEL_N]
@@ -179,15 +177,20 @@ class Variables:
 class Objects:
     def __init__(self, v: Variables):
         """Класс объединяет следующие другие классы: CubeSat, FemtoSat, PhysicModel"""
-        from dynamics import PhysicModel
-        from spacecrafts import CubeSat, FemtoSat
 
         # Классы
         self.v = v
-        self.a = v.ANCHOR
-        self.c = CubeSat(v=v)
-        self.f = FemtoSat(v=v)
-        self.p = PhysicModel(c=self.c, f=self.f, a=self.a, v=v)
+        self.a, self.c, self.f, self.p = None, None, None, None
+        self.init_classes()
+
+    def init_classes(self):
+        from dynamics import PhysicModel
+        from spacecrafts import CubeSat, FemtoSat
+        self.a = self.v.ANCHOR
+        self.c = CubeSat(v=self.v)
+        self.f = FemtoSat(v=self.v)
+        self.p = PhysicModel(c=self.c, f=self.f, a=self.a, v=self.v)
+
 
     def time_message(self, t):
         return f"Оборотов вокруг Земли: {round(t / (2 * numpy.pi / self.v.W_ORB), 2)}    " \
@@ -197,6 +200,10 @@ class Objects:
         from cosmetic import real_workload_time, my_print
         from my_plot import plot_all
         from datetime import datetime
+
+        # Инициализация заново!
+        my_print(f"Повторная инициализация...", color='y')
+        self.init_classes()
 
         my_print(self.time_message(t), color='b', if_print=self.v.IF_ANY_PRINT)
         n = int(t // self.v.dT)
