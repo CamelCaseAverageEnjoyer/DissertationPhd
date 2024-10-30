@@ -3,3 +3,5 @@ DESCRIPTION;dT;TIME;CUBESAT_AMOUNT;CHIPSAT_AMOUNT;DYNAMIC_MODEL_aero;DYNAMIC_MOD
 1;4 Кубсата;10.0;10000.0;4;1;False;False;True;False;False;False;1;0;0;True;0;0;1e-09;1e-07;0.1
 2;4 Кубсата | Ориентация | Разложение;1.0;1000.0;4;1;False;False;True;True;True;True;1;2;2;True;0;0;1e-09;1e-07;0.1
 3;1 Кубсат | Ориентация | Разложение;1.0;1000.0;1;1;False;False;True;True;True;True;1;2;2;True;0;0;1e-09;1e-07;0.1
+4;Название 1;1.0;1000.0;1;1;False;False;True;True;True;True;1;1;1;True;0;0;1e-08;1e-08;0.01
+5;Название 2;1.0;100.0;1;1;False;False;True;True;True;True;1;1;1;True;0;0;1e-08;1e-08;0.01

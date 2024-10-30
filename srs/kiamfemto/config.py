@@ -107,7 +107,7 @@ class Variables:
         self.ATMOSPHERE_MODEL_N = 0  # Стояло 3 (20 сен)
 
         self.dTs = ["0.1", "1.0", "10.0"]
-        self.Ts = ["1000.0", "10000.0", "100000.0"]
+        self.Ts = ["100.0", "1000.0", "10000.0", "100000.0"]
         self.CUBESAT_MODELS = ['1U', '1.5U', '2U', '3U', '6U', '12U']
         self.CHIPSAT_MODELS = ['KickSat', 'Трисат']
         self.GAIN_MODES = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid']
@@ -285,9 +285,9 @@ def plot_model_gain(n: int = 20):
                 ax.plot_surface(X, Y, Z, cmap=o.v.MY_COLORMAPS[k])
                 max_g = max(max_g, numpy.max(g.flatten()))
 
-            if obj.name == "FemtoSat":
-                max_g = max(max_g, 2 * numpy.max(o.f.size))
-                show_chipsat(o=o, j=0, reference_frame="BRF", return_go=False, ax=ax, clr=None, opacity=None)
+            # if obj.name == "FemtoSat":
+            #     max_g = max(max_g, 2 * numpy.max(o.f.size))
+            #     show_chipsat(o=o, j=0, reference_frame="BRF", return_go=False, ax=ax, clr=None, opacity=None)
 
             ax.set_xlim(-max_g, max_g)
             ax.set_ylim(-max_g, max_g)

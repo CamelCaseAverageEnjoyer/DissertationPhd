@@ -44,7 +44,7 @@ def plot_signals(o):  # НЕ ПРОВЕРЕНО !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
-    fig, ax = plt.subplots(2, 2 if o.v.NAVIGATION_ANGLES else 1, figsize=(15 if o.v.NAVIGATION_ANGLES else 8, 10))
+    fig, ax = plt.subplots(3, 2 if o.v.NAVIGATION_ANGLES else 1, figsize=(20 if o.v.NAVIGATION_ANGLES else 8, 10))
     axes = ax[0] if o.v.NAVIGATION_ANGLES else ax
     fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
 
@@ -81,21 +81,38 @@ def plot_distance(o):
     axes[1].legend(fontsize=CAPTION_SIZE)
     axes[1].grid(True)
 
+    # d.loc[i_t, f'{obj.name} RealSpin {c} {i_n}'] = w_orf[i_r]
+    #  d.loc[i_t, f'{obj.name} KalmanSpinEstimation {c} {i_n}'] = w_orf_estimation[i_r]
+
+    # d.loc[i_t, f'{obj.name} RealQuat {c} {i_n}'] = q_irf[i_r]
+    # d.loc[i_t, f'{obj.name} KalmanQuatEstimation {c} {i_n}'] = q_irf_estimation[i_r]
+
     if o.v.NAVIGATION_ANGLES:
         for i_f in range(o.f.n):
-            labels_q = ["ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]
-            labels_w = ["Δωˣ", "Δωʸ", "Δωᶻ"]
+            labels_q = ["Λˣ", "Λʸ", "Λᶻ"]
+            labels_w = ["ωˣ", "ωʸ", "ωᶻ"]
+            labels_dq = ["ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]
+            labels_dw = ["Δωˣ", "Δωʸ", "Δωᶻ"]
             for j, c in enumerate('xyz'):
                 y1 = o.p.record[f'{o.f.name} KalmanQuatError {c} {i_f}']
                 y2 = o.p.record[f'{o.f.name} KalmanSpinError {c} {i_f}']
-                ax[1][0].plot(x, y1, c=o.v.MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
-                ax[1][1].plot(x, y2, c=o.v.MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
-        ax[1][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
-        ax[1][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
-        for j in range(2):
-            ax[1][j].legend(fontsize=CAPTION_SIZE)
-            ax[1][j].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-            ax[1][j].grid(True)
+                y3r = o.p.record[f'{o.f.name} RealQuat {c} {i_f}']
+                y3e = o.p.record[f'{o.f.name} KalmanQuatEstimation {c} {i_f}']
+                y4r = o.p.record[f'{o.f.name} RealSpin {c} {i_f}']
+                y4e = o.p.record[f'{o.f.name} KalmanSpinEstimation {c} {i_f}']
+                ax[1][0].plot(x, y1, c=o.v.MY_COLORS[j+3], label=labels_dq[j] if i_f == 0 else None)
+                ax[1][1].plot(x, y2, c=o.v.MY_COLORS[j+3], label=labels_dw[j] if i_f == 0 else None)
+                ax[2][0].plot(x, y3r, label=labels_q[j] + "-real" if i_f == 0 else None)
+                # ax[2][0].plot(x, y3e, c="peru", label=labels_q[j] + "-est" if i_f == 0 else None)
+                ax[2][1].plot(x, y4r, label=labels_w[j] + "-real" if i_f == 0 else None)
+                # ax[2][1].plot(x, y4e, c="peru", label=labels_w[j] + "-est" if i_f == 0 else None)
+        for ii in [1, 2]:
+            ax[ii][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
+            ax[ii][1].set_ylabel(f"Компоненты ω", fontsize=CAPTION_SIZE)
+            for j in range(2):
+                ax[ii][j].legend(fontsize=CAPTION_SIZE)
+                ax[ii][j].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+                ax[ii][j].grid(True)
     plt.show()
 
 

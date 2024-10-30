@@ -140,18 +140,6 @@ class FemtoSat(Apparatus):
         # Индивидуальные параметры управления
         self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
 
-        # Индивидуальные параметры измерений
-        # self.signal_power, self.real_dist, self.dist_estimate, self.dist_based_measures = \
-        #     [[[[] for _ in range(self.n)] for _ in range(self.n)] for _ in range(4)]
-        # prm_poor = [np.append(
-        #     np.append(np.append(np.random.uniform(-v.RVW_ChipSat_SPREAD[0], v.RVW_ChipSat_SPREAD[0], 3),
-        #                         self.q_[i][1:4]), self.w_irf_[i]),
-        #     np.random.uniform(-v.RVW_ChipSat_SPREAD[2], v.RVW_ChipSat_SPREAD[2], 3)) for i in range(self.n)]
-        # prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i][1:4]), self.v_orf[i]), self.w_orf[i])
-        #             for i in range(self.n)]
-        # self.rv_orf_calc = [prm_good[i] * tol +
-        #                     prm_poor[i] * (1 - tol) for i in range(self.n)]
-
         tol = 1 if v.START_NAVIGATION == v.NAVIGATIONS[0] else v.START_NAVIGATION_TOLERANCE
         tol = 0 if v.START_NAVIGATION == v.NAVIGATIONS[2] else tol
 

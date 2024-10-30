@@ -170,9 +170,10 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], t: float, i: int,
 
     def lw_right_part(qw_, e_):
         q_, w_ = qw_[0:4], qw_[4:7]
-        dq = 1 / 2 * q_dot([0, w_[0], w_[1], w_[2]], q_)
+        dq = 1 / 2 * q_dot(q_, [0, w_[0], w_[1], w_[2]])
         # J = A.T @ obj.J @ A
-        dw = - (np.linalg.inv(obj.J) @ (my_cross(w_, obj.J @ w_)))  # + e_
+        J = obj.J
+        dw = - (np.linalg.inv(J) @ (my_cross(w_, J @ w_)))  # + e_
         return np.append(dq, dw)
     q = obj.q[i] if q is None else q
     w = obj.w_irf[i] if w is None else w
@@ -186,7 +187,8 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], t: float, i: int,
     k3 = lw_right_part(qw + k2 * dt / 2, e)
     k4 = lw_right_part(qw + k3 * dt, e)
     qw = dt / 6 * (k1 + 2*k2 + 2*k3 + k4)
-    q_anw = q_dot(q4, qw[0:4])
+    # q_anw = q_dot(qw[0:4]/np.linalg.norm(qw[0:4]), q4)
+    q_anw = q4 + qw[0:4]
     q_anw /= np.linalg.norm(q_anw)
     return q_anw[4 - a:4], qw[a:a + 3] + w
 
@@ -376,19 +378,23 @@ class PhysicModel:
             for i_n in range(obj.n):
                 if obj.operating_mode[i_n] != "lost":  # Иначе заполняется Null (в plot в self.v.NO_LINE_FLAG)
                     r_orf_estimation = self.k.get_estimation(i_f=i_n, v='r orf')
-                    w_orf_estimation = self.k.get_estimation(i_f=i_n, v='w irf')
+                    w_irf_estimation = self.k.get_estimation(i_f=i_n, v='w irf')
                     q_irf_estimation = self.k.get_estimation(i_f=i_n, v='q-3 irf')
                     r_orf = self.f.r_orf[i_n]
-                    w_orf = self.f.w_orf[i_n]
+                    w_irf = self.f.w_irf[i_n]
                     q_irf = self.f.q[i_n][1:4]
                     d.loc[i_t, f'{obj.name} KalmanPosEstimation r {i_n}'] = np.linalg.norm(r_orf_estimation)
                     d.loc[i_t, f'{obj.name} KalmanPosError r {i_n}'] = np.linalg.norm(r_orf_estimation - r_orf)
                     if self.v.NAVIGATION_ANGLES:
-                        d.loc[i_t, f'{obj.name} KalmanSpinError w {i_n}'] = np.linalg.norm(w_orf_estimation - w_orf)
+                        d.loc[i_t, f'{obj.name} KalmanSpinError w {i_n}'] = np.linalg.norm(w_irf_estimation - w_irf)
                         d.loc[i_t, f'{obj.name} KalmanQuatError q {i_n}'] = np.linalg.norm(q_irf_estimation - q_irf)
                     for i_r, c in enumerate('xyz'):
                         d.loc[i_t, f'{obj.name} KalmanPosEstimation {c} {i_n}'] = r_orf_estimation[i_r]
                         d.loc[i_t, f'{obj.name} KalmanPosError {c} {i_n}'] = r_orf_estimation[i_r] - r_orf[i_r]
                         if self.v.NAVIGATION_ANGLES:
-                            d.loc[i_t, f'{obj.name} KalmanSpinError {c} {i_n}'] = w_orf_estimation[i_r] - w_orf[i_r]
+                            d.loc[i_t, f'{obj.name} RealSpin {c} {i_n}'] = w_irf[i_r]
+                            d.loc[i_t, f'{obj.name} KalmanSpinEstimation {c} {i_n}'] = w_irf_estimation[i_r]
+                            d.loc[i_t, f'{obj.name} KalmanSpinError {c} {i_n}'] = w_irf_estimation[i_r] - w_irf[i_r]
+                            d.loc[i_t, f'{obj.name} RealQuat {c} {i_n}'] = q_irf[i_r]
+                            d.loc[i_t, f'{obj.name} KalmanQuatEstimation {c} {i_n}'] = q_irf_estimation[i_r]
                             d.loc[i_t, f'{obj.name} KalmanQuatError {c} {i_n}'] = q_irf_estimation[i_r] - q_irf[i_r]
