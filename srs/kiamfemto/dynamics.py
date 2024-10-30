@@ -162,14 +162,18 @@ def get_torque(v_: Variables, obj: Union[CubeSat, FemtoSat], q: Union[list, np.n
     """Возвращает вектор углового УСКОРЕНИЯ. Удачи!"""
     return np.zeros(3)
 
-def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float = None, q=None, w=None):
+def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], t: float, i: int, dt: float = None, q=None, w=None):
     """Господи, где здесь производная, где дифференциал? Пожалуйста, дрогой я, дай мне знак! ДОрОжНЫй!!!"""
     dt = v_.dT if dt is None else dt
+
+    U, S, A, R_orb = get_matrices(v=v_, t=t, obj=obj, n=i)
 
     def lw_right_part(qw_, e_):
         q_, w_ = qw_[0:4], qw_[4:7]
         dq = 1 / 2 * q_dot([0, w_[0], w_[1], w_[2]], q_)
-        return np.append(dq, e_)
+        # J = A.T @ obj.J @ A
+        dw = - (np.linalg.inv(obj.J) @ (my_cross(w_, obj.J @ w_)))  # + e_
+        return np.append(dq, dw)
     q = obj.q[i] if q is None else q
     w = obj.w_irf[i] if w is None else w
     e = get_torque(v_=v_, obj=obj, q=q, w=w)
@@ -181,9 +185,10 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float
     k2 = lw_right_part(qw + k1 * dt / 2, e)
     k3 = lw_right_part(qw + k2 * dt / 2, e)
     k4 = lw_right_part(qw + k3 * dt, e)
-    qw = dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-    tmp = (qw[0:4] + q4) / np.linalg.norm(qw[0:4] + q4)
-    return tmp[4 - a:4], qw[a:a + 3] + w
+    qw = dt / 6 * (k1 + 2*k2 + 2*k3 + k4)
+    q_anw = q_dot(q4, qw[0:4])
+    q_anw /= np.linalg.norm(q_anw)
+    return q_anw[4 - a:4], qw[a:a + 3] + w
 
 
 # >>>>>>>>>>>> Перевод между системами координат <<<<<<<<<<<<
@@ -307,7 +312,8 @@ class PhysicModel:
         for j, obj in enumerate(self.spacecrafts_all):
             for i in range(obj.n):
                 # Вращательное движение
-                obj.q[i], obj.w_irf[i] = rk4_attitude(v_=self.v, obj=obj, i=i)
+                if obj != self.a:
+                    obj.q[i], obj.w_irf[i] = rk4_attitude(v_=self.v, obj=obj, i=i, t=self.t)
 
                 # Поступательное движение
                 if 'rk4' in self.v.SOLVER:
@@ -337,7 +343,8 @@ class PhysicModel:
         # Комплекс первичной информации
         self.v.MEASURES_VECTOR = []
         self.v.MEASURES_VECTOR_NOTES = []
-        measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']), produce=True)
+        measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']), produce=True,
+                               p=self)
         measure_magnetic_field(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
 
         # Изменение режимов работы
@@ -374,12 +381,14 @@ class PhysicModel:
                     r_orf = self.f.r_orf[i_n]
                     w_orf = self.f.w_orf[i_n]
                     q_irf = self.f.q[i_n][1:4]
+                    d.loc[i_t, f'{obj.name} KalmanPosEstimation r {i_n}'] = np.linalg.norm(r_orf_estimation)
+                    d.loc[i_t, f'{obj.name} KalmanPosError r {i_n}'] = np.linalg.norm(r_orf_estimation - r_orf)
+                    if self.v.NAVIGATION_ANGLES:
+                        d.loc[i_t, f'{obj.name} KalmanSpinError w {i_n}'] = np.linalg.norm(w_orf_estimation - w_orf)
+                        d.loc[i_t, f'{obj.name} KalmanQuatError q {i_n}'] = np.linalg.norm(q_irf_estimation - q_irf)
                     for i_r, c in enumerate('xyz'):
                         d.loc[i_t, f'{obj.name} KalmanPosEstimation {c} {i_n}'] = r_orf_estimation[i_r]
                         d.loc[i_t, f'{obj.name} KalmanPosError {c} {i_n}'] = r_orf_estimation[i_r] - r_orf[i_r]
                         if self.v.NAVIGATION_ANGLES:
                             d.loc[i_t, f'{obj.name} KalmanSpinError {c} {i_n}'] = w_orf_estimation[i_r] - w_orf[i_r]
                             d.loc[i_t, f'{obj.name} KalmanQuatError {c} {i_n}'] = q_irf_estimation[i_r] - q_irf[i_r]
-                        for i_c in range(self.c.n):
-                            d.loc[i_t, f'{obj.name} RealDistance {c} {i_c} {i_n}'] = obj.r_orf[i_n][i_r] - \
-                                                                                     self.c.r_orf[i_c][i_r]

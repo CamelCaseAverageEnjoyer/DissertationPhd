@@ -1,3 +1,5 @@
+import numpy as np
+
 from spacecrafts import *
 from data.observability_mapping_partial_derivatives import *
 
@@ -22,7 +24,6 @@ class KalmanFilter:
         self.c = c  # Кубсаты
         self.p = p  # Динамическая модель
         self.v = p.v
-        # self.sequence_under_diagonal = flatten([[[i, j] for i in range(j)] for j in range(self.f.n)])  # Удалить?
 
         self.estimation_params = self.params_dict2vec(d=f.apriori_params, separate_spacecraft=True)
         self.j = len(self.estimation_params[0])  # Вектор состояния 1 чипсата
@@ -40,6 +41,9 @@ class KalmanFilter:
             self.P = [np.diag([self.v.KALMAN_COEF['p'][0]] * 3 + [self.v.KALMAN_COEF['p'][1]] * 3) for _ in range(f.n)]
             self.Q = np.diag([self.v.KALMAN_COEF['q'][0]] * 3)
         else:  # Вектор состояния содержит ещё и угловые переменные
+            i_f = 0
+            w = f.apriori_params['w irf'][i_f]
+            Phi_w = np.linalg.inv(f.J) @ (- get_antisymmetric_matrix(w) @ f.J + get_antisymmetric_matrix(f.J @ w))
             self.Phi = np.array([[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
                                  [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
                                  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
@@ -51,7 +55,8 @@ class KalmanFilter:
                                  [0, 0, 3*w0**2, 0, 0, 0, 2*w0, 0, 0, 0, 0, 0],
                                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]) * self.v.dT + np.eye(self.j)
+                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]) * self.v.dT + np.eye(self.j) + \
+                       np.bmat([[np.zeros((9, 12))], [np.zeros((3, 9)), Phi_w]])
             self.P = [np.diag([self.v.KALMAN_COEF['p'][0]] * 3 + [self.v.KALMAN_COEF['p'][2]] * 3 +
                               [self.v.KALMAN_COEF['p'][1]] * 3 + [self.v.KALMAN_COEF['p'][3]] * 3) for _ in range(f.n)]
             self.D = np.vstack([np.zeros((6, 6)), np.eye(6)])
@@ -115,126 +120,127 @@ class KalmanFilter:
         from dynamics import rk4_translate, rk4_attitude
 
         # >>>>>>>>>>>> Предварительный расчёт <<<<<<<<<<<<
-        c_take_len = len(get_gain(v=self.v, obj=self.c, r=np.ones(3), if_take=True))
-        c_send_len = len(get_gain(v=self.v, obj=self.c, r=np.ones(3), if_send=True))
-        f_take_len = len(get_gain(v=self.v, obj=self.f, r=np.ones(3), if_take=True))
-        f_send_len = len(get_gain(v=self.v, obj=self.f, r=np.ones(3), if_send=True))
-        z_len = int(self.f.n * self.c.n * (c_take_len*f_send_len + c_send_len*f_take_len) +
-                    self.f.n * (self.f.n - 1) * f_take_len*f_send_len)
-        my_print(f"Вектор измерений z_len: {z_len}     =     {self.f.n}*{self.c.n}*({c_take_len}*{f_send_len}+"
-                 f"{c_send_len}*{f_take_len}) + {self.f.n}({self.f.n}-1){f_take_len}*{f_send_len}",
-                 color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
+        if True:
+            f = self.f
+            c = self.c
+            v = self.v
+            p = self.p
+            j = self.j
+            c_take_len = len(get_gain(v=v, obj=c, r=np.ones(3), if_take=True))
+            c_send_len = len(get_gain(v=v, obj=c, r=np.ones(3), if_send=True))
+            f_take_len = len(get_gain(v=v, obj=f, r=np.ones(3), if_take=True))
+            f_send_len = len(get_gain(v=v, obj=f, r=np.ones(3), if_send=True))
+            z_len = int(f.n * c.n * (c_take_len*f_send_len + c_send_len*f_take_len) +
+                        f.n * (f.n - 1) * f_take_len*f_send_len)
+            my_print(f"Вектор измерений z_len: {z_len}     =     {f.n}*{c.n}*({c_take_len}*{f_send_len}+"
+                     f"{c_send_len}*{f_take_len}) + {f.n}({f.n}-1){f_take_len}*{f_send_len}",
+                     color='r', if_print=p.iter == 1 and v.IF_TEST_PRINT)
 
         # >>>>>>>>>>>> Этап экстраполяции <<<<<<<<<<<<
         d = self.params_vec2dict()
 
         # Моделирование орбитального движения на dT -> вектор состояния x_m
-        if np.any(self.v.DYNAMIC_MODEL.values()):  # Если J2 или aero drag
-            rv_m = [rk4_translate(v_=self.v, obj=self.f, i=i, r=d['r orf'][i], v=d['v orf'][i])
-                    for i in range(self.f.n)]
-            x_m = self.params_dict2vec(d={'r orf': [rv_m[i][0] for i in range(self.f.n)],
-                                          'v orf': [rv_m[i][1] for i in range(self.f.n)],
-                                          'q-3 irf': np.zeros(3), 'w irf': np.zeros(3)}, separate_spacecraft=False)
-            # tmp = int(self.v.NAVIGATION_ANGLES)
-            # x_m = np.array(flatten([np.append(np.append(np.append(rv_m[i][0], [0]*4*tmp), rv_m[i][1]), [0]*3*tmp)
-            #                         for i in range(self.f.n)]))
+        if np.any(v.DYNAMIC_MODEL.values()):  # Если J2 или aero drag
+            rv_m = [rk4_translate(v_=v, obj=f, i=i, r=d['r orf'][i], v=d['v orf'][i])
+                    for i in range(f.n)]
+            x_m = self.params_dict2vec(d={'r orf': [rv_m[i][0] for i in range(f.n)],
+                                          'v orf': [rv_m[i][1] for i in range(f.n)],
+                                          'q-3 irf': np.zeros((f.n, 3)), 'w irf': np.zeros((f.n, 3))},
+                                       separate_spacecraft=False)
         else:
             x_m = np.array(self.Phi @ np.array(flatten(self.estimation_params)))[0]
 
         # Моделирование углового движения на dT -> вектор состояния x_m
-        if self.v.NAVIGATION_ANGLES:
-            tmp = self.params_vec2dict(x_m)
-            for i in range(self.f.n):
-                tmp['q-3 irf'][i], tmp['w irf'][i] = rk4_attitude(v_=self.v, obj=self.f, i=i,
-                                                                  q=d['q-3 irf'][i], w=d['w irf'][i])
-            x_m = self.params_dict2vec(tmp)
+        if v.NAVIGATION_ANGLES:
+            tmp = self.params_vec2dict(params=x_m, separate_spacecraft=False)
+            for i in range(f.n):
+                tmp['q-3 irf'][i], tmp['w irf'][i] = rk4_attitude(v_=v, obj=f, i=i,
+                                                                  q=d['q-3 irf'][i], w=d['w irf'][i], t=p.t)
+            x_m = np.array(self.params_dict2vec(tmp, separate_spacecraft=False))
 
         # Измерения с поправкой на угловой коэффициент усиления G (signal_rate)
-        dr_cf, dr_ff, notes = measure_antennas_power(c=self.c, f=self.f, v=self.v, get_ready_measurements=True)
-        my_print(f"Длина длин 1: {len(dr_cf)}", color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
-        my_print(f"Длина длин 2: {len(dr_cf + dr_ff)}", color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
+        dr_cf, dr_ff, notes1 = measure_antennas_power(c=c, f=f, v=v, p=p, get_ready_measurements=True)
         z_ = np.array(dr_cf + dr_ff)
         # Поправка на G ниже
-        if self.v.NAVIGATION_ANGLES:
-            signal_rate_cf, signal_rate_ff, notes = measure_antennas_power(c=self.c, f=self.f, v=self.v,
-                                                                           get_signal_rates=True, j=self.j, x_m=x_m)
-            my_print(f"Длина G 1: {len(signal_rate_cf)}", color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
-            my_print(f"Длина G 2: {len(signal_rate_cf + signal_rate_ff)}", color='r',
-                     if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
+        signal_rate = np.ones(z_len)
+        if v.NAVIGATION_ANGLES:
+            signal_rate_cf, signal_rate_ff, notes2 = measure_antennas_power(c=c, f=f, v=v, p=p,
+                                                                            get_signal_rates=True, j=j, x_m=x_m)
             signal_rate = np.array(signal_rate_cf + signal_rate_ff)
-        else:
-            signal_rate = np.array([1] * z_len)
         z_ *= np.sqrt(signal_rate)
 
         # Измерения согласно модели
-        z_cf, z_ff, notes = measure_antennas_power(c=self.c, f=self.f, v=self.v, get_model_state=True, j=self.j,
-                                                   x_m=x_m)
-        my_print(f"Длина модельных длин 1: {len(z_cf)}", color='r', if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
-        my_print(f"Длина модельных длин 2: {len(z_cf + z_ff)}", color='r',
-                 if_print=self.p.iter == 1 and self.v.IF_TEST_PRINT)
+        z_cf, z_ff, notes3 = measure_antennas_power(c=c, f=f, v=v, p=p, get_model_state=True, j=j, x_m=x_m)
         z_model = np.array([z_cf + z_ff])
 
-        for i_c in range(self.c.n):  # ПРОВЕРИТЬ!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            for i_f in range(self.f.n):
-                tmp = c_take_len * f_send_len + c_send_len * f_take_len
-                # print(f"{i_c}:{i_f}   1 ---> {z_cf[i_f*tmp: (i_f+1)*tmp]}")
-                # print(f"{i_c}:{i_f}   2 ---> {z_[i_f*tmp: (i_f+1)*tmp]}")
-                self.c.z_difference[i_c][i_f] += [np.linalg.norm(np.array(z_cf[i_f*tmp: (i_f+1)*tmp]) -
-                                                                 np.array(z_[i_f*tmp: (i_f+1)*tmp]))]
+        for i_c in range(c.n):  # ПРОВЕРИТЬ!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            for i_f in range(f.n):
+                z_diff = [z_cf[i] - z_[i] for i in range(len(z_))]
+                p.record.loc[p.iter, f'{c.name}-{f.name}-ZModel&RealDifference {i_c} {i_f}'] = np.linalg.norm(z_diff)
 
         # Расчёт матриц
         Q_tilda = self.Phi @ self.D @ self.Q @ self.D.T @ self.Phi.T  # * self.v.dT  # nt_nt
         P_m = self.Phi @ self.P @ self.Phi.T + Q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
 
         # >>>>>>>>>>>> Этап коррекции <<<<<<<<<<<<
-        # ПОМЕНЯТЬ f.q, c.q НА ПРЕДПОЛАГАЕМЫЕ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        q_f = [self.f.q[i][1:4] for i in range(self.f.n)]
-        q_c = [self.c.q[i][1:4] for i in range(self.c.n)]
-        H, _, _ = h_matrix(c_ant=self.v.N_ANTENNA_C, f_ant=self.v.N_ANTENNA_F, fn=self.f.n, cn=self.c.n,
-                           angles_navigation=self.v.NAVIGATION_ANGLES, r_f=self.f.r_orf, r_c=self.c.r_orf,
-                           multy_antenna_send=self.v.MULTI_ANTENNA_SEND, multy_antenna_take=self.v.MULTI_ANTENNA_TAKE,
-                           w_0=self.v.W_ORB, t=self.p.t, q_f=q_f, q_c=q_c)
+        H, _, _, notesH = \
+            h_matrix(c_ant=v.N_ANTENNA_C, f_ant=v.N_ANTENNA_F, fn=f.n, cn=c.n, r_f=f.r_orf, r_c=c.r_orf,
+                     angles_navigation=v.NAVIGATION_ANGLES, multy_antenna_send=v.MULTI_ANTENNA_SEND,
+                     multy_antenna_take=v.MULTI_ANTENNA_TAKE, w_0=v.W_ORB, t=p.t,
+                     q_f=d['q-3 irf'], q_c=[c.q[i][1:4] for i in range(c.n)])
 
-        R = np.eye(z_len) * self.v.KALMAN_COEF['r']  # n + n(n-1)/2
+        R = np.eye(z_len) * v.KALMAN_COEF['r']  # n + n(n-1)/2
+        my_print(f"P_m: {P_m.shape}, H: {R.shape}, P_m: {R.shape}", if_print=p.iter == 1)
         k_ = P_m @ H.T @ np.linalg.inv(H @ P_m @ H.T + R)  # nt_nt @ nt_lt @ l_l -> nt_l
-        self.P = (np.eye(self.j * self.f.n) - k_ @ H) @ P_m
+        self.P = (np.eye(j * f.n) - k_ @ H) @ P_m
         r_orf_estimation = np.array((np.matrix(x_m).T + k_ @ (z_ - z_model).T).T)[0]
-        for i in range(self.f.n):
-            tmp = r_orf_estimation[(0 + i) * self.j: (1 + i) * self.j]
-            if self.v.SHAMANISM["KalmanQuaternionNormalize"] and self.v.NAVIGATION_ANGLES:
+
+        # >>>>>>>>>>>> Запись <<<<<<<<<<<<
+        for i in range(f.n):
+            tmp = r_orf_estimation[(0 + i) * j: (1 + i) * j]
+            if v.SHAMANISM["KalmanQuaternionNormalize"] and v.NAVIGATION_ANGLES:
                 tmp2 = vec2quat(tmp[3:6])
                 tmp[3:6] = (tmp2 / np.linalg.norm(tmp2))[1:4]
-            if self.v.SHAMANISM["KalmanSpinLimit"][0] and \
-                    np.linalg.norm(tmp[9:12]) > self.v.SHAMANISM["KalmanSpinLimit"][1]:
-                tmp[9:12] = tmp[9:12] / np.linalg.norm(tmp[9:12]) * self.v.SHAMANISM["KalmanSpinLimit"][1]
-            if self.v.SHAMANISM["KalmanVelocityLimit"][0] and \
-                    np.linalg.norm(tmp[6:9]) > self.v.SHAMANISM["KalmanVelocityLimit"][1]:
-                tmp[6:9] = tmp[6:9] / np.linalg.norm(tmp[6:9]) * self.v.SHAMANISM["KalmanSpinLimit"][1]
-            if self.v.SHAMANISM["KalmanPositionLimit"][0] and \
-                    np.linalg.norm(tmp[0:3]) > self.v.SHAMANISM["KalmanPositionLimit"][1]:
-                tmp[0:3] = tmp[0:3] / np.linalg.norm(tmp[0:3]) * self.v.SHAMANISM["KalmanPositionLimit"][1]
+            if v.SHAMANISM["KalmanSpinLimit"][0] and \
+                    np.linalg.norm(tmp[9:12]) > v.SHAMANISM["KalmanSpinLimit"][1]:
+                tmp[9:12] = tmp[9:12] / np.linalg.norm(tmp[9:12]) * v.SHAMANISM["KalmanSpinLimit"][1]
+            if v.SHAMANISM["KalmanVelocityLimit"][0] and \
+                    np.linalg.norm(tmp[6:9]) > v.SHAMANISM["KalmanVelocityLimit"][1]:
+                tmp[6:9] = tmp[6:9] / np.linalg.norm(tmp[6:9]) * v.SHAMANISM["KalmanSpinLimit"][1]
+            if v.SHAMANISM["KalmanPositionLimit"][0] and \
+                    np.linalg.norm(tmp[0:3]) > v.SHAMANISM["KalmanPositionLimit"][1]:
+                tmp[0:3] = tmp[0:3] / np.linalg.norm(tmp[0:3]) * v.SHAMANISM["KalmanPositionLimit"][1]
             self.estimation_params[i] = tmp
 
         # Запись и отображение
-        if self.p.iter == 1:
+        if p.iter == 1:
+            my_print(f"R-notes: {notes1}", color='y')
+            my_print(f"Длина длин 1: {len(dr_cf)}", color='r', if_print=v.IF_TEST_PRINT)
+            my_print(f"Длина длин 2: {len(dr_cf + dr_ff)}", color='r', if_print=v.IF_TEST_PRINT)
+            if v.NAVIGATION_ANGLES:
+                my_print(f"G-notes: {notes2}", color='y')
+                my_print(f"Длина G 1: {len(signal_rate_cf)}", color='r', if_print=v.IF_TEST_PRINT)
+                my_print(f"Длина G 2: {len(signal_rate_cf + signal_rate_ff)}", color='r', if_print=v.IF_TEST_PRINT)
+            my_print(f"M-notes: {notes3}", color='y')
+            my_print(f"Длина модельных длин 1: {len(z_cf)}", color='r', if_print=v.IF_TEST_PRINT)
+            my_print(f"Длина модельных длин 2: {len(z_cf + z_ff)}", color='r', if_print=v.IF_TEST_PRINT)
+            my_print(f"H-notes: {notesH}", color='y')
             with open("kiamfemto/data/measures_vector_notes_last.txt", "w") as f:
                 f.write("# Рассчитано в PyCharm\n# Параметры: {rel} {N_1} {N_2} {i_1} {i_2} {send_len} {take_len}\n")
-                f.write(f"# Параметр CUBESAT_AMOUNT {self.v.CUBESAT_AMOUNT}\n")
-                f.write(f"# Параметр CHIPSAT_AMOUNT {self.v.CHIPSAT_AMOUNT}\n")
-                f.write(f"# Параметр NAVIGATION_ANGLES {self.v.NAVIGATION_ANGLES}\n")
-                f.write(f"# Параметр N_ANTENNA_C {self.v.N_ANTENNA_C}\n")
-                f.write(f"# Параметр N_ANTENNA_F {self.v.N_ANTENNA_F}\n")
-                f.write(f"# Параметр MULTI_ANTENNA_TAKE {self.v.MULTI_ANTENNA_TAKE}\n")
-                f.write(f"# Параметр MULTI_ANTENNA_SEND {self.v.MULTI_ANTENNA_SEND}\n")
+                f.write(f"# Параметр CUBESAT_AMOUNT {v.CUBESAT_AMOUNT}\n")
+                f.write(f"# Параметр CHIPSAT_AMOUNT {v.CHIPSAT_AMOUNT}\n")
+                f.write(f"# Параметр NAVIGATION_ANGLES {v.NAVIGATION_ANGLES}\n")
+                f.write(f"# Параметр N_ANTENNA_C {v.N_ANTENNA_C}\n")
+                f.write(f"# Параметр N_ANTENNA_F {v.N_ANTENNA_F}\n")
+                f.write(f"# Параметр MULTI_ANTENNA_TAKE {v.MULTI_ANTENNA_TAKE}\n")
+                f.write(f"# Параметр MULTI_ANTENNA_SEND {v.MULTI_ANTENNA_SEND}\n")
                 for j in range(z_len):
-                    f.write(f"{self.v.MEASURES_VECTOR_NOTES[j]}\n")
+                    f.write(f"{v.MEASURES_VECTOR_NOTES[j]}\n")
             my_print(f"P-: {P_m.shape}, H.T: {H.T.shape}, H: {H.shape}, R: {R.shape}", color='g')
             my_print(f"x-: {np.matrix(x_m).shape}, K: {k_.shape}, z: {(z_ - z_model).shape}", color='g')
             my_print(f"r_orf_estimation: {r_orf_estimation.shape}", color='g')
-            # my_print(H, color='y')
-            # my_print(self.Phi, color='y')
 
 def navigate(k: KalmanFilter):
-    k.calc()  # Пока что при любом OPERATING_MODES (если весь рой выпал)
+    k.calc()  # Пока что при любом OPERATING_MODES (если все КА включены и не потеряны)
 
 # >>>>>>>>>>>> Control <<<<<<<<<<<<

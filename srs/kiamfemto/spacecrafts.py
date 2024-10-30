@@ -107,6 +107,7 @@ class FemtoSat(Apparatus):
         self.name = "FemtoSat"
         self.n = v.CHIPSAT_AMOUNT
         self.gain_mode = v.GAIN_MODEL_F
+        self.J = np.diag([0.06, 0.06, 0.1])   # ПОМЕНЯТЬ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         self.mass = chipsat_property[v.CHIPSAT_MODEL]['mass']
         self.mass_center_error = chipsat_property[v.CHIPSAT_MODEL]['mass_center_error']
         self.size = chipsat_property[v.CHIPSAT_MODEL]['dims']
@@ -196,6 +197,7 @@ class CubeSat(Apparatus):
         self.gain_mode = v.GAIN_MODEL_C
         self.mass = cubesat_property[v.CUBESAT_MODEL]['mass']
         self.size = cubesat_property[v.CUBESAT_MODEL]['dims']
+        self.J = np.diag([1.67, 1.71, 0.9])
         self.mass_center_error = cubesat_property[v.CUBESAT_MODEL]['mass_center_error']
         self.r_mass_center = np.array([np.random.uniform(-i, i) for i in self.mass_center_error])
 

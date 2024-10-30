@@ -2,6 +2,12 @@
 from typing import Union
 import numpy as np
 
+
+def get_antisymmetric_matrix(a):
+    return np.array([[0, -a[2], a[1]],
+                     [a[2], 0, -a[0]],
+                     [-a[1], a[0], 0]])
+
 def deg2rad(a: float) -> float:
     return a / 180 * np.pi
 

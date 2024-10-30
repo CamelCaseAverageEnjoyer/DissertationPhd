@@ -17,7 +17,8 @@ class Variables:
                 self.DYNAMIC_MODEL['aero drag'], self.DYNAMIC_MODEL['j2'],
                 self.NAVIGATION_BY_ALL, self.NAVIGATION_ANGLES, self.MULTI_ANTENNA_TAKE, self.MULTI_ANTENNA_SEND,
                 self.START_NAVIGATION_N, self.GAIN_MODEL_C_N, self.GAIN_MODEL_F_N, self.IF_NAVIGATION,
-                self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N]
+                self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, self.KALMAN_COEF['q'][0], self.KALMAN_COEF['p'][0],
+                self.KALMAN_COEF['r']]
 
     def set_saving_params(self, params):
         """Функция принимает набор параметров из файла
@@ -25,9 +26,13 @@ class Variables:
         self.DESCRIPTION, self.dT, self.TIME, self.CUBESAT_AMOUNT, self.CHIPSAT_AMOUNT, aero, j2, \
             self.NAVIGATION_BY_ALL, self.NAVIGATION_ANGLES, self.MULTI_ANTENNA_TAKE, self.MULTI_ANTENNA_SEND, \
             self.START_NAVIGATION_N, self.GAIN_MODEL_C_N, self.GAIN_MODEL_F_N, self.IF_NAVIGATION, \
-            self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N = params
+            self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, q, p, r = params
         self.DYNAMIC_MODEL['aero drag'] = aero
         self.DYNAMIC_MODEL['j2'] = j2
+        self.KALMAN_COEF['q'] = [q] * 2
+        self.KALMAN_COEF['p'] = [p] * 4
+        self.KALMAN_COEF['r'] = r
+        self.init_choice_params()
 
     def load_params(self, i: int = 0):
         """Подгрузка параметров из файла config_choose.csv"""
@@ -118,15 +123,9 @@ class Variables:
                           'forestgreen', 'aqua', 'blue', 'beige', 'bisque', 'indigo', 'navy', 'deepskyblue', 'gold',
                           'aquamarine', 'indigo', 'olivedrab', 'slategray', 'pink', 'salmon', 'steelblue']
 
-        self.START_NAVIGATION = self.NAVIGATIONS[self.START_NAVIGATION_N]
-        self.GAIN_MODEL_C = self.GAIN_MODES[self.GAIN_MODEL_C_N]
-        self.GAIN_MODEL_F = self.GAIN_MODES[self.GAIN_MODEL_F_N]
-        self.SOLVER = self.SOLVERS[self.SOLVER_N]
-        self.CUBESAT_MODEL = self.CUBESAT_MODELS[self.CUBESAT_MODEL_N]
-        self.CHIPSAT_MODEL = self.CHIPSAT_MODELS[self.CHIPSAT_MODEL_N]
-        self.ATMOSPHERE_MODEL = self.ATMOSPHERE_MODELS[self.ATMOSPHERE_MODEL_N]
-        self.N_ANTENNA_C = self.N_ANTENNAS[self.GAIN_MODEL_C]
-        self.N_ANTENNA_F = self.N_ANTENNAS[self.GAIN_MODEL_F]
+        self.START_NAVIGATION, self.GAIN_MODEL_C, self.GAIN_MODEL_F, self.SOLVER, self.CUBESAT_MODEL, \
+            self.CHIPSAT_MODEL, self.ATMOSPHERE_MODEL, self.N_ANTENNA_C, self.N_ANTENNA_F = [None] * 9
+        self.init_choice_params()
 
 
         # >>>>>>>>>>>> Параметры отображения <<<<<<<<<<<<
@@ -173,6 +172,17 @@ class Variables:
         self.IF_ANY_PRINT = False
         self.IF_NAVIGATION = False
 
+    def init_choice_params(self):
+        self.START_NAVIGATION = self.NAVIGATIONS[self.START_NAVIGATION_N]
+        self.GAIN_MODEL_C = self.GAIN_MODES[self.GAIN_MODEL_C_N]
+        self.GAIN_MODEL_F = self.GAIN_MODES[self.GAIN_MODEL_F_N]
+        self.SOLVER = self.SOLVERS[self.SOLVER_N]
+        self.CUBESAT_MODEL = self.CUBESAT_MODELS[self.CUBESAT_MODEL_N]
+        self.CHIPSAT_MODEL = self.CHIPSAT_MODELS[self.CHIPSAT_MODEL_N]
+        self.ATMOSPHERE_MODEL = self.ATMOSPHERE_MODELS[self.ATMOSPHERE_MODEL_N]
+        self.N_ANTENNA_C = self.N_ANTENNAS[self.GAIN_MODEL_C]
+        self.N_ANTENNA_F = self.N_ANTENNAS[self.GAIN_MODEL_F]
+
 
 class Objects:
     def __init__(self, v: Variables):
@@ -191,7 +201,6 @@ class Objects:
         self.f = FemtoSat(v=self.v)
         self.p = PhysicModel(c=self.c, f=self.f, a=self.a, v=self.v)
 
-
     def time_message(self, t):
         return f"Оборотов вокруг Земли: {round(t / (2 * numpy.pi / self.v.W_ORB), 2)}    " \
                f"({round(t / (3600 * 24), 2)} дней)"
@@ -202,14 +211,16 @@ class Objects:
         from datetime import datetime
 
         # Инициализация заново!
-        my_print(f"Повторная инициализация...", color='y')
-        self.init_classes()
+        print(f"self.p.iter : {self.p.iter}")
+        if self.p.iter < 2:
+            my_print(f"Повторная инициализация...", color='y')
+            self.init_classes()
 
         my_print(self.time_message(t), color='b', if_print=self.v.IF_ANY_PRINT)
         n = int(t // self.v.dT)
         flag = [0., 0.]
         frames = []
-        for i in range(self.p.iter, n + self.p.iter):
+        for i in range(n):
             # Отображение в вывод
             if i == 1 and self.v.IF_ANY_PRINT:
                 # Вывод основных параметров
@@ -236,6 +247,16 @@ class Objects:
 
             # Шаг по времени
             self.p.time_step()
+
+        # Заполнение None в p.record
+        fill_null_record(p=self.p)
+
+def fill_null_record(p: any):
+    pass
+    # for obj in [p.f]:
+    #     for i_n in range(obj.n):
+    #         p.record.loc[f'{obj.name} KalmanPosEstimation r {i_n}'] = \
+    #             p.record.loc[f'{obj.name} KalmanPosEstimation r {i_n}'].fillna(value=p.v.NO_LINE_FLAG)
 
 def plot_model_gain(n: int = 20):
     import matplotlib.pyplot as plt
@@ -345,4 +366,4 @@ def animate_reference_frames(resolution: int = 3, n: int = 5):
 if __name__ == "__main__":
     # animate_reference_frames(resolution=1, n=30)
     plot_model_gain()
-    # plot_atmosphere_models()
+    plot_atmosphere_models()

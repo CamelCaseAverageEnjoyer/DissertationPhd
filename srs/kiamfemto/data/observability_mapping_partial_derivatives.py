@@ -585,7 +585,7 @@ def h_element(i_x, i_y, i_n, i, j, i_all, j_all, fn, cn, relation, angles_naviga
                        ])
 
 
-def h_matrix(c_ant, f_ant, fn, cn, angles_navigation, r_f, r_c, multy_antenna_send: bool, multy_antenna_take: bool, w_0, t, q_f: None, q_c: None, return_template: bool = False) -> np.ndarray:
+def h_matrix(c_ant, f_ant, fn, cn, angles_navigation, r_f, r_c, multy_antenna_send: bool, multy_antenna_take: bool, w_0, t, q_f: list | None, q_c: list | None, return_template: bool = False) -> np.ndarray:
     '''Возвращает матрицу частных производных Н.
     :param c_ant: Количество антенн у кубсата
     :param f_ant: Количество антенн у чипсата
@@ -611,6 +611,7 @@ def h_matrix(c_ant, f_ant, fn, cn, angles_navigation, r_f, r_c, multy_antenna_se
                 ff_sequence += [[i_f1, i_f2]]
     cf_matrix = np.array([])
     ff_matrix = np.array([])
+    notes = []  # новое
     for relation in ['cf', 'ff']:
         tmp_rows = None
         height = cn if relation=='cf' else int(fn*(fn-1)/2)
@@ -625,6 +626,7 @@ def h_matrix(c_ant, f_ant, fn, cn, angles_navigation, r_f, r_c, multy_antenna_se
                     else:
                         i_1 = ff_sequence[i_y][0]
                         i_2 = ff_sequence[i_y][1]
+                    notes.append(f'{relation} {i_1} {i_2}')  # новое
                     if return_template:
                         tmp_row_col += [var(relation + '_' + str(i_1) + '^' + str(i_2))]
                     else:
@@ -643,5 +645,5 @@ def h_matrix(c_ant, f_ant, fn, cn, angles_navigation, r_f, r_c, multy_antenna_se
     # print('Верхняя подматрица: ' + str(cf_matrix.shape))
     if ff_matrix is not None:
         # print('Нижняя подматрица: ' + str(ff_matrix.shape))
-        return np.vstack([cf_matrix, ff_matrix]), cf_matrix, ff_matrix
-    return cf_matrix, cf_matrix, None
+        return np.vstack([cf_matrix, ff_matrix]), cf_matrix, ff_matrix, notes  # новое
+    return cf_matrix, cf_matrix, None, notes  # новое
