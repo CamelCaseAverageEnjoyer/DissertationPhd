@@ -107,10 +107,11 @@ class FemtoSat(Apparatus):
         self.name = "FemtoSat"
         self.n = v.CHIPSAT_AMOUNT
         self.gain_mode = v.GAIN_MODEL_F
-        self.J = np.diag([0.06, 0.06, 0.1])   # ПОМЕНЯТЬ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         self.mass = chipsat_property[v.CHIPSAT_MODEL]['mass']
         self.mass_center_error = chipsat_property[v.CHIPSAT_MODEL]['mass_center_error']
         self.size = chipsat_property[v.CHIPSAT_MODEL]['dims']
+        # Пока что J диагонален
+        self.J = np.diag([self.size[1]**2, self.size[0]**2, self.size[0]**2 + self.size[1]**2]) * self.mass / 12
         self.power_signal_full = 0.01
         self.length_signal_full = 0.001
 
@@ -185,9 +186,12 @@ class CubeSat(Apparatus):
         self.gain_mode = v.GAIN_MODEL_C
         self.mass = cubesat_property[v.CUBESAT_MODEL]['mass']
         self.size = cubesat_property[v.CUBESAT_MODEL]['dims']
-        self.J = np.diag([1.67, 1.71, 0.9])
         self.mass_center_error = cubesat_property[v.CUBESAT_MODEL]['mass_center_error']
         self.r_mass_center = np.array([np.random.uniform(-i, i) for i in self.mass_center_error])
+        # Пока что J диагонален
+        self.J = np.diag([self.size[1]**2 + self.size[2]**2,
+                          self.size[0]**2 + self.size[2]**2,
+                          self.size[0]**2 + self.size[1]**2]) * self.mass / 12
 
         # Индивидуальные параметры движения
         self.r_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[0], v.RVW_CubeSat_SPREAD[0], 3) for _ in range(self.n)]

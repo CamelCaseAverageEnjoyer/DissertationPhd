@@ -130,6 +130,8 @@ class Window(QWidget):
         y += 1
         self.name_type_func[y][n] = [self.path + "plot.png", "button", lambda x=self.o: plot_distance(x), (1, 1)]
         y += 1
+        self.name_type_func[y][n] = [self.path + "param.png", "button", self.plot_1_param, (1, 1)]
+        y += 1
         self.name_type_func[y][n] = [self.path + "orbit.png", "button", lambda x=self.o: plot_all(x), (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "signal.png", "button", lambda x=self.o: plot_signals(x), (1, 1)]
@@ -233,6 +235,8 @@ class Window(QWidget):
         y_save = len(self.o.v.config_choose)
         self.name_type_func[y_save + 1][n+0] = ["Параметры", "edit;Название", None, (1, 2)]
         self.name_type_func[y_save + 1][n+2] = ["Сохранить", "button", self.local_save_params, (1, 1)]
+        self.name_type_func[y_save + 2][n+0] = ["Применить введённые параметры", "button", self.apply_params, (1, 3)]
+
         for i in range(y_save):
             self.name_type_func[i+1][n+0] = [data.iloc[i, 0], "label", None, (1, 1)]
             self.name_type_func[i+1][n+1] = [f"Загрузить", "button", lambda j=i: self.local_load_params(i=j),
@@ -250,8 +254,8 @@ class Window(QWidget):
         # Текст о долготе полёта
         self.name_type_func[y_all][n+3] = [self.o.time_message(params['TIME']), "label", None, (1, 3)]
 
-    def local_save_params(self):
-        """Сохранение настроенных параметров"""
+    def apply_params(self):
+        """Применение настроенных параметров. Должно быть согласовано с config.get_saving_params"""
         if self.textboxes['Параметры'].text() != "":
             self.o.v.DESCRIPTION = self.textboxes['Параметры'].text()
 
@@ -281,6 +285,11 @@ class Window(QWidget):
         self.o.v.MULTI_ANTENNA_SEND = self.checkboxes['MULTI_ANTENNA_SEND'].isChecked()
         self.o.v.IF_NAVIGATION = self.checkboxes['IF_NAVIGATION'].isChecked()
 
+        my_print('Параметры применены!', color='c')
+
+    def local_save_params(self):
+        """Сохранение настроенных параметров"""
+        self.apply_params()
         self.o.v.save_params()
         self.config_choose_n = len(self.o.v.config_choose) - 1
         self.close()
@@ -317,6 +326,25 @@ class Window(QWidget):
             text, ok = QInputDialog.getItem(self, "Удаление", "Выберите траекторию для удаления", items, 0, False)
             if ok:
                 remove(f"{self.o.v.path_sources}trajectories/{text}")
+
+    def plot_1_param(self):
+        d = self.o.p.record
+        items = sorted(d.columns)
+
+        # ручная сортировка
+        items = [i for i in items if not ('orf' in i or 'irf' in i)] + \
+                [i for i in items if 'orf' in i] + [i for i in items if 'irf' in i]
+
+        y_s = []
+        ok = True
+        while ok:
+            text, ok = QInputDialog.getItem(self, "Отображение", "Выберите насколько параметров", items, 0, False)
+            y_s.append(text)
+        for y in y_s[:-1]:  # Костыль - в конце добавляется items[0]
+            plt.plot(d['t'].to_list(), d[y].to_list(), label=y)
+        plt.legend()
+        plt.grid()
+        plt.show()
 
     def main_run(self):
         """Функция запуска численного моделирования, выводы результатов"""

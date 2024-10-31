@@ -91,7 +91,7 @@ class Variables:
                           'KalmanSpinLimit': [True, 1e-2],  # Ограничение скорости вращения в прогнозе фильтра Калмана
                           'ClohessyWiltshireC1=0': True,  # Траектории без дрейфа (зануление C1, даже при аэродинамике)
                           'KalmanVelocityLimit': [True, 1e3],
-                          'KalmanPositionLimit': [False, 1e4]}
+                          'KalmanPositionLimit': [True, 1e3]}
 
         self.DISTORTION = 0.  # Искривление диаграммы направленности
         self.START_NAVIGATION_TOLERANCE = 0.9
@@ -157,8 +157,8 @@ class Variables:
         self.SEC_IN_RAD = 24*3600*kiam.units('earth')['TimeUnit']
 
         # >>>>>>>>>>>> Изменяемые параметры по ходу работы кода <<<<<<<<<<<<
-        self.MEASURES_VECTOR = []
-        self.MEASURES_VECTOR_NOTES = []
+        self.MEASURES_VECTOR = None
+        self.MEASURES_VECTOR_NOTES = None
 
         # >>>>>>>>>>>> Параметры для тестов <<<<<<<<<<<<
         self.ANCHOR = Anchor(v=self)

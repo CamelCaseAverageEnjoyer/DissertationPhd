@@ -232,10 +232,9 @@ def i_o(a, v: Variables, U: np.ndarray, vec_type: str):
         return U @ a_np - np.array([v.V_ORB, 0, 0])
     if len(a_np.shape) == 1 and vec_type == "w":
         return U @ (a_np - v.W_ORB_VEC_IRF)
-        # self.w = self.U @ (self.Om - self.w_hkw_vec)
     if len(a_np.shape) == 2:
         return U @ a_np @ U.T
-    raise ValueError(f"Необходимо подать вектор или матрицу! Тип вектора {vec_type} должен быть из [r, v]")
+    raise ValueError(f"Необходимо подать вектор или матрицу! Тип вектора {vec_type} должен быть из [r, v, w]")
 
 def o_i(a, v: Variables, U: np.ndarray, vec_type: str):
     """Орбитальная -> Инерциальная"""
@@ -248,7 +247,7 @@ def o_i(a, v: Variables, U: np.ndarray, vec_type: str):
         return U.T @ a_np + v.W_ORB_VEC_IRF
     if len(a_np.shape) == 2:
         return U.T @ a_np @ U
-    raise ValueError(f"Необходимо подать вектор или матрицу! Тип вектора {vec_type} должен быть из [r, v]")
+    raise ValueError(f"Необходимо подать вектор или матрицу! Тип вектора {vec_type} должен быть из [r, v, w]")
 
 
 # >>>>>>>>>>>> Класс динамики кубсатов и чипсатов <<<<<<<<<<<<
@@ -343,8 +342,6 @@ class PhysicModel:
                 obj.w_orf[i] = i_o(v=self.v, a=obj.w_irf[i], U=U, vec_type='w')
 
         # Комплекс первичной информации
-        self.v.MEASURES_VECTOR = []
-        self.v.MEASURES_VECTOR_NOTES = []
         measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']), produce=True,
                                p=self)
         measure_magnetic_field(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
@@ -368,9 +365,11 @@ class PhysicModel:
             d.loc[i_t, f'{obj.name} n'] = obj.n
             for i_n in range(obj.n):
                 for v in ['r', 'q', 'v', 'w']:
-                    tmp = {'r': [obj.r_irf[i_n], obj.r_orf[i_n]], 'v': [obj.v_irf[i_n], obj.v_orf[i_n]],
-                           'q': [obj.q[i_n][1:4]], 'w': [obj.w_irf[i_n], obj.w_orf[i_n]]}[v]
-                    for i_fr, frame in enumerate(['orf', 'irf'] if v != 'q' else ['irf']):  # Кватернионы только в ИСК
+                    tmp = {'r': [obj.r_irf[i_n], obj.r_orf[i_n]],
+                           'v': [obj.v_irf[i_n], obj.v_orf[i_n]],
+                           'q': [obj.q[i_n][1:4]],
+                           'w': [obj.w_irf[i_n], obj.w_orf[i_n]]}[v]
+                    for i_fr, frame in enumerate(['irf', 'orf'] if v != 'q' else ['irf']):  # Кватернионы только в ИСК
                         for i_r, c in enumerate('xyz'):
                             d.loc[i_t, f'{obj.name} {v} {c} {frame} {i_n}'] = tmp[i_fr][i_r]
 
@@ -383,6 +382,12 @@ class PhysicModel:
                     r_orf = self.f.r_orf[i_n]
                     w_irf = self.f.w_irf[i_n]
                     q_irf = self.f.q[i_n][1:4]
+
+                    if self.v.NAVIGATION_ANGLES:
+                        U, _, _, _ = get_matrices(v=self.v, t=self.t, obj=obj, n=i_n)
+                        w_orf = i_o(a=w_irf, v=self.v, vec_type='w', U=U)
+                        w_orf_estimation = i_o(a=w_irf_estimation, v=self.v, vec_type='w', U=U)
+
                     d.loc[i_t, f'{obj.name} KalmanPosEstimation r {i_n}'] = np.linalg.norm(r_orf_estimation)
                     d.loc[i_t, f'{obj.name} KalmanPosError r {i_n}'] = np.linalg.norm(r_orf_estimation - r_orf)
                     if self.v.NAVIGATION_ANGLES:
@@ -392,9 +397,12 @@ class PhysicModel:
                         d.loc[i_t, f'{obj.name} KalmanPosEstimation {c} {i_n}'] = r_orf_estimation[i_r]
                         d.loc[i_t, f'{obj.name} KalmanPosError {c} {i_n}'] = r_orf_estimation[i_r] - r_orf[i_r]
                         if self.v.NAVIGATION_ANGLES:
-                            d.loc[i_t, f'{obj.name} RealSpin {c} {i_n}'] = w_irf[i_r]
-                            d.loc[i_t, f'{obj.name} KalmanSpinEstimation {c} {i_n}'] = w_irf_estimation[i_r]
-                            d.loc[i_t, f'{obj.name} KalmanSpinError {c} {i_n}'] = w_irf_estimation[i_r] - w_irf[i_r]
+                            d.loc[i_t, f'{obj.name} RealSpin IRF {c} {i_n}'] = w_irf[i_r]
+                            d.loc[i_t, f'{obj.name} RealSpin ORF {c} {i_n}'] = w_orf[i_r]
+                            d.loc[i_t, f'{obj.name} KalmanSpinEstimation IRF {c} {i_n}'] = w_irf_estimation[i_r]
+                            d.loc[i_t, f'{obj.name} KalmanSpinEstimation ORF {c} {i_n}'] = w_orf_estimation[i_r]
+                            d.loc[i_t, f'{obj.name} KalmanSpinError IRF {c} {i_n}'] = w_irf_estimation[i_r] - w_irf[i_r]
+                            d.loc[i_t, f'{obj.name} KalmanSpinError ORF {c} {i_n}'] = w_orf_estimation[i_r] - w_orf[i_r]
                             d.loc[i_t, f'{obj.name} RealQuat {c} {i_n}'] = q_irf[i_r]
                             d.loc[i_t, f'{obj.name} KalmanQuatEstimation {c} {i_n}'] = q_irf_estimation[i_r]
                             d.loc[i_t, f'{obj.name} KalmanQuatError {c} {i_n}'] = q_irf_estimation[i_r] - q_irf[i_r]

@@ -159,7 +159,7 @@ class KalmanFilter:
             x_m = np.array(self.params_dict2vec(tmp, separate_spacecraft=False))
 
         # Измерения с поправкой на угловой коэффициент усиления G (signal_rate)
-        dr_cf, dr_ff, notes1 = measure_antennas_power(c=c, f=f, v=v, p=p, get_ready_measurements=True)
+        '''dr_cf, dr_ff, notes1 = measure_antennas_power(c=c, f=f, v=v, p=p, get_ready_measurements=True)
         z_ = np.array(dr_cf + dr_ff)
         # Поправка на G ниже
         signal_rate = np.ones(z_len)
@@ -167,16 +167,20 @@ class KalmanFilter:
             signal_rate_cf, signal_rate_ff, notes2 = measure_antennas_power(c=c, f=f, v=v, p=p,
                                                                             get_signal_rates=True, j=j, x_m=x_m)
             signal_rate = np.array(signal_rate_cf + signal_rate_ff)
-        z_ *= np.sqrt(signal_rate)
+        z_ *= np.sqrt(signal_rate)'''
+        z_ = v.MEASURES_VECTOR
+        notes1 = v.MEASURES_VECTOR_NOTES
+        # print(f"Измерения реальные:  {z_}")
 
         # Измерения согласно модели
-        z_cf, z_ff, notes3 = measure_antennas_power(c=c, f=f, v=v, p=p, get_model_state=True, j=j, x_m=x_m)
-        z_model = np.array([z_cf + z_ff])
+        z_model, notes3 = measure_antennas_power(c=c, f=f, v=v, p=p, j=j, estimated_params=x_m)
+        # print(f"Измерения модельные: {z_model}")
+        # print(f"Положения модельные: {x_m}")
 
-        for i_c in range(c.n):  # ПРОВЕРИТЬ!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            for i_f in range(f.n):
-                z_diff = [z_cf[i] - z_[i] for i in range(len(z_))]
-                p.record.loc[p.iter, f'{c.name}-{f.name}-ZModel&RealDifference {i_c} {i_f}'] = np.linalg.norm(z_diff)
+        # ZModel&RealDifference сейчас не относится к конкретным КА. Надо ли?
+        # for i_c in range(c.n):
+        #     for i_f in range(f.n):
+        p.record.loc[p.iter, f'ZModel&RealDifference'] = np.abs(z_model - z_).mean()
 
         # Расчёт матриц
         Q_tilda = self.Phi @ self.D @ self.Q @ self.D.T @ self.Phi.T  # * self.v.dT  # nt_nt
@@ -193,11 +197,11 @@ class KalmanFilter:
         my_print(f"P_m: {P_m.shape}, H: {R.shape}, P_m: {R.shape}", if_print=p.iter == 1)
         k_ = P_m @ H.T @ np.linalg.inv(H @ P_m @ H.T + R)  # nt_nt @ nt_lt @ l_l -> nt_l
         self.P = (np.eye(j * f.n) - k_ @ H) @ P_m
-        r_orf_estimation = np.array((np.matrix(x_m).T + k_ @ (z_ - z_model).T).T)[0]
+        raw_estimation_params = np.array((np.matrix(x_m).T + k_ @ (z_ - z_model).T).T)[0]
 
         # >>>>>>>>>>>> Запись <<<<<<<<<<<<
         for i in range(f.n):
-            tmp = r_orf_estimation[(0 + i) * j: (1 + i) * j]
+            tmp = raw_estimation_params[(0 + i) * j: (1 + i) * j]
             if v.SHAMANISM["KalmanQuaternionNormalize"] and v.NAVIGATION_ANGLES:
                 tmp2 = vec2quat(tmp[3:6])
                 tmp[3:6] = (tmp2 / np.linalg.norm(tmp2))[1:4]
@@ -215,15 +219,9 @@ class KalmanFilter:
         # Запись и отображение
         if p.iter == 1:
             my_print(f"R-notes: {notes1}", color='y')
-            my_print(f"Длина длин 1: {len(dr_cf)}", color='r', if_print=v.IF_TEST_PRINT)
-            my_print(f"Длина длин 2: {len(dr_cf + dr_ff)}", color='r', if_print=v.IF_TEST_PRINT)
-            if v.NAVIGATION_ANGLES:
-                my_print(f"G-notes: {notes2}", color='y')
-                my_print(f"Длина G 1: {len(signal_rate_cf)}", color='r', if_print=v.IF_TEST_PRINT)
-                my_print(f"Длина G 2: {len(signal_rate_cf + signal_rate_ff)}", color='r', if_print=v.IF_TEST_PRINT)
+            my_print(f"Длина длин: {len(z_)}", color='r', if_print=v.IF_TEST_PRINT)
             my_print(f"M-notes: {notes3}", color='y')
-            my_print(f"Длина модельных длин 1: {len(z_cf)}", color='r', if_print=v.IF_TEST_PRINT)
-            my_print(f"Длина модельных длин 2: {len(z_cf + z_ff)}", color='r', if_print=v.IF_TEST_PRINT)
+            my_print(f"Длина модельных длин: {len(z_model)}", color='r', if_print=v.IF_TEST_PRINT)
             my_print(f"H-notes: {notesH}", color='y')
             with open("kiamfemto/data/measures_vector_notes_last.txt", "w") as f:
                 f.write("# Рассчитано в PyCharm\n# Параметры: {rel} {N_1} {N_2} {i_1} {i_2} {send_len} {take_len}\n")
@@ -238,7 +236,7 @@ class KalmanFilter:
                     f.write(f"{v.MEASURES_VECTOR_NOTES[j]}\n")
             my_print(f"P-: {P_m.shape}, H.T: {H.T.shape}, H: {H.shape}, R: {R.shape}", color='g')
             my_print(f"x-: {np.matrix(x_m).shape}, K: {k_.shape}, z: {(z_ - z_model).shape}", color='g')
-            my_print(f"r_orf_estimation: {r_orf_estimation.shape}", color='g')
+            my_print(f"estimation_params: {raw_estimation_params.shape}", color='g')
 
 def navigate(k: KalmanFilter):
     k.calc()  # Пока что при любом OPERATING_MODES (если все КА включены и не потеряны)
