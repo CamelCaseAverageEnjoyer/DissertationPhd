@@ -2,9 +2,6 @@
 ПЕРЕДЕЛАТЬ v_->v, v->u"""
 from datetime import datetime
 
-from kiam_astro import kiam
-from kiam_astro.trajectory import Trajectory
-
 from primary_info import *
 from gnc_systems import *
 from my_plot import *
@@ -280,6 +277,8 @@ class PhysicModel:
         self.record = self.record.astype({'i': 'int32', 'FemtoSat n': 'int32', 'CubeSat n': 'int32'})
 
     def kiam_init(self):
+        from kiam_astro import kiam
+        from kiam_astro.trajectory import Trajectory
         self.jd0 = kiam.juliandate(2024, 1, 1, 0, 0, 0)  # (год, месяц, день, чч, мм, сс)
         self.tr = [[Trajectory(initial_state=np.zeros(6), initial_time=0, initial_jd=self.jd0, variables='rv',
                                system='gcrs', units_name='earth') for _ in range(obj.n)]
@@ -328,6 +327,7 @@ class PhysicModel:
                     obj.r_irf[i] = o_i(v=self.v, a=obj.r_orf[i], U=U, vec_type='r')
                     obj.v_irf[i] = o_i(v=self.v, a=obj.v_orf[i], U=U, vec_type='v')
                 elif 'kiamastro' in self.v.SOLVER:
+                    from kiam_astro import kiam
                     obj.r_irf[i] = np.array([self.tr[j][i].states[ii][self.iter - 1]
                                              for ii in range(3)]) * kiam.units('earth')['DistUnit'] * 1e3
                     obj.v_irf[i] = np.array([self.tr[j][i].states[ii + 3][self.iter - 1]

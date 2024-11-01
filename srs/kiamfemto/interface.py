@@ -1,7 +1,8 @@
 import sys
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtCore import QSize, Qt
+from PyQt5.QtGui import QPixmap, QIcon
+from PyQt5.QtWidgets import QWidget, QGridLayout, QPushButton, QLabel, QApplication, QLineEdit, QCheckBox, QComboBox, \
+    QInputDialog, QFileDialog
 from my_plot import *
 from simulation import save_simulation_trajectories, load_simulation_trajectories
 
@@ -18,6 +19,8 @@ class Window(QWidget):
         self.checkboxes = {}
         self.comboboxes = {}
         self.choices = {}
+        self.labels = {}
+        self.images = {}
         self.name_type_func = []
         self.grid = QGridLayout()
         self.setLayout(self.grid)
@@ -26,6 +29,10 @@ class Window(QWidget):
 
         self.initUI()
 
+    def reset_all(self):
+        self.o.v.load_params(i=self.config_choose_n)
+        self.o.init_classes()
+
     def initUI(self):
         # Очистка layout
         for i in reversed(range(self.grid.count())):
@@ -33,8 +40,7 @@ class Window(QWidget):
         self.name_type_func = [[['', '', None, (1, 1)] for _ in range(self.n)] for _ in range(self.n)]
 
         # Подгрузка параметров + инициализация
-        self.o.v.load_params(i=self.config_choose_n)
-        self.o.init_classes()
+        self.reset_all()
 
         # Редактирование сетки
         self.buttons_and_labels()
@@ -62,6 +68,7 @@ class Window(QWidget):
                 label = QLabel(name)
                 label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 label.setStyleSheet("border: 1px solid #C2C7CB; border-radius: 5%; padding: 10px;")
+                self.labels[name] = label  # Задел на он-лайн изменение; потом
                 self.grid.addWidget(label, *position, *wh)
             elif 'image' in t:
                 label = QLabel()
@@ -71,6 +78,7 @@ class Window(QWidget):
                     s = int(t.split(";")[1])
                     label.setPixmap(pix.scaled(s, s, Qt.AspectRatioMode.KeepAspectRatio,
                                                Qt.TransformationMode.FastTransformation))
+                self.images[name] = label  # Задел на он-лайн изменение; потом
                 self.grid.addWidget(label, *position, *wh)
             elif 'edit' in t:
                 textbox = QLineEdit()
@@ -88,19 +96,6 @@ class Window(QWidget):
                 c.setCurrentText(t.split(";")[1])
                 self.comboboxes[name] = c
                 self.grid.addWidget(c, *position, *wh)
-
-        # Изображение
-        # painter = QPainter(self)
-        # painter.setPen(Qt.blue)
-
-        # n_line = 100
-        # radius = 100
-
-        rounds = self.o.v.TIME / self.o.v.MY_SEC_IN_TURN
-        # trajectory = [QPoint(i*10000, i*10000) for i in range(n_line)]
-        # painter.drawPolyline(QPolygon(trajectory))
-        # radius * np.cos(rounds * i / n_line) + i*10,
-        #                              radius * np.sin(rounds * i / n_line)
 
         # Редактирование окна
         self.move(0, 0)
@@ -122,7 +117,7 @@ class Window(QWidget):
         y += 1
         self.name_type_func[y][n] = [self.path + "integral.png", "button", self.main_run, (1, 1)]  # Моделирование
         y += 1
-        self.name_type_func[y][n] = [self.path + "antenna.png", "button", plot_model_gain, (1, 1)]  # Диаграммы
+        self.name_type_func[y][n] = [self.path + "antenna.png", "button", lambda x=self.o: plot_model_gain(x), (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "air.png", "button", plot_atmosphere_models, (1, 1)]
         y += 1
@@ -134,8 +129,6 @@ class Window(QWidget):
         y += 1
         self.name_type_func[y][n] = [self.path + "orbit.png", "button", lambda x=self.o: plot_all(x), (1, 1)]
         y += 1
-        self.name_type_func[y][n] = [self.path + "signal.png", "button", lambda x=self.o: plot_signals(x), (1, 1)]
-        y += 1
         self.name_type_func[y][n] = [self.path + "save.png", "button", self.local_save_trajectories, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "load.png", "button", self.local_load_trajectories, (1, 1)]
@@ -146,7 +139,7 @@ class Window(QWidget):
 
         # >>>>>>>>>>>> Параметры численного моделирования <<<<<<<<<<<<
 
-        # Первый столбец
+        # Первый столбец - выбор из вариантов
         y = 1
         self.name_type_func[y][n+0] = ["Шаг по времени dT", "label", None, (1, 1)]
         self.name_type_func[y][n+1] = ["dT", f"combo;{params['dT']}", ";".join(self.o.v.dTs), (1, 1)]
@@ -183,30 +176,44 @@ class Window(QWidget):
         y_all = max(y_all, y)
 
 
-        # Второй столбец
+        # Второй столбец - вручную вбиваемые значения
         y = 1
         self.name_type_func[y][n+0] = ["Кубсаты", "label", None, (1, 1)]
         self.name_type_func[y][n+1] = [self.path + f"{self.o.v.CUBESAT_MODELS[params['CUBESAT_MODEL_N']]}.png",
                                        f"image;{ICON_SIZE}", None, (1, 1)]
-        self.name_type_func[y][n+2] = ["CUBESAT_AMOUNT", f"edit;{params['CUBESAT_AMOUNT']}", None, (1, 1)]
+        self.name_type_func[y][n+2] = ["CUBESAT_AMOUNT", f"edit;{params['CUBESAT_AMOUNT']}", None, (1, 3)]
         y += 1
         self.name_type_func[y][n+0] = ["Чипсаты", "label", None, (1, 1)]
         self.name_type_func[y][n+1] = [self.path + f"chipsat.png", f"image;{ICON_SIZE}", None, (1, 1)]
-        self.name_type_func[y][n+2] = ["CHIPSAT_AMOUNT", f"edit;{params['CHIPSAT_AMOUNT']}", None, (1, 1)]
+        self.name_type_func[y][n+2] = ["CHIPSAT_AMOUNT", f"edit;{params['CHIPSAT_AMOUNT']}", None, (1, 3)]
         y += 1
         self.name_type_func[y][n+0] = ["q", "label", None, (1, 1)]
-        self.name_type_func[y][n+1] = ["q", f"edit;{params['q']}", None, (1, 2)]
+        q = [float(k) for k in params['q'].split()]
+        for k in range(2):
+            self.name_type_func[y][n+1+k] = [f"q{k}", f"edit;{q[k]}", None, (1, 1)]
         y += 1
         self.name_type_func[y][n+0] = ["p", "label", None, (1, 1)]
-        self.name_type_func[y][n+1] = ["p", f"edit;{params['p']}", None, (1, 2)]
+        p = [float(k) for k in params['p'].split()]
+        for k in range(4):
+            self.name_type_func[y][n+1+k] = [f"p{k}", f"edit;{p[k]}", None, (1, 1)]
         y += 1
         self.name_type_func[y][n+0] = ["r", "label", None, (1, 1)]
-        self.name_type_func[y][n+1] = ["r", f"edit;{params['r']}", None, (1, 2)]
+        self.name_type_func[y][n+1] = ["r", f"edit;{params['r']}", None, (1, 1)]
         y += 1
-        n += 3
+        self.name_type_func[y][n+0] = ["Разброс R,V,w кубсаты", "label", None, (1, 1)]
+        rvw_cubesat = [float(k) for k in params['RVW_CubeSat_SPREAD'].split()]
+        for k in range(3):
+            self.name_type_func[y][n+1+k] = [f"rvw_cubesat{k}", f"edit;{rvw_cubesat[k]}", None, (1, 1)]
+        y += 1
+        self.name_type_func[y][n+0] = ["Разброс R,V,w чипсаты", "label", None, (1, 1)]
+        rvw_chipsat = [float(k) for k in params['RVW_ChipSat_SPREAD'].split()]
+        for k in range(3):
+            self.name_type_func[y][n+1+k] = [f"rvw_chipsat{k}", f"edit;{rvw_chipsat[k]}", None, (1, 1)]
+        y += 1
+        n += 5
         y_all = max(y_all, y)
 
-        # Третий столбец
+        # Третий столбец - чекбоксы
         y = 1
         self.name_type_func[y][n+0] = ["Лобовое сопротивление", "label", None, (1, 1)]
         self.name_type_func[y][n+1] = ["DYNAMIC_MODEL_aero", f"check;{int(params['DYNAMIC_MODEL_aero'])}", None, (1, 1)]
@@ -236,6 +243,7 @@ class Window(QWidget):
         self.name_type_func[y_save + 1][n+0] = ["Параметры", "edit;Название", None, (1, 2)]
         self.name_type_func[y_save + 1][n+2] = ["Сохранить", "button", self.local_save_params, (1, 1)]
         self.name_type_func[y_save + 2][n+0] = ["Применить введённые параметры", "button", self.apply_params, (1, 3)]
+        self.name_type_func[y_save + 3][n+0] = ["Сбросить моделирование", "button", self.reset_all, (1, 3)]
 
         for i in range(y_save):
             self.name_type_func[i+1][n+0] = [data.iloc[i, 0], "label", None, (1, 1)]
@@ -252,7 +260,7 @@ class Window(QWidget):
         self.name_type_func[y_all+1][n+0] = [self.path + "send0_take0.png", "image", None, (3, 3)]
 
         # Текст о долготе полёта
-        self.name_type_func[y_all][n+3] = [self.o.time_message(params['TIME']), "label", None, (1, 3)]
+        self.name_type_func[y_all][n+3] = [self.o.time_message(params['TIME']), "label", None, (1, 4)]
 
     def apply_params(self):
         """Применение настроенных параметров. Должно быть согласовано с config.get_saving_params"""
@@ -274,9 +282,11 @@ class Window(QWidget):
 
         self.o.v.CUBESAT_AMOUNT = int(self.textboxes['CUBESAT_AMOUNT'].text())
         self.o.v.CHIPSAT_AMOUNT = int(self.textboxes['CHIPSAT_AMOUNT'].text())
-        self.o.v.KALMAN_COEF['q'] = [float(self.textboxes['q'].text())] * 2
-        self.o.v.KALMAN_COEF['p'] = [float(self.textboxes['p'].text())] * 4
+        self.o.v.KALMAN_COEF['q'] = [float(self.textboxes[f'q{k}'].text()) for k in range(2)]
+        self.o.v.KALMAN_COEF['p'] = [float(self.textboxes[f'p{k}'].text()) for k in range(4)]
         self.o.v.KALMAN_COEF['r'] = float(self.textboxes['r'].text())
+        self.o.v.RVW_CubeSat_SPREAD = [float(self.textboxes[f'rvw_cubesat{k}'].text()) for k in range(3)]
+        self.o.v.RVW_ChipSat_SPREAD = [float(self.textboxes[f'rvw_chipsat{k}'].text()) for k in range(3)]
 
         self.o.v.DYNAMIC_MODEL['aero drag'] = self.checkboxes['DYNAMIC_MODEL_aero'].isChecked()
         self.o.v.DYNAMIC_MODEL['j2'] = self.checkboxes['DYNAMIC_MODEL_j2'].isChecked()

@@ -2,7 +2,6 @@
 Проект kiam-femto создан для...
 """
 import sys
-print(sys.path[0])
 sys.path.insert(1, f"{sys.path[0]}/kiamfemto")
 sys.path.insert(1, f"{sys.path[0]}/test")
 

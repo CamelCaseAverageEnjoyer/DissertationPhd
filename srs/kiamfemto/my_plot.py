@@ -16,32 +16,6 @@ rcParams["savefig.directory"] = "/home/kodiak/Desktop"
 rcParams["savefig.format"] = "jpg"
 
 # >>>>>>>>>>>> 2D графики <<<<<<<<<<<<
-def plot_signals(o):  # НЕ ПРОВЕРЕНО !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    global TITLE_SIZE, CAPTION_SIZE
-    for i_c in range(o.c.n):
-        for i_f in range(o.f.n):
-            x = [o.p.show_rate * o.v.dT * i for i in range(len(o.c.signal_power[i_c][i_f]))]
-            plt.plot(x, o.c.signal_power[i_c][i_f], label=f"фемтоступтник № {i_f+ 1}")
-        plt.xlabel("Время, с", fontsize=CAPTION_SIZE)
-        plt.ylabel("Мощность сигнала, ?", fontsize=CAPTION_SIZE)
-        plt.title(f"График сигналов от фемтоспутников, получаемых кубсатом № {i_c + 1}")
-        plt.legend(fontsize=CAPTION_SIZE)
-        plt.show()
-    tmp = plt.subplots(o.f.n, 1)
-    fig = tmp[0]
-    fig.suptitle(f"График сигналов от фемтоспутников, получаемых фемтосатом № {[i + 1 for i in range(o.f.n)]}",
-                 fontsize=TITLE_SIZE)
-    axes = tmp[1:o.f.n][0]
-    colors = ['violet', 'teal', 'peru', 'cornflowerblue', 'forestgreen', 'blueviolet']
-    for i_f1 in range(o.f.n):
-        for i_f2 in range(o.f.n):
-            if i_f1 != i_f2:
-                x = [o.p.show_rate * o.v.dT * i for i in range(len(o.f.signal_power[i_f1][i_f2]))]
-                axes[i_f1].plot(x, o.f.signal_power[i_f1][i_f2], c=colors[i_f2])
-        axes[i_f1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-        axes[i_f1].set_ylabel("?", fontsize=CAPTION_SIZE)
-    plt.show()
-
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
     fig, ax = plt.subplots(3 if o.v.NAVIGATION_ANGLES else 2,
@@ -82,12 +56,6 @@ def plot_distance(o):
     axes[1].legend(fontsize=CAPTION_SIZE)
     axes[1].grid(True)
 
-    # d.loc[i_t, f'{obj.name} RealSpin {c} {i_n}'] = w_orf[i_r]
-    #  d.loc[i_t, f'{obj.name} KalmanSpinEstimation {c} {i_n}'] = w_orf_estimation[i_r]
-
-    # d.loc[i_t, f'{obj.name} RealQuat {c} {i_n}'] = q_irf[i_r]
-    # d.loc[i_t, f'{obj.name} KalmanQuatEstimation {c} {i_n}'] = q_irf_estimation[i_r]
-
     if o.v.NAVIGATION_ANGLES:
         for i_f in range(o.f.n):
             labels_q = ["Λˣ", "Λʸ", "Λᶻ"]
@@ -98,11 +66,15 @@ def plot_distance(o):
                 y1 = o.p.record[f'{o.f.name} KalmanQuatError {c} {i_f}'].to_list()
                 y2 = o.p.record[f'{o.f.name} KalmanSpinError ORF {c} {i_f}'].to_list()
                 y3 = o.p.record[f'{o.f.name} RealQuat {c} {i_f}'].to_list()
+                y3e = o.p.record[f'{o.f.name} KalmanQuatEstimation {c} {i_f}'].to_list()
                 y4 = o.p.record[f'{o.f.name} RealSpin ORF {c} {i_f}'].to_list()
+                y4e = o.p.record[f'{o.f.name} KalmanSpinEstimation ORF {c} {i_f}'].to_list()
                 ax[1][0].plot(x, y1, c=o.v.MY_COLORS[j+3], label=labels_dq[j] if i_f == 0 else None)
                 ax[1][1].plot(x, y2, c=o.v.MY_COLORS[j+3], label=labels_dw[j] if i_f == 0 else None)
-                ax[2][0].plot(x, y3, label=labels_q[j] + "-real" if i_f == 0 else None)
-                ax[2][1].plot(x, y4, label=labels_w[j] + "-real" if i_f == 0 else None)
+                ax[2][0].plot(x, y3, label=labels_q[j] + "-реальное" if i_f == 0 else None)
+                ax[2][1].plot(x, y4, label=labels_w[j] + "-реальное" if i_f == 0 else None)
+                ax[2][0].plot(x, y3e, ":", label=labels_q[j] + "-оценка" if i_f == 0 else None)
+                ax[2][1].plot(x, y4e, ":", label=labels_w[j] + "-оценка" if i_f == 0 else None)
         for ii in [1, 2]:
             ax[ii][0].set_ylabel(f"Компоненты Λ", fontsize=CAPTION_SIZE)
             ax[ii][1].set_ylabel(f"Компоненты ω (ORF)", fontsize=CAPTION_SIZE)
@@ -112,11 +84,44 @@ def plot_distance(o):
                 ax[ii][j].grid(True)
     plt.show()
 
+def plot_atmosphere_models(n: int = 100):
+    from dynamics import get_atm_params
+    v = Variables()
+
+    range_km = [300, 500]
+    fig, axs = plt.subplots(1, 2, figsize=(19, 5))
+    fig.suptitle('Модели атмосферы')
+    for m in range(len(v.ATMOSPHERE_MODELS)):
+        for j in range(2):
+            z = np.linspace(100e3 if j == 0 else range_km[0]*1e3, range_km[1]*1e3, n)
+            rho = [get_atm_params(h=z[i], v=v, atm_model=v.ATMOSPHERE_MODELS[m])[0] for i in range(n)]
+            tmp = ", используемая" if v.ATMOSPHERE_MODELS[m] == v.ATMOSPHERE_MODEL else ""
+            axs[j].plot(z, rho, ls="-" if v.ATMOSPHERE_MODELS[m] == v.ATMOSPHERE_MODEL else ":",
+                        label=f"Модель: {v.ATMOSPHERE_MODELS[m]}{tmp}")
+            axs[j].set_ylabel(f"Плотность ρ, кг/м³")
+            axs[j].set_xlabel(f"Высота z, м")
+            axs[j].legend()
+            axs[j].grid()
+    axs[0].set_title(f"От линии Кармана до {range_km[1]} км")
+    axs[1].set_title(f"От {range_km[0]} до {range_km[1]} км")
+    plt.show()
+
 
 # >>>>>>>>>>>> 3D отображение в ОСК <<<<<<<<<<<<
 def show_chipsat(o, j, clr, opacity, reference_frame: str, return_go: bool = True, ax=None) -> list:
+    """
+    Функция отображения чипсата (просто пластина)
+    :param o: Objects
+    :param j: номер чипсата
+    :param clr:
+    :param opacity:
+    :param reference_frame:
+    :param return_go: По умолчанию, при return_go=False считается, что reference_frame="BRF"
+    :param ax:
+    :return:
+    """
     global FEMTO_RATE
-    rate = FEMTO_RATE if reference_frame != "BRF" else 2 / np.min(o.f.size)
+    rate = FEMTO_RATE if reference_frame != "BRF" else 2 / min(o.f.size)
     x, y, z = ([], [], [0 for _ in range(4)])
     for x_shift in [-o.f.size[0] * rate, o.f.size[0] * rate]:
         for y_shift in [-o.f.size[1] * rate, o.f.size[1] * rate]:
@@ -125,24 +130,18 @@ def show_chipsat(o, j, clr, opacity, reference_frame: str, return_go: bool = Tru
     A = quart2dcm(o.f.q[j])
     if reference_frame != "BRF":
         for i in range(4):
-            r = A.T @ np.array([x[i], y[i], z[i]])
+            r = A.T @ np.array([x[i], y[i], z[i]])  # НЕВЕРНО, что тут A.T !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             x[i] = r[0] + o.f.r_orf[j][0] if reference_frame == "ORF" else r[0] + o.f.r_irf[j][0]
             y[i] = r[1] + o.f.r_orf[j][1] if reference_frame == "ORF" else r[1] + o.f.r_irf[j][1]
             z[i] = r[2] + o.f.r_orf[j][2] if reference_frame == "ORF" else r[2] + o.f.r_irf[j][2]
-    xl, yl, zl = ([], [], [])
-    for i in range(int(len(o.f.line_orf[j]) // 3)):
-        xl += [o.f.line_orf[j][i * 3 + 0]] if reference_frame == "ORF" else [o.f.line_irf[j][i * 3 + 0]]
-        yl += [o.f.line_orf[j][i * 3 + 1]] if reference_frame == "ORF" else [o.f.line_irf[j][i * 3 + 1]]
-        zl += [o.f.line_orf[j][i * 3 + 2]] if reference_frame == "ORF" else [o.f.line_irf[j][i * 3 + 2]]
-    xk, yk, zk = ([], [], [])
-    for i in range(int(len(o.f.line_kalman[j])//3)):
-        xk += [o.f.line_kalman[j][i * 3 + 0]]
-        yk += [o.f.line_kalman[j][i * 3 + 1]]
-        zk += [o.f.line_kalman[j][i * 3 + 2]]
-    if return_go:
-        return [go.Mesh3d(x=x, y=y, z=z, color=clr, opacity=opacity), go.Scatter3d(x=xl, y=yl, z=zl, mode='lines'),
-                go.Scatter3d(x=xk, y=yk, z=zk, mode='lines')]
-    # По умолчанию, при return_go=False считается, что reference_frame="BRF"
+        r_real, r_estimation = [], []
+        for c in "xyz":
+            r_real.append(o.p.record[f'{o.f.name} r {c} {reference_frame.lower()} {j}'].to_list())
+            r_estimation.append(o.p.record[f'{o.f.name} KalmanPosEstimation {c} {j}'].to_list())
+        if return_go:
+            return [go.Mesh3d(x=x, y=y, z=z, color=clr, opacity=opacity),
+                    go.Scatter3d(x=r_real[0], y=r_real[1], z=r_real[2], mode='lines'),
+                    go.Scatter3d(x=r_estimation[0], y=r_estimation[1], z=r_estimation[2], mode='lines')]
     ax.plot([x[0], x[2], x[3], x[1], x[0]],
             [y[0], y[2], y[3], y[1], y[0]],
             [z[0], z[2], z[3], z[1], z[0]], c='gray', linewidth=3)
@@ -213,14 +212,49 @@ def show_cubesat(o, j, reference_frame: str) -> list:
     anw = []
     for i in range(total_cubes):
         color = 'yellow' if i < 6 else 'gray'
-        anw += [go.Mesh3d(x=r[0][i], y=r[1][i], z=r[2][i], color=color, opacity=1)]
-    xl, yl, zl = ([], [], [])
-    for i in range(int(len(o.c.line_orf[j]) // 3)):
-        xl += [o.c.line_orf[j][i * 3 + 0]] if reference_frame == "ORF" else [o.c.line_irf[j][i * 3 + 0]]
-        yl += [o.c.line_orf[j][i * 3 + 1]] if reference_frame == "ORF" else [o.c.line_irf[j][i * 3 + 1]]
-        zl += [o.c.line_orf[j][i * 3 + 2]] if reference_frame == "ORF" else [o.c.line_irf[j][i * 3 + 2]]
-    anw += [go.Scatter3d(x=xl, y=yl, z=zl, mode='lines')]
+        anw.append(go.Mesh3d(x=r[0][i], y=r[1][i], z=r[2][i], color=color, opacity=1))
+    r = []
+    for c in 'xyz':
+        r.append(o.p.record[f'{o.c.name} r {c} {reference_frame.lower()} {j}'].to_list())
+    anw.append(go.Scatter3d(x=r[0], y=r[1], z=r[2], mode='lines'))
     return anw
+
+def plot_model_gain(o: Objects, n: int = 20):
+    from my_math import pol2dec
+    from spacecrafts import get_gain
+    fig = plt.figure(figsize=(15, 10))
+
+    for i in range(2):
+        for j in range(2):
+            ax = fig.add_subplot(2, 2, i+1+j*2, projection='3d')
+            obj = [o.f, o.c][i]
+            my_print(f"Диаграмма направленностей для {obj.name}: {o.v.GAIN_MODEL_F}", color="b")
+
+            u = np.linspace(0, 2 * np.pi, n)
+            v = np.linspace(-np.pi / 2, np.pi / 2, n)
+            U, V = np.meshgrid(u, v)
+
+            max_g = 0
+            for k in range(len(get_gain(v=o.v, obj=obj, r=pol2dec(1, u[0], v[0]), if_send=j == 0, if_take=j == 1))):
+                g = np.array([[get_gain(v=o.v, obj=obj, r=pol2dec(1, u[ii], v[jj]),
+                                           if_send=j == 0, if_take=j == 1)[k] for ii in range(n)] for jj in range(n)])
+                X, Y, Z = pol2dec(g, U, V)
+                ax.plot_surface(X, Y, Z, cmap=o.v.MY_COLORMAPS[k])
+                max_g = max(max_g, np.max(g.flatten()))
+
+            if obj.name == "FemtoSat":
+                max_g = max(max_g, 2 * np.max(o.f.size))
+                show_chipsat(o=o, j=0, reference_frame="BRF", return_go=False, ax=ax, clr=None, opacity=None)
+
+            ax.set_xlim(-max_g, max_g)
+            ax.set_ylim(-max_g, max_g)
+            ax.set_zlim(-max_g, max_g)
+            ax.set_box_aspect([1, 1, 1])
+            title_text = f"Диаграмма направленностей для {obj.name} | " \
+                         f"GAIN_MODEL = {o.v.GAIN_MODEL_F if  obj.name == 'FemtoSat' else o.v.GAIN_MODEL_C}\n" \
+                         f"Отправленный сигнал"
+            ax.set_title(title_text if j == 0 else "Принятый сигнал")
+    plt.show()
 
 
 # >>>>>>>>>>>> 3D отображение в ИСК <<<<<<<<<<<<
@@ -267,6 +301,7 @@ def arrows3d(ends: np.ndarray, starts: np.ndarray = None, ax=None, label: str = 
     return ax
 
 def plot_the_earth_mpl(ax, v: Variables, res: int = 1, pth: str = "./", earth_image=None):
+    """Отрисовка слева красивой Земли из одной линии"""
     x_points = 180 * res
     y_points = 90 * res
 
@@ -325,6 +360,45 @@ def plot_reference_frames(ax, o, txt: str, color: str = "gray", t: float = None)
         ax.text(a[0], a[1], a[2], c=color, s=label)
     return ax
 
+# >>>>>>>>>>>> Анимация <<<<<<<<<<<<
+def animate_reference_frames(resolution: int = 3, n: int = 5):
+    from PIL import Image
+    from os import remove
+
+    v_ = Variables()
+    o = Objects(v=v_)
+    # o.v.dT = o.v.SEC_IN_TURN / (n - 3)
+    TIME = 2*np.pi / o.v.W_ORB
+    o.v.dT = TIME / n
+    o.v.IF_NAVIGATION = False
+
+    fig = plt.figure(figsize=(7, 7))
+    ax = fig.add_subplot(projection='3d')
+    ax.set_xlim3d([-1e7, 1e7])
+    ax.set_ylim3d([-1e7, 1e7])
+    ax.set_zlim3d([-1e7, 1e7])
+    x_points = 180 * resolution
+    y_points = 90 * resolution
+    earth_image = Image.open(f'../../source/skins/{o.v.EARTH_FILE_NAME}')
+    earth_image = np.array(earth_image.resize((x_points, y_points))) / 256.
+    for i in range(n):
+        o.p.time_step()
+        ax = plot_the_earth_mpl(ax, v=v_, earth_image=earth_image)
+        ax = plot_reference_frames(ax, o, t=o.p.t, txt="ИСК", color="lime")
+        ax = plot_reference_frames(ax, o, t=o.p.t, txt="ОСК", color="red")
+        ax.view_init(azim=20, elev=30, roll=0)
+        ax.axis('equal')
+        plt.title(f"Наклонение: {o.v.INCLINATION}°, эксцентриситет: {round(o.v.ECCENTRICITY, 2)}, "
+                  f"апогей: {round(o.v.APOGEE / 1e3)} км, перигей: {round(o.v.PERIGEE / 1e3)} км")
+        plt.legend()
+        plt.savefig(f"../../res/to_delete_{'{:04}'.format(i)}.png")
+        ax.clear()
+    plt.close()
+
+    images = [Image.open(f"../../res/to_delete_{'{:04}'.format(i)}.png") for i in range(n)]
+    images[0].save('../../res/res.gif', save_all=True, append_images=images[1:], duration=20, loop=0)
+    for i in range(n):
+        remove(f"../../res/to_delete_{'{:04}'.format(i)}.png")
 
 # >>>>>>>>>>>> Конечная ассамблея <<<<<<<<<<<<
 def show_chipsats_and_cubesats(o, reference_frame: str, clr: str = 'lightpink', opacity: float = 1):

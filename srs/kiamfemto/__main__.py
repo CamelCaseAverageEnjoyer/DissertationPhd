@@ -3,9 +3,10 @@ from interface import *
 from warnings import simplefilter
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
+
 if __name__ == '__main__':
     # Инициализация объектов
-    o = Objects(v=Variables())
+    o = init()
 
     # Интерфейс
     app, window = interface_window(o=o)

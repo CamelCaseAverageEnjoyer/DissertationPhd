@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 import pandas as pd
 from cosmetic import *
 
@@ -13,12 +13,15 @@ class Variables:
     def get_saving_params(self):
         """Функция возвращает набор параметров для записи в файл
         Должно быть согласовано с: self.set_saving_params(), config_choose.csv"""
+        q = " ".join([str(i) for i in self.KALMAN_COEF['q']])
+        p = " ".join([str(i) for i in self.KALMAN_COEF['p']])
+        rvw_cubesat = " ".join([str(i) for i in self.RVW_CubeSat_SPREAD])
+        rvw_chipsat = " ".join([str(i) for i in self.RVW_ChipSat_SPREAD])
         return [self.DESCRIPTION, self.dT, self.TIME, self.CUBESAT_AMOUNT, self.CHIPSAT_AMOUNT,
                 self.DYNAMIC_MODEL['aero drag'], self.DYNAMIC_MODEL['j2'],
                 self.NAVIGATION_BY_ALL, self.NAVIGATION_ANGLES, self.MULTI_ANTENNA_TAKE, self.MULTI_ANTENNA_SEND,
                 self.START_NAVIGATION_N, self.GAIN_MODEL_C_N, self.GAIN_MODEL_F_N, self.IF_NAVIGATION,
-                self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, self.KALMAN_COEF['q'][0], self.KALMAN_COEF['p'][0],
-                self.KALMAN_COEF['r']]
+                self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, q, p, self.KALMAN_COEF['r'], rvw_cubesat, rvw_chipsat]
 
     def set_saving_params(self, params):
         """Функция принимает набор параметров из файла
@@ -26,12 +29,15 @@ class Variables:
         self.DESCRIPTION, self.dT, self.TIME, self.CUBESAT_AMOUNT, self.CHIPSAT_AMOUNT, aero, j2, \
             self.NAVIGATION_BY_ALL, self.NAVIGATION_ANGLES, self.MULTI_ANTENNA_TAKE, self.MULTI_ANTENNA_SEND, \
             self.START_NAVIGATION_N, self.GAIN_MODEL_C_N, self.GAIN_MODEL_F_N, self.IF_NAVIGATION, \
-            self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, q, p, r = params
+            self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, q, p, r, rvw_cubesat, rvw_chipsat = params
         self.DYNAMIC_MODEL['aero drag'] = aero
         self.DYNAMIC_MODEL['j2'] = j2
-        self.KALMAN_COEF['q'] = [q] * 2
-        self.KALMAN_COEF['p'] = [p] * 4
-        self.KALMAN_COEF['r'] = r
+        self.KALMAN_COEF['q'] = [float(i) for i in q.split()]
+        self.KALMAN_COEF['p'] = [float(i) for i in p.split()]
+        self.KALMAN_COEF['r'] = float(r)
+        self.RVW_CubeSat_SPREAD = [float(i) for i in rvw_cubesat.split()]
+        self.RVW_ChipSat_SPREAD = [float(i) for i in rvw_chipsat.split()]
+
         self.init_choice_params()
 
     def load_params(self, i: int = 0):
@@ -84,8 +90,8 @@ class Variables:
         self.MULTI_ANTENNA_SEND = False  # Разделяет ли КА исходящий сигнал на составляющие
         self.IF_NAVIGATION = True
 
-        self.RVW_CubeSat_SPREAD = [1e2, 1e-1, 1e-6]  # r (м), v (м/с), ω (рад/с)
-        self.RVW_ChipSat_SPREAD = [1e2, 1e-1, 1e-6]
+        self.RVW_CubeSat_SPREAD = [1e2, 1e-1, 1e-4]  # r (м), v (м/с), ω (рад/с)
+        self.RVW_ChipSat_SPREAD = [1e2, 1e-1, 1e-4]
         self.KALMAN_COEF = {'q': [1e-15]*2, 'p': [1e-8]*4, 'r': 1e-1}
         self.SHAMANISM = {'KalmanQuaternionNormalize': True,   # Нормировка кватернионов в фильтре Калмана
                           'KalmanSpinLimit': [True, 1e-2],  # Ограничение скорости вращения в прогнозе фильтра Калмана
@@ -140,20 +146,21 @@ class Variables:
         self.ECCENTRICITY = 0.0
         self.INCLINATION = 0  # В градусах
         self.EARTH_RADIUS = kiam.units('earth')['DistUnit'] * 1e3
-        self.ORBIT_RADIUS = self.EARTH_RADIUS + 400e3
+        self.HEIGHT = 400e3
+        self.ORBIT_RADIUS = self.EARTH_RADIUS + self.HEIGHT
 
         # Параметры орбиты
         self.APOGEE = self.ORBIT_RADIUS  # Апогей
         self.PERIGEE = self.ORBIT_RADIUS * (1 - self.ECCENTRICITY)/(1 + self.ECCENTRICITY)  # Перигей
         self.P = self.APOGEE * (1 - self.ECCENTRICITY**2)  # Фокальный параметр
         self.MU = 5.972e24 * 6.67408e-11  # Гравитационный параметр
-        self.W_ORB = numpy.sqrt(self.MU / self.ORBIT_RADIUS ** 3)
-        self.W_ORB_VEC_IRF = self.W_ORB * numpy.array([0, -numpy.sin(self.INCLINATION), numpy.cos(self.INCLINATION)])
-        self.V_ORB = numpy.sqrt(self.MU / self.ORBIT_RADIUS)
+        self.W_ORB = np.sqrt(self.MU / self.ORBIT_RADIUS ** 3)
+        self.W_ORB_VEC_IRF = self.W_ORB * np.array([0, -np.sin(self.INCLINATION), np.cos(self.INCLINATION)])
+        self.V_ORB = np.sqrt(self.MU / self.ORBIT_RADIUS)
         self.J2 = 1.082 * 1e-3
 
-        self.MY_SEC_IN_TURN = 2 * numpy.pi / self.W_ORB
-        self.SEC_IN_TURN = 24*3600*kiam.units('earth')['TimeUnit']*2*numpy.pi
+        self.MY_SEC_IN_TURN = 2 * np.pi / self.W_ORB
+        self.SEC_IN_TURN = 24*3600*kiam.units('earth')['TimeUnit']*2*np.pi
         self.SEC_IN_RAD = 24*3600*kiam.units('earth')['TimeUnit']
 
         # >>>>>>>>>>>> Изменяемые параметры по ходу работы кода <<<<<<<<<<<<
@@ -202,7 +209,7 @@ class Objects:
         self.p = PhysicModel(c=self.c, f=self.f, a=self.a, v=self.v)
 
     def time_message(self, t):
-        return f"Оборотов вокруг Земли: {round(t / (2 * numpy.pi / self.v.W_ORB), 2)}    " \
+        return f"Оборотов вокруг Земли: {round(t / (2 * np.pi / self.v.W_ORB), 2)}    " \
                f"({round(t / (3600 * 24), 2)} дней)"
 
     def integrate(self, t: float, animate: bool = False) -> None:
@@ -251,119 +258,12 @@ class Objects:
         # Заполнение None в p.record
         fill_null_record(p=self.p)
 
+def init():
+    return Objects(v=Variables())
+
 def fill_null_record(p: any):
     pass
     # for obj in [p.f]:
     #     for i_n in range(obj.n):
     #         p.record.loc[f'{obj.name} KalmanPosEstimation r {i_n}'] = \
     #             p.record.loc[f'{obj.name} KalmanPosEstimation r {i_n}'].fillna(value=p.v.NO_LINE_FLAG)
-
-def plot_model_gain(n: int = 20):
-    import matplotlib.pyplot as plt
-    from my_math import pol2dec
-    from my_plot import show_chipsat
-    from spacecrafts import get_gain
-    v_ = Variables()
-    o = Objects(v=v_)
-    fig = plt.figure(figsize=(15, 10))
-
-    for i in range(2):
-        for j in range(2):
-            ax = fig.add_subplot(2, 2, i+1+j*2, projection='3d')
-            obj = [o.f, o.c][i]
-            my_print(f"Диаграмма направленностей для {obj.name}: {o.v.GAIN_MODEL_F}", color="b")
-
-            u = numpy.linspace(0, 2 * numpy.pi, n)
-            v = numpy.linspace(-numpy.pi / 2, numpy.pi / 2, n)
-            U, V = numpy.meshgrid(u, v)
-
-            max_g = 0
-            for k in range(len(get_gain(v=v_, obj=obj, r=pol2dec(1, u[0], v[0]), if_send=j == 0, if_take=j == 1))):
-                g = numpy.array([[get_gain(v=v_, obj=obj, r=pol2dec(1, u[ii], v[jj]),
-                                           if_send=j == 0, if_take=j == 1)[k] for ii in range(n)] for jj in range(n)])
-                X, Y, Z = pol2dec(g, U, V)
-                ax.plot_surface(X, Y, Z, cmap=o.v.MY_COLORMAPS[k])
-                max_g = max(max_g, numpy.max(g.flatten()))
-
-            # if obj.name == "FemtoSat":
-            #     max_g = max(max_g, 2 * numpy.max(o.f.size))
-            #     show_chipsat(o=o, j=0, reference_frame="BRF", return_go=False, ax=ax, clr=None, opacity=None)
-
-            ax.set_xlim(-max_g, max_g)
-            ax.set_ylim(-max_g, max_g)
-            ax.set_zlim(-max_g, max_g)
-            ax.set_box_aspect([1, 1, 1])
-            title_text = f"Диаграмма направленностей для {obj.name} | " \
-                         f"GAIN_MODEL = {o.v.GAIN_MODEL_F if  obj.name == 'FemtoSat' else o.v.GAIN_MODEL_C}\n" \
-                         f"Отправленный сигнал"
-            ax.set_title(title_text if j == 0 else "Принятый сигнал")
-    plt.show()
-
-def plot_atmosphere_models(n: int = 100):
-    import matplotlib.pyplot as plt
-    from dynamics import get_atm_params
-    v = Variables()
-
-    range_km = [300, 500]
-    fig, axs = plt.subplots(1, 2, figsize=(19, 5))
-    fig.suptitle('Модели атмосферы')
-    for m in range(len(v.ATMOSPHERE_MODELS)):
-        for j in range(2):
-            z = numpy.linspace(100e3 if j == 0 else range_km[0]*1e3, range_km[1]*1e3, n)
-            rho = [get_atm_params(h=z[i], v=v, atm_model=v.ATMOSPHERE_MODELS[m])[0] for i in range(n)]
-            tmp = ", используемая" if v.ATMOSPHERE_MODELS[m] == v.ATMOSPHERE_MODEL else ""
-            axs[j].plot(z, rho, ls="-" if v.ATMOSPHERE_MODELS[m] == v.ATMOSPHERE_MODEL else ":",
-                        label=f"Модель: {v.ATMOSPHERE_MODELS[m]}{tmp}")  # , c=MY_COLORS[m])
-            axs[j].set_ylabel(f"Плотность ρ, кг/м³")
-            axs[j].set_xlabel(f"Высота z, м")
-            axs[j].legend()
-            axs[j].grid()
-    axs[0].set_title(f"От линии Кармана до {range_km[1]} км")
-    axs[1].set_title(f"От {range_km[0]} до {range_km[1]} км")
-    plt.show()
-
-def animate_reference_frames(resolution: int = 3, n: int = 5):
-    import matplotlib.pyplot as plt
-    from my_plot import plot_the_earth_mpl, plot_reference_frames
-    from PIL import Image
-    from os import remove
-
-    v_ = Variables()
-    o = Objects(v=v_)
-    # o.v.dT = o.v.SEC_IN_TURN / (n - 3)
-    TIME = 2*numpy.pi / o.v.W_ORB
-    o.v.dT = TIME / n
-    o.v.IF_NAVIGATION = False
-
-    fig = plt.figure(figsize=(7, 7))
-    ax = fig.add_subplot(projection='3d')
-    ax.set_xlim3d([-1e7, 1e7])
-    ax.set_ylim3d([-1e7, 1e7])
-    ax.set_zlim3d([-1e7, 1e7])
-    x_points = 180 * resolution
-    y_points = 90 * resolution
-    earth_image = Image.open(f'../../source/skins/{o.v.EARTH_FILE_NAME}')
-    earth_image = numpy.array(earth_image.resize((x_points, y_points))) / 256.
-    for i in range(n):
-        o.p.time_step()
-        ax = plot_the_earth_mpl(ax, v=v_, earth_image=earth_image)
-        ax = plot_reference_frames(ax, o, t=o.p.t, txt="ИСК", color="lime")
-        ax = plot_reference_frames(ax, o, t=o.p.t, txt="ОСК", color="red")
-        ax.view_init(azim=20, elev=30, roll=0)
-        ax.axis('equal')
-        plt.title(f"Наклонение: {o.v.INCLINATION}°, эксцентриситет: {round(o.v.ECCENTRICITY, 2)}, "
-                  f"апогей: {round(o.v.APOGEE / 1e3)} км, перигей: {round(o.v.PERIGEE / 1e3)} км")
-        plt.legend()
-        plt.savefig(f"../../res/to_delete_{'{:04}'.format(i)}.png")
-        ax.clear()
-    plt.close()
-
-    images = [Image.open(f"../../res/to_delete_{'{:04}'.format(i)}.png") for i in range(n)]
-    images[0].save('../../res/res.gif', save_all=True, append_images=images[1:], duration=20, loop=0)
-    for i in range(n):
-        remove(f"../../res/to_delete_{'{:04}'.format(i)}.png")
-
-if __name__ == "__main__":
-    # animate_reference_frames(resolution=1, n=30)
-    plot_model_gain()
-    plot_atmosphere_models()
