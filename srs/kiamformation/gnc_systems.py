@@ -223,7 +223,7 @@ class KalmanFilter:
             my_print(f"M-notes: {notes3}", color='y')
             my_print(f"Длина модельных длин: {len(z_model)}", color='r', if_print=v.IF_TEST_PRINT)
             my_print(f"H-notes: {notesH}", color='y')
-            with open("kiamfemto/data/measures_vector_notes_last.txt", "w") as f:
+            with open("kiamformation/data/measures_vector_notes_last.txt", "w") as f:
                 f.write("# Рассчитано в PyCharm\n# Параметры: {rel} {N_1} {N_2} {i_1} {i_2} {send_len} {take_len}\n")
                 f.write(f"# Параметр CUBESAT_AMOUNT {v.CUBESAT_AMOUNT}\n")
                 f.write(f"# Параметр CHIPSAT_AMOUNT {v.CHIPSAT_AMOUNT}\n")

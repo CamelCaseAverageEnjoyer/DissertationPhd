@@ -91,7 +91,7 @@ class FemtoSat(Apparatus):
         """Класс содержит информацию об n фемтосатах.\n
         Все величны представлены в СИ."""
         super().__init__(v)
-        from dynamics import get_matrices, o_i, get_c_hkw
+        from dynamics import get_matrices, o_i
         if v.CHIPSAT_AMOUNT < 0:
             raise ValueError(f"Количество чипсатов {v.CHIPSAT_AMOUNT} должно быть не меньше 0!")
 
@@ -126,9 +126,9 @@ class FemtoSat(Apparatus):
         # Инициализируется автоматически
         self.r_irf, self.v_irf, self.w_irf, self.w_irf_ = [[np.zeros(3) for _ in range(self.n)] for _ in range(4)]
         self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
+
+        self.param_fitting(v=v)
         for i in range(self.n):
-            if v.SHAMANISM["ClohessyWiltshireC1=0"]:
-                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
             self.q[i] /= np.linalg.norm(self.q[i])
             self.q_[i] /= np.linalg.norm(self.q_[i])
             U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
@@ -136,7 +136,7 @@ class FemtoSat(Apparatus):
             self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
             self.w_irf[i] = o_i(a=self.w_orf[i], v=v, U=U, vec_type='w')
             self.w_irf_[i] = o_i(a=self.w_orf_[i], v=v, U=U, vec_type='w')
-        self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
+        self.update_c(v=v)
 
         # Индивидуальные параметры управления
         self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
@@ -148,8 +148,16 @@ class FemtoSat(Apparatus):
         self.apriori_params = {'r orf': [self.r_orf[i] * tol + spread(0) * (1 - tol) for i in range(self.n)],
                                'v orf': [self.v_orf[i] * tol + spread(1) * (1 - tol) for i in range(self.n)],
                                'w irf': [self.w_irf[i] * tol + self.w_irf_[i] * (1 - tol) for i in range(self.n)],
-                               'q-3 irf': [self.q[i][1:4] * tol + self.q_[i][1:4] * (1 - tol) for i in range(self.n)],
-                               }
+                               'q-3 irf': [self.q[i][1:4] * tol + self.q_[i][1:4] * (1 - tol) for i in range(self.n)]}
+
+    def param_fitting(self, v):
+        for i in range(self.n):
+            if v.SHAMANISM["ClohessyWiltshireC1=0"]:
+                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
+
+    def update_c(self, v):
+        from dynamics import get_c_hkw
+        self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
 
 class CubeSat(Apparatus):
     """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.
@@ -216,3 +224,12 @@ class CubeSat(Apparatus):
         # Прорисовка ножек
         self.legs_x = 0.0085
         self.legs_z = 0.007
+
+    def param_fitting(self, v):
+        for i in range(self.n):
+            if v.SHAMANISM["ClohessyWiltshireC1=0"]:
+                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
+
+    def update_c(self, v):
+        from dynamics import get_c_hkw
+        self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]

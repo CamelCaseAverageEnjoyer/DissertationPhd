@@ -75,7 +75,7 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                                       f" {send_len} {take_len}" for i in range(take_len) for j in range(send_len)])
 
     if produce:
-        v.MEASURES_VECTOR = np.array([anw])
+        v.MEASURES_VECTOR = np.array(anw)
         v.MEASURES_VECTOR_NOTES = notes
     else:
         return np.array(anw), notes

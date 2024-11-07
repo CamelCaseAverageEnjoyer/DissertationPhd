@@ -46,7 +46,7 @@ class Variables:
         self.config_choose = self.config_choose.astype(get_types_dict())
 
         self.set_saving_params(self.config_choose.iloc[i, :].to_list())
-        my_print(f"Загружены параметры: {self.DESCRIPTION}", color='m')
+        my_print(f"Загружены параметры: {self.DESCRIPTION}", color='m', if_print=self.IF_ANY_PRINT)
 
     def save_params(self, add_now_params: bool = True):
         """Сохранение параметров в файл config_choose.csv"""
@@ -74,7 +74,7 @@ class Variables:
         from spacecrafts import Anchor
 
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
-        self.path_sources = "kiamfemto/data/"
+        self.path_sources = "kiamformation/data/"
         self.path_config_data = self.path_sources + "config_choose.csv"
         self.DESCRIPTION = "По умолчанию"
 
@@ -112,7 +112,7 @@ class Variables:
         self.CHIPSAT_MODEL_N = 0
         self.ATMOSPHERE_MODEL_N = 0  # Стояло 3 (20 сен)
 
-        self.dTs = ["0.1", "1.0", "10.0"]
+        self.dTs = ["0.1", "1.0", "10.0", "30.0", "100.0"]
         self.Ts = ["100.0", "1000.0", "10000.0", "100000.0"]
         self.CUBESAT_MODELS = ['1U', '1.5U', '2U', '3U', '6U', '12U']
         self.CHIPSAT_MODELS = ['KickSat', 'Трисат']
@@ -200,6 +200,10 @@ class Objects:
         self.a, self.c, self.f, self.p = None, None, None, None
         self.init_classes()
 
+    def reset(self, config_choose_n):
+        self.v.load_params(i=config_choose_n)
+        self.init_classes()
+
     def init_classes(self):
         from dynamics import PhysicModel
         from spacecrafts import CubeSat, FemtoSat
@@ -216,12 +220,6 @@ class Objects:
         from cosmetic import real_workload_time, my_print
         from my_plot import plot_all
         from datetime import datetime
-
-        # Инициализация заново!
-        print(f"self.p.iter : {self.p.iter}")
-        if self.p.iter < 2:
-            my_print(f"Повторная инициализация...", color='y')
-            self.init_classes()
 
         my_print(self.time_message(t), color='b', if_print=self.v.IF_ANY_PRINT)
         n = int(t // self.v.dT)

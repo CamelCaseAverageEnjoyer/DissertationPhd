@@ -1,8 +1,8 @@
 """Проверка эквивалентности способов расчёта"""
 import unittest
-from srs.kiamfemto.config import Variables, Objects
-from srs.kiamfemto.cosmetic import *
-from srs.kiamfemto.my_math import *
+from srs.kiamformation.config import Variables, Objects
+from srs.kiamformation.cosmetic import *
+from srs.kiamformation.my_math import *
 
 dT_optimal = 0.1
 TOTAL_TIME = 1e4

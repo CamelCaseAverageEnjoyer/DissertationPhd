@@ -30,8 +30,7 @@ class Window(QWidget):
         self.initUI()
 
     def reset_all(self):
-        self.o.v.load_params(i=self.config_choose_n)
-        self.o.init_classes()
+        self.o.reset(config_choose_n=self.config_choose_n)
 
     def initUI(self):
         # Очистка layout
@@ -128,6 +127,8 @@ class Window(QWidget):
         self.name_type_func[y][n] = [self.path + "param.png", "button", self.plot_1_param, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "orbit.png", "button", lambda x=self.o: plot_all(x), (1, 1)]
+        y += 1
+        self.name_type_func[y][n] = [self.path + "path.png", "button", self.local_solve_minimization, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "save.png", "button", self.local_save_trajectories, (1, 1)]
         y += 1
@@ -337,6 +338,10 @@ class Window(QWidget):
             if ok:
                 remove(f"{self.o.v.path_sources}trajectories/{text}")
 
+    def local_solve_minimization(self):  # Можно и без локальной фукнции
+        from simulation import solve_minimization_new
+        solve_minimization_new(o=self.o, config_choose_n=self.config_choose_n)
+
     def plot_1_param(self):
         d = self.o.p.record
         items = sorted(d.columns)
@@ -358,13 +363,18 @@ class Window(QWidget):
 
     def main_run(self):
         """Функция запуска численного моделирования, выводы результатов"""
+        # Инициализация заново!
+        if self.o.p.iter < 2:
+            my_print(f"Повторная инициализация...", color='y', if_print=self.o.v.IF_ANY_PRINT)
+            self.o.init_classes()
         self.o.integrate(t=self.o.v.TIME, animate=False)
 
         # Вывод результатов
         tmp = np.array(self.o.p.record[f'{self.o.f.name} KalmanPosError r {0}'].to_list())  # Для чипсата id=0
         print(f"Математическое ожидание ошибки: {tmp.mean():.2f} м, Среднее отклонение ошибки: {tmp.std():.2f} м")
         talk_decision(cnd=self.o.v.IF_TALK)
-        plot_distance(self.o)
+        if self.o.v.IF_NAVIGATION:
+            plot_distance(self.o)  # Бессмысленно выводить график линий оценок, если оценок нет
 
 def interface_window(o):
     app = QApplication(sys.argv)

@@ -2,7 +2,7 @@
 Проект kiam-femto создан для...
 """
 import sys
-sys.path.insert(1, f"{sys.path[0]}/kiamfemto")
+sys.path.insert(1, f"{sys.path[0]}/kiamformation")
 sys.path.insert(1, f"{sys.path[0]}/test")
 
 from config import *
@@ -16,4 +16,4 @@ from my_plot import *
 from primary_info import *
 from spacecrafts import *
 
-my_print(f"Инициализация проекта kiam-femto | Контекст: {__name__}", color="g")
+my_print(f"Инициализация проекта kiam-formation | Контекст: {__name__}", color="g")

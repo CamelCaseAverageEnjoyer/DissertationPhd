@@ -324,7 +324,7 @@ def plot_the_earth_mpl(ax, v: Variables, res: int = 1, pth: str = "./", earth_im
     return ax
 
 def plot_the_earth_go(v: Variables):
-    spherical_earth_map = np.load('kiamfemto/data/map_sphere.npy')
+    spherical_earth_map = np.load('kiamformation/data/map_sphere.npy')
     xm, ym, zm = spherical_earth_map.T * v.EARTH_RADIUS
 
     return go.Scatter3d(x=xm, y=ym, z=zm, mode='lines')

@@ -1,5 +1,5 @@
 [project]
-name = "kiam-femtosat"
+name = "kiam-formation"
 version = "1.0"
 dependencies = [
   "numpy", "matplotlib", "typing", "plotly", "random",
@@ -8,7 +8,7 @@ dependencies = [
 authors = [
   {name = "Vladislav Orlov", email = "orlov-vladislove@yandex.ru"},
 ]
-description = "Numerical modeling of space mission with using free-flying femto satellites."
+description = "Numerical modeling of formation flying of several spacecrafts."
 readme = "ReadMe.md"
 keywords = ["navigation", "kalman filter", "chipsat", "femtosatellite", "celestial mechanics", "formation flying"]
 

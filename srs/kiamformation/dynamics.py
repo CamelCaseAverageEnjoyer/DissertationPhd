@@ -34,15 +34,11 @@ def v_hkw(C: Union[list, np.ndarray], w: float, t: float) -> np.ndarray:
                      w * C[4] * np.cos(w * t) - w * C[5] * np.sin(w * t),
                      -w * C[2] * np.sin(w * t) + w * C[1] * np.cos(w * t)])
 
-def get_rand_c(w: float, r_spread: float = 100, v_spread: float = 0.01, if_no: bool = False,
-               if_quaternion: bool = False) -> list:
+def get_rand_c(v: Variables) -> list:
     """(quaternion or quaternion_but_i_dont_give_a_fuck)"""
-    x, y, z = np.random.uniform(-r_spread, r_spread, 3)
-    vx, vy, vz = np.random.uniform(-v_spread, v_spread, 3)
-    a, b, g = np.random.uniform(-100, 100, 3)
-    if if_quaternion and not if_no:
-        return [2 * z + vx / w, vz / w, -3 * z - 2 * vx / w, x - 2 * vz / w, vy / w, y, a, b, g]
-    return [2 * z + vx / w, vz / w, -3 * z - 2 * vx / w, x - 2 * vz / w, vy / w, y]
+    r_spread, v_spread, _ = v.RVW_ChipSat_SPREAD
+    return get_c_hkw(r=np.random.uniform(-r_spread, r_spread, 3),
+                     v=np.random.uniform(-v_spread, v_spread, 3), w=v.W_ORB)
 
 # >>>>>>>>>>>> Поступательное движение, интегрирование <<<<<<<<<<<<
 def get_atm_params(v: Variables, h: float, atm_model: str = None) -> tuple:
@@ -273,8 +269,7 @@ class PhysicModel:
 
         # Запись параметров
         self.record = DataFrame()
-        self.do_report()  # Продублировать в конце time_step()
-        self.record = self.record.astype({'i': 'int32', 'FemtoSat n': 'int32', 'CubeSat n': 'int32'})
+        # self.do_report()  # Продублировать в конце time_step()
 
     def kiam_init(self):
         from kiam_astro import kiam
@@ -312,12 +307,12 @@ class PhysicModel:
         for j, obj in enumerate(self.spacecrafts_all):
             for i in range(obj.n):
                 # Вращательное движение
-                if obj != self.a:
+                if obj != self.a and self.v.GAIN_MODEL_C_N + self.v.GAIN_MODEL_F_N > 0:
                     obj.q[i], obj.w_irf[i] = rk4_attitude(v_=self.v, obj=obj, i=i, t=self.t)
 
                 # Поступательное движение
                 if 'rk4' in self.v.SOLVER:
-                    if np.any(self.v.DYNAMIC_MODEL.values()):  # Если J2 или aero drag
+                    if np.any(list(self.v.DYNAMIC_MODEL.values())):  # Если J2 или aero drag
                         obj.r_orf[i], obj.v_orf[i] = rk4_translate(v_=self.v, obj=obj, i=i)
                     else:
                         obj.r_orf[i] = r_hkw(obj.c_hkw[i], self.v.W_ORB, self.t)
@@ -361,6 +356,9 @@ class PhysicModel:
         d = self.record
         d.loc[i_t, f'i'] = self.iter
         d.loc[i_t, f't'] = self.t
+        n_tmp = len(self.v.MEASURES_VECTOR)
+        d.loc[i_t, f'MEASURES_VECTOR N'] = n_tmp
+        d.loc[i_t, [f'MEASURES_VECTOR {i}' for i in range(n_tmp)]] = self.v.MEASURES_VECTOR
         for obj in self.spacecrafts_cd:
             d.loc[i_t, f'{obj.name} n'] = obj.n
             for i_n in range(obj.n):
@@ -383,6 +381,7 @@ class PhysicModel:
                     w_irf = self.f.w_irf[i_n]
                     q_irf = self.f.q[i_n][1:4]
 
+                    w_orf, w_orf_estimation = [], []  # Чтобы PyCharm не ругался
                     if self.v.NAVIGATION_ANGLES:
                         U, _, _, _ = get_matrices(v=self.v, t=self.t, obj=obj, n=i_n)
                         w_orf = i_o(a=w_irf, v=self.v, vec_type='w', U=U)
@@ -406,3 +405,5 @@ class PhysicModel:
                             d.loc[i_t, f'{obj.name} RealQuat {c} {i_n}'] = q_irf[i_r]
                             d.loc[i_t, f'{obj.name} KalmanQuatEstimation {c} {i_n}'] = q_irf_estimation[i_r]
                             d.loc[i_t, f'{obj.name} KalmanQuatError {c} {i_n}'] = q_irf_estimation[i_r] - q_irf[i_r]
+
+        d = d.astype({'i': 'int32', 'FemtoSat n': 'int32', 'CubeSat n': 'int32'})
