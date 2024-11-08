@@ -113,30 +113,43 @@ class Window(QWidget):
         # >>>>>>>>>>>> Кнопки <<<<<<<<<<<<
         y = 0
         self.name_type_func[y][n] = [self.path + "robot1.png", "button", talk, (1, 1)]  # Поболтать
+        self.name_type_func[y][n+1] = ["Помощь", "label", None, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "integral.png", "button", self.main_run, (1, 1)]  # Моделирование
-        y += 1
-        self.name_type_func[y][n] = [self.path + "antenna.png", "button", lambda x=self.o: plot_model_gain(x), (1, 1)]
-        y += 1
-        self.name_type_func[y][n] = [self.path + "air.png", "button", plot_atmosphere_models, (1, 1)]
-        y += 1
-        self.name_type_func[y][n] = [self.path + "animation.png", "button", animate_reference_frames, (1, 1)]
+        self.name_type_func[y][n+1] = ["Численное\nмоделирование", "label", None, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "plot.png", "button", lambda x=self.o: plot_distance(x), (1, 1)]
-        y += 1
-        self.name_type_func[y][n] = [self.path + "param.png", "button", self.plot_1_param, (1, 1)]
+        self.name_type_func[y][n+1] = ["Показать результаты\nзадачи навигации", "label", None, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "orbit.png", "button", lambda x=self.o: plot_all(x), (1, 1)]
+        self.name_type_func[y][n+1] = ["Отобразить в 3D", "label", None, (1, 1)]
+        y += 1
+        self.name_type_func[y][n] = [self.path + "param.png", "button", self.plot_1_param, (1, 1)]
+        self.name_type_func[y][n+1] = ["Выборочно отобразить\nзаписанные параметры", "label", None, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "path.png", "button", self.local_solve_minimization, (1, 1)]
+        self.name_type_func[y][n+1] = ["Решение навигации\nчерез scipy", "label", None, (1, 1)]
+        y += 1
+        self.name_type_func[y][n] = [self.path + "antenna.png", "button", lambda x=self.o: plot_model_gain(x), (1, 1)]
+        self.name_type_func[y][n+1] = ["Посмотреть диаграммы\nнаправленностей", "label", None, (1, 1)]
+        y += 1
+        self.name_type_func[y][n] = [self.path + "air.png", "button", plot_atmosphere_models, (1, 1)]
+        self.name_type_func[y][n+1] = ["Посмотреть модели\nатмосферы", "label", None, (1, 1)]
+        y += 1
+        self.name_type_func[y][n] = [self.path + "animation.png", "button", animate_reference_frames, (1, 1)]
+        self.name_type_func[y][n+1] = ["Анимировать вращение\nвокруг Земли", "label", None, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "save.png", "button", self.local_save_trajectories, (1, 1)]
+        self.name_type_func[y][n+1] = ["Сохранить траектории", "label", None, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "load.png", "button", self.local_load_trajectories, (1, 1)]
+        self.name_type_func[y][n+1] = ["Загрузить траектории", "label", None, (1, 1)]
         y += 1
         self.name_type_func[y][n] = [self.path + "eraser.png", "button", self.local_remove_trajectories, (1, 1)]
+        self.name_type_func[y][n+1] = ["Удалить траектории", "label", None, (1, 1)]
         y += 1
-        n += 1
+        n += 2
+        n_left = n
 
         # >>>>>>>>>>>> Параметры численного моделирования <<<<<<<<<<<<
 
@@ -172,6 +185,11 @@ class Window(QWidget):
         self.name_type_func[y][n+1] = ["CHIPSAT_MODEL_N",
                                        f"combo;{self.o.v.CHIPSAT_MODELS[params['CHIPSAT_MODEL_N']]}",
                                        ";".join(self.o.v.CHIPSAT_MODELS), (1, 1)]
+        y += 1
+        self.name_type_func[y][n+0] = ["Сценарий отделения", "label", "", (1, 1)]
+        self.name_type_func[y][n+1] = ["DEPLOYMENT_N",
+                                       f"combo;{self.o.v.DEPLOYMENTS[params['DEPLOYMENT_N']]}",
+                                       ";".join(self.o.v.DEPLOYMENTS), (1, 1)]
         y += 1
         n += 2
         y_all = max(y_all, y)
@@ -237,7 +255,7 @@ class Window(QWidget):
         n += 2
         y_all = max(y_all, y)
 
-        self.name_type_func[0][1] = ["Параметры численного моделирования", "label", None, (1, n - 1)]
+        self.name_type_func[0][n_left] = ["Параметры численного моделирования", "label", None, (1, n - 1)]
 
         # >>>>>>>>>>>> Автоматическое заполнение сохранений <<<<<<<<<<<<
         y_save = len(self.o.v.config_choose)
@@ -255,13 +273,12 @@ class Window(QWidget):
 
         # >>>>>>>>>>>> Отрисовка <<<<<<<<<<<<
         # Диаграмма разложения сигналов
-        n = 1
-        self.name_type_func[y_all+0][n+0] = [f"Разложения сигналов: {params['MULTI_ANTENNA_SEND']} -> "
-                                              f"{params['MULTI_ANTENNA_TAKE']}", "label", None, (1, 3)]
-        self.name_type_func[y_all+1][n+0] = [self.path + "send0_take0.png", "image", None, (3, 3)]
+        self.name_type_func[y_all+0][n_left+0] = [f"Разложения сигналов: {params['MULTI_ANTENNA_SEND']} -> "
+                                                  f"{params['MULTI_ANTENNA_TAKE']}", "label", None, (1, 3)]
+        self.name_type_func[y_all+1][n_left+0] = [self.path + "send0_take0.png", "image", None, (3, 3)]
 
         # Текст о долготе полёта
-        self.name_type_func[y_all][n+3] = [self.o.time_message(params['TIME']), "label", None, (1, 4)]
+        self.name_type_func[y_all][n_left+3] = [self.o.time_message(params['TIME']), "label", None, (1, 4)]
 
     def apply_params(self):
         """Применение настроенных параметров. Должно быть согласовано с config.get_saving_params"""
@@ -280,6 +297,8 @@ class Window(QWidget):
         self.o.v.CUBESAT_MODEL_N = self.o.v.CUBESAT_MODELS.index(self.o.v.CUBESAT_MODEL)
         self.o.v.CHIPSAT_MODEL = self.comboboxes['CHIPSAT_MODEL_N'].currentText()
         self.o.v.CHIPSAT_MODEL_N = self.o.v.CHIPSAT_MODELS.index(self.o.v.CHIPSAT_MODEL)
+        self.o.v.DEPLOYMENT = self.comboboxes['DEPLOYMENT_N'].currentText()
+        self.o.v.DEPLOYMENT_N = self.o.v.DEPLOYMENTS.index(self.o.v.DEPLOYMENT)
 
         self.o.v.CUBESAT_AMOUNT = int(self.textboxes['CUBESAT_AMOUNT'].text())
         self.o.v.CHIPSAT_AMOUNT = int(self.textboxes['CHIPSAT_AMOUNT'].text())

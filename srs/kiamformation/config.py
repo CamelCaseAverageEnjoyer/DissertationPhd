@@ -7,7 +7,7 @@ def get_types_dict():
     """Костыль на тип данных параметров при загрузке и сохранении"""
     return {'CUBESAT_AMOUNT': 'int32', 'CHIPSAT_AMOUNT': 'int32', 'START_NAVIGATION_N': 'int32',
             'GAIN_MODEL_C_N': 'int32', 'GAIN_MODEL_F_N': 'int32', 'CUBESAT_MODEL_N': 'int32',
-            'CHIPSAT_MODEL_N': 'int32'}
+            'CHIPSAT_MODEL_N': 'int32', 'DEPLOYMENT_N': 'int32'}
 
 class Variables:
     def get_saving_params(self):
@@ -21,7 +21,8 @@ class Variables:
                 self.DYNAMIC_MODEL['aero drag'], self.DYNAMIC_MODEL['j2'],
                 self.NAVIGATION_BY_ALL, self.NAVIGATION_ANGLES, self.MULTI_ANTENNA_TAKE, self.MULTI_ANTENNA_SEND,
                 self.START_NAVIGATION_N, self.GAIN_MODEL_C_N, self.GAIN_MODEL_F_N, self.IF_NAVIGATION,
-                self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, q, p, self.KALMAN_COEF['r'], rvw_cubesat, rvw_chipsat]
+                self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, q, p, self.KALMAN_COEF['r'], rvw_cubesat, rvw_chipsat,
+                self.DEPLOYMENT_N]
 
     def set_saving_params(self, params):
         """Функция принимает набор параметров из файла
@@ -29,7 +30,7 @@ class Variables:
         self.DESCRIPTION, self.dT, self.TIME, self.CUBESAT_AMOUNT, self.CHIPSAT_AMOUNT, aero, j2, \
             self.NAVIGATION_BY_ALL, self.NAVIGATION_ANGLES, self.MULTI_ANTENNA_TAKE, self.MULTI_ANTENNA_SEND, \
             self.START_NAVIGATION_N, self.GAIN_MODEL_C_N, self.GAIN_MODEL_F_N, self.IF_NAVIGATION, \
-            self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, q, p, r, rvw_cubesat, rvw_chipsat = params
+            self.CUBESAT_MODEL_N, self.CHIPSAT_MODEL_N, q, p, r, rvw_cubesat, rvw_chipsat, self.DEPLOYMENT_N = params
         self.DYNAMIC_MODEL['aero drag'] = aero
         self.DYNAMIC_MODEL['j2'] = j2
         self.KALMAN_COEF['q'] = [float(i) for i in q.split()]
@@ -46,6 +47,7 @@ class Variables:
         self.config_choose = self.config_choose.astype(get_types_dict())
 
         self.set_saving_params(self.config_choose.iloc[i, :].to_list())
+        self.init_choice_params()
         my_print(f"Загружены параметры: {self.DESCRIPTION}", color='m', if_print=self.IF_ANY_PRINT)
 
     def save_params(self, add_now_params: bool = True):
@@ -111,11 +113,13 @@ class Variables:
         self.CUBESAT_MODEL_N = 0
         self.CHIPSAT_MODEL_N = 0
         self.ATMOSPHERE_MODEL_N = 0  # Стояло 3 (20 сен)
+        self.DEPLOYMENT_N = 0
 
         self.dTs = ["0.1", "1.0", "10.0", "30.0", "100.0"]
         self.Ts = ["100.0", "1000.0", "10000.0", "100000.0"]
         self.CUBESAT_MODELS = ['1U', '1.5U', '2U', '3U', '6U', '12U']
         self.CHIPSAT_MODELS = ['KickSat', 'Трисат']
+        self.DEPLOYMENTS = ['No', 'Special']
         self.GAIN_MODES = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid']
         self.N_ANTENNAS = {'isotropic': 1, '1 antenna': 1, '2 antennas': 2, '3 antennas': 3, 'ellipsoid': 1}
         self.NAVIGATIONS = ['perfect', 'near', 'random']
@@ -130,7 +134,7 @@ class Variables:
                           'aquamarine', 'indigo', 'olivedrab', 'slategray', 'pink', 'salmon', 'steelblue']
 
         self.START_NAVIGATION, self.GAIN_MODEL_C, self.GAIN_MODEL_F, self.SOLVER, self.CUBESAT_MODEL, \
-            self.CHIPSAT_MODEL, self.ATMOSPHERE_MODEL, self.N_ANTENNA_C, self.N_ANTENNA_F = [None] * 9
+            self.CHIPSAT_MODEL, self.ATMOSPHERE_MODEL, self.N_ANTENNA_C, self.N_ANTENNA_F, self.DEPLOYMENT = [None] * 10
         self.init_choice_params()
 
 
@@ -189,6 +193,7 @@ class Variables:
         self.ATMOSPHERE_MODEL = self.ATMOSPHERE_MODELS[self.ATMOSPHERE_MODEL_N]
         self.N_ANTENNA_C = self.N_ANTENNAS[self.GAIN_MODEL_C]
         self.N_ANTENNA_F = self.N_ANTENNAS[self.GAIN_MODEL_F]
+        self.DEPLOYMENT = self.DEPLOYMENTS[self.DEPLOYMENT_N]
 
 
 class Objects:
@@ -209,7 +214,7 @@ class Objects:
         from spacecrafts import CubeSat, FemtoSat
         self.a = self.v.ANCHOR
         self.c = CubeSat(v=self.v)
-        self.f = FemtoSat(v=self.v)
+        self.f = FemtoSat(v=self.v, c=self.c)
         self.p = PhysicModel(c=self.c, f=self.f, a=self.a, v=self.v)
 
     def time_message(self, t):
@@ -236,6 +241,7 @@ class Objects:
                          f"Применяется фильтр Калмана для поправки: положений, скоростей{tmp}\n"
                          f"Фильтр Калмана основан на: "
                          f"{'всех чипсатах' if self.v.NAVIGATION_BY_ALL else 'одном чипсате'}", color='c')
+                my_print(f"Вариант отделения дочерних КА: {self.v.DEPLOYMENT}", color='m')
                 my_print(f"Внимание: IF_NAVIGATION={self.v.IF_NAVIGATION}! ", color='m',
                          if_print=not self.v.IF_NAVIGATION)
             if i / n > (flag[0] + 0.1):

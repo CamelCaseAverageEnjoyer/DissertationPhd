@@ -48,6 +48,7 @@ def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], if_take: bool 
         return [np.linalg.norm([e[0] * 1, e[1] * 0.7, e[2] * 0.8])]
     return [1]
 
+
 # >>>>>>>>>>>> Классы аппаратов <<<<<<<<<<<<
 class Apparatus:
     def __init__(self, v: Variables):
@@ -79,77 +80,6 @@ class Apparatus:
                     for i in range(self.n)]
         self.rv_orf_calc = [prm_good[i] for i in range(self.n)]
 
-
-class Anchor(Apparatus):
-    def __init__(self, v: Variables):
-        """Класс фантомного КА, движущегося по орбите с нулевым разбросом скоростей и положений"""
-        super().__init__(v)
-        self.name = "Anchor"
-
-class FemtoSat(Apparatus):
-    def __init__(self, v: Variables):
-        """Класс содержит информацию об n фемтосатах.\n
-        Все величны представлены в СИ."""
-        super().__init__(v)
-        from dynamics import get_matrices, o_i
-        if v.CHIPSAT_AMOUNT < 0:
-            raise ValueError(f"Количество чипсатов {v.CHIPSAT_AMOUNT} должно быть не меньше 0!")
-
-        # Предопределённые параметры
-        chipsat_property = {'KickSat': {'mass': 0.01,
-                                        'mass_center_error': [0.001, -0.001],
-                                        'dims': [0.03, 0.03]},
-                            '1.Трисат': {'mass': 0.1,
-                                         'mass_center_error': [0.005, 0.003],
-                                         'dims': [0.4, 0.15]}}
-
-        # Общие параметры
-        self.name = "FemtoSat"
-        self.n = v.CHIPSAT_AMOUNT
-        self.gain_mode = v.GAIN_MODEL_F
-        self.mass = chipsat_property[v.CHIPSAT_MODEL]['mass']
-        self.mass_center_error = chipsat_property[v.CHIPSAT_MODEL]['mass_center_error']
-        self.size = chipsat_property[v.CHIPSAT_MODEL]['dims']
-        # Пока что J диагонален
-        self.J = np.diag([self.size[1]**2, self.size[0]**2, self.size[0]**2 + self.size[1]**2]) * self.mass / 12
-        self.power_signal_full = 0.01
-        self.length_signal_full = 0.001
-
-        def spread(_i: int):
-            return np.random.uniform(-v.RVW_ChipSat_SPREAD[_i], v.RVW_ChipSat_SPREAD[_i], 3)
-
-        # Индивидуальные параметры движения
-        self.r_orf = [spread(0) for _ in range(self.n)]
-        self.v_orf = [spread(1) for _ in range(self.n)]
-        self.w_orf = [spread(2) for _ in range(self.n)]
-        self.w_orf_ = [spread(2) for _ in range(self.n)]
-        # Инициализируется автоматически
-        self.r_irf, self.v_irf, self.w_irf, self.w_irf_ = [[np.zeros(3) for _ in range(self.n)] for _ in range(4)]
-        self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
-
-        self.param_fitting(v=v)
-        for i in range(self.n):
-            self.q[i] /= np.linalg.norm(self.q[i])
-            self.q_[i] /= np.linalg.norm(self.q_[i])
-            U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
-            self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
-            self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
-            self.w_irf[i] = o_i(a=self.w_orf[i], v=v, U=U, vec_type='w')
-            self.w_irf_[i] = o_i(a=self.w_orf_[i], v=v, U=U, vec_type='w')
-        self.update_c(v=v)
-
-        # Индивидуальные параметры управления
-        self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
-
-        tol = 1 if v.START_NAVIGATION == v.NAVIGATIONS[0] else v.START_NAVIGATION_TOLERANCE
-        tol = 0 if v.START_NAVIGATION == v.NAVIGATIONS[2] else tol
-
-        # Новый формат
-        self.apriori_params = {'r orf': [self.r_orf[i] * tol + spread(0) * (1 - tol) for i in range(self.n)],
-                               'v orf': [self.v_orf[i] * tol + spread(1) * (1 - tol) for i in range(self.n)],
-                               'w irf': [self.w_irf[i] * tol + self.w_irf_[i] * (1 - tol) for i in range(self.n)],
-                               'q-3 irf': [self.q[i][1:4] * tol + self.q_[i][1:4] * (1 - tol) for i in range(self.n)]}
-
     def param_fitting(self, v):
         for i in range(self.n):
             if v.SHAMANISM["ClohessyWiltshireC1=0"]:
@@ -158,6 +88,13 @@ class FemtoSat(Apparatus):
     def update_c(self, v):
         from dynamics import get_c_hkw
         self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
+
+
+class Anchor(Apparatus):
+    def __init__(self, v: Variables):
+        """Класс фантомного КА, движущегося по орбите с нулевым разбросом скоростей и положений"""
+        super().__init__(v)
+        self.name = "Anchor"
 
 class CubeSat(Apparatus):
     """Класс содержит информацию об n кубсатах модели model_c = 1U/1.5U/2U/3U/6U/12U.
@@ -225,11 +162,90 @@ class CubeSat(Apparatus):
         self.legs_x = 0.0085
         self.legs_z = 0.007
 
-    def param_fitting(self, v):
-        for i in range(self.n):
-            if v.SHAMANISM["ClohessyWiltshireC1=0"]:
-                self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
+class FemtoSat(Apparatus):
+    def __init__(self, v: Variables, c: CubeSat):
+        """Класс содержит информацию об n фемтосатах.\n
+        Все величны представлены в СИ."""
+        super().__init__(v)
+        from dynamics import get_matrices, o_i
+        if v.CHIPSAT_AMOUNT < 0:
+            raise ValueError(f"Количество чипсатов {v.CHIPSAT_AMOUNT} должно быть не меньше 0!")
 
-    def update_c(self, v):
-        from dynamics import get_c_hkw
-        self.c_hkw = [get_c_hkw(self.r_orf[i], self.v_orf[i], v.W_ORB) for i in range(self.n)]
+        # Предопределённые параметры
+        chipsat_property = {'KickSat': {'mass': 0.01,
+                                        'mass_center_error': [0.001, -0.001],
+                                        'dims': [0.03, 0.03]},
+                            '1.Трисат': {'mass': 0.1,
+                                         'mass_center_error': [0.005, 0.003],
+                                         'dims': [0.4, 0.15]}}
+
+        # Общие параметры
+        self.name = "FemtoSat"
+        self.n = v.CHIPSAT_AMOUNT
+        self.gain_mode = v.GAIN_MODEL_F
+        self.mass = chipsat_property[v.CHIPSAT_MODEL]['mass']
+        self.mass_center_error = chipsat_property[v.CHIPSAT_MODEL]['mass_center_error']
+        self.size = chipsat_property[v.CHIPSAT_MODEL]['dims']
+        # Пока что J диагонален
+        self.J = np.diag([self.size[1]**2, self.size[0]**2, self.size[0]**2 + self.size[1]**2]) * self.mass / 12
+        self.power_signal_full = 0.01
+        self.length_signal_full = 0.001
+
+        def spread(_i: int):
+            return np.random.uniform(-v.RVW_ChipSat_SPREAD[_i], v.RVW_ChipSat_SPREAD[_i], 3)
+
+        # Индивидуальные параметры движения
+        self.deploy(v=v, c=c, i_c=0, spread=spread)
+        # self.r_orf = [spread(0) for _ in range(self.n)]
+        # self.v_orf = [spread(1) for _ in range(self.n)]
+        # self.w_orf = [spread(2) for _ in range(self.n)]
+        self.w_orf_ = [spread(2) for _ in range(self.n)]
+        # Инициализируется автоматически
+        self.r_irf, self.v_irf, self.w_irf, self.w_irf_ = [[np.zeros(3) for _ in range(self.n)] for _ in range(4)]
+        self.q, self.q_ = [[np.random.uniform(-1, 1, 4) for _ in range(self.n)] for _ in range(2)]
+
+        self.param_fitting(v=v)
+        for i in range(self.n):
+            self.q[i] /= np.linalg.norm(self.q[i])
+            self.q_[i] /= np.linalg.norm(self.q_[i])
+            U, _, _, _ = get_matrices(v=v, t=0, obj=self, n=i)
+            self.r_irf[i] = o_i(v=v, a=self.r_orf[i], U=U, vec_type='r')
+            self.v_irf[i] = o_i(v=v, a=self.v_orf[i], U=U, vec_type='v')
+            self.w_irf[i] = o_i(a=self.w_orf[i], v=v, U=U, vec_type='w')
+            self.w_irf_[i] = o_i(a=self.w_orf_[i], v=v, U=U, vec_type='w')
+        self.update_c(v=v)
+
+        # Индивидуальные параметры управления
+        self.m_self, self.b_env = [[np.zeros(3) for _ in range(self.n)] for _ in range(2)]
+
+        tol = 1 if v.START_NAVIGATION == v.NAVIGATIONS[0] else v.START_NAVIGATION_TOLERANCE
+        tol = 0 if v.START_NAVIGATION == v.NAVIGATIONS[2] else tol
+
+        # Новый формат
+        self.apriori_params = {'r orf': [self.r_orf[i] * tol + spread(0) * (1 - tol) for i in range(self.n)],
+                               'v orf': [self.v_orf[i] * tol + spread(1) * (1 - tol) for i in range(self.n)],
+                               'w irf': [self.w_irf[i] * tol + self.w_irf_[i] * (1 - tol) for i in range(self.n)],
+                               'q-3 irf': [self.q[i][1:4] * tol + self.q_[i][1:4] * (1 - tol) for i in range(self.n)]}
+
+    def deploy(self, v: Variables, c: CubeSat, i_c: int, spread) -> None:
+        """
+        Функция отделения задаёт начальные условия для дочерних КА из материнских КА
+        :param v: объект Variables
+        :param c: объект CubeSat
+        :param i_c: id-номер материнского КА, от которого отделяются дочерние КА
+        :param spread: функция np.random.uniform
+        :return: {'r orf': ..., 'v orf': ..., 'q-3 irf': ..., 'w irf': ...}, где значения - list of np.ndarray
+        """
+        if v.DEPLOYMENT == v.DEPLOYMENTS[0]:  # No
+            self.r_orf = [spread(0) for _ in range(self.n)]
+            self.v_orf = [spread(1) for _ in range(self.n)]
+            self.w_orf = [spread(2) for _ in range(self.n)]
+        elif v.DEPLOYMENT == v.DEPLOYMENTS[1]:  # Specific
+            r_before = c.r_orf[i_c]
+            v_before = c.v_orf[i_c]
+            dv = 1e-2
+            v_deploy = v.RVW_ChipSat_SPREAD[1]
+            self.r_orf = [r_before.copy() for _ in range(self.n)]
+            self.v_orf = [v_before + np.array([0, 0, v_deploy]) + np.random.uniform(-dv, dv, 3) for _ in range(self.n)]
+            self.w_orf = [spread(2) for _ in range(self.n)]
+
