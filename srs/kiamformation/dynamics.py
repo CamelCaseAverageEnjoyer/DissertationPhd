@@ -151,12 +151,22 @@ def rk4_translate(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: floa
 
 
 # >>>>>>>>>>>> Вращательное движение, интегрирование <<<<<<<<<<<<
-def get_torque(v_: Variables, obj: Union[CubeSat, FemtoSat], q: Union[list, np.ndarray], w: np.ndarray) -> np.ndarray:
-    """Возвращает вектор углового УСКОРЕНИЯ. Удачи!"""
+def get_torque(v: Variables, obj: Apparatus, q, w) -> np.ndarray:
+    """Вектор углового ускорения"""
     return np.zeros(3)
 
+def attitude_rhs(v: Variables, obj: Apparatus, q, w, is_melt: bool = True):
+    e = get_torque(v=v, obj=obj, q=q, w=w)
+    dq = 1 / 2 * q_dot(q, w)
+    # J = A.T @ obj.J @ A
+    J = obj.J
+    dw = - (np.linalg.inv(J) @ (my_cross(w, J @ w))) + e
+    if is_melt:
+        return np.append(dq, dw)
+    else:
+        return dq, dw
+
 def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], t: float, i: int, dt: float = None, q=None, w=None):
-    """Господи, где здесь производная, где дифференциал? Пожалуйста, дрогой я, дай мне знак! ДОрОжНЫй!!!"""
     dt = v_.dT if dt is None else dt
 
     U, S, A, R_orb = get_matrices(v=v_, t=t, obj=obj, n=i)
@@ -170,7 +180,6 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], t: float, i: int,
         return np.append(dq, dw)
     q = obj.q[i] if q is None else q
     w = obj.w_irf[i] if w is None else w
-    e = get_torque(v_=v_, obj=obj, q=q, w=w)
 
     a = len(q)
     q4 = q if a == 4 else vec2quat(q)

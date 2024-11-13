@@ -60,6 +60,7 @@ class Apparatus:
         self.n = 1
         self.mass = 1e10
         self.size = [1., 1., 1.]
+        self.J = None
 
         # Индивидуальные параметры движения
         self.w_irf = [np.zeros(3) for _ in range(self.n)]

@@ -15,5 +15,6 @@ from my_math import *
 from my_plot import *
 from primary_info import *
 from spacecrafts import *
+from symbolic import *
 
 my_print(f"Инициализация проекта kiam-formation | Контекст: {__name__}", color="g")
