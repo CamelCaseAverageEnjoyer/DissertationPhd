@@ -5,6 +5,7 @@ from datetime import datetime
 from primary_info import *
 from gnc_systems import *
 from my_plot import *
+import quaternion
 
 # >>>>>>>>>>>> Задание движения Хилла-Клохесси-Уилтшира <<<<<<<<<<<<
 def get_c_hkw(r: Union[list, np.ndarray], v: Union[list, np.ndarray], w: float) -> list:
@@ -35,7 +36,7 @@ def v_hkw(C: Union[list, np.ndarray], w: float, t: float) -> np.ndarray:
                      -w * C[2] * np.sin(w * t) + w * C[1] * np.cos(w * t)])
 
 def get_rand_c(v: Variables) -> list:
-    """(quaternion or quaternion_but_i_dont_give_a_fuck)"""
+    """(quaternion or quaternion_but_i_dont_give_a_fuck)"""  # Чего? Что это значит?
     r_spread, v_spread, _ = v.RVW_ChipSat_SPREAD
     return get_c_hkw(r=np.random.uniform(-r_spread, r_spread, 3),
                      v=np.random.uniform(-v_spread, v_spread, 3), w=v.W_ORB)
@@ -105,7 +106,7 @@ def get_aero_drag_acceleration(v_: Variables, obj: Union[CubeSat, FemtoSat], i: 
     """Возвращает ускорение КА от сопротивления атмосферы.
     Внимание! При глобальном параметре DYNAMIC_MODEL='Clohessy-Wiltshire' возвращает ускорение в ОСК.
     Иначе возвращает ускорение в ИСК."""
-    S = quart2dcm(obj.q[i])  # Для новых кватернионов - неверно!
+    S = quart2dcm(obj.q[i])
     cos_alpha = clip((np.trace(S) - 1) / 2, -1, 1)
     # alpha = 180 / np.pi * np.arccos(cos_alpha)
     rho = get_atm_params(v=v_, h=obj.r_orf[i][2] + v_.ORBIT_RADIUS - v_.EARTH_RADIUS)[0]
@@ -133,6 +134,7 @@ def get_full_acceleration(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int,
         return force
 
 def rk4_translate(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float = None, r=None, v=None) -> tuple:
+    """Функция работает только с численными переменными"""
     dt = v_.dT if dt is None else dt
 
     def rv_right_part(rv1, a1):
@@ -155,44 +157,55 @@ def get_torque(v: Variables, obj: Apparatus, q, w) -> np.ndarray:
     """Вектор углового ускорения"""
     return np.zeros(3)
 
-def attitude_rhs(v: Variables, obj: Apparatus, q, w, is_melt: bool = True):
+def attitude_rhs(v: Variables, obj: Apparatus, t: float, qw, is_melt: bool = True):
+    """При численном моделировании qw передаётся 1 numpy.ndarray;
+    При символьном вычислении qw должен быть типа tuple"""
+    if isinstance(qw, np.ndarray):
+        q, w = np.quaternion(*qw[[0, 1, 2, 3]]), qw[[4, 5, 6]]
+    else:
+        q, w = qw
+
     e = get_torque(v=v, obj=obj, q=q, w=w)
-    dq = 1 / 2 * q_dot(q, w)
+    dq = 1 / 2 * q_dot(q, vec2quat(w))
+    # U, S, A, R_orb = get_matrices(v=v, t=t, obj=obj, n=i)
     # J = A.T @ obj.J @ A
     J = obj.J
     dw = - (np.linalg.inv(J) @ (my_cross(w, J @ w))) + e
     if is_melt:
-        return np.append(dq, dw)
+        return np.append(dq.components, dw)
     else:
         return dq, dw
 
 def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], t: float, i: int, dt: float = None, q=None, w=None):
+    """Функция работает только с численными переменными.
+    Если принял на вход q-3, возвращает q-3; аналогично q-4"""
     dt = v_.dT if dt is None else dt
 
-    U, S, A, R_orb = get_matrices(v=v_, t=t, obj=obj, n=i)
 
-    def lw_right_part(qw_, e_):
-        q_, w_ = qw_[0:4], qw_[4:7]
-        dq = 1 / 2 * q_dot(q_, [0, w_[0], w_[1], w_[2]])
-        # J = A.T @ obj.J @ A
-        J = obj.J
-        dw = - (np.linalg.inv(J) @ (my_cross(w_, J @ w_)))  # + e_
-        return np.append(dq, dw)
     q = obj.q[i] if q is None else q
     w = obj.w_irf[i] if w is None else w
 
-    a = len(q)
-    q4 = q if a == 4 else vec2quat(q)
-    qw = np.append(q4, w)
-    k1 = lw_right_part(qw, e)
-    k2 = lw_right_part(qw + k1 * dt / 2, e)
-    k3 = lw_right_part(qw + k2 * dt / 2, e)
-    k4 = lw_right_part(qw + k3 * dt, e)
+    if isinstance(q, np.quaternion):
+        q4 = q
+    else:
+        q4 = quaternion.from_vector_part(q)  # Перевод полных кватернионов или вектор-частей в полный кватернион
+    qw = np.append(quaternion.as_float_array(q4), w)
+    k1 = attitude_rhs(v=v_, obj=obj, t=t, qw=qw)
+    k2 = attitude_rhs(v=v_, obj=obj, t=t, qw=qw + k1 * dt / 2)  # lw_right_part(qw + k1 * dt / 2, e)
+    k3 = attitude_rhs(v=v_, obj=obj, t=t, qw=qw + k2 * dt / 2)  # lw_right_part(qw + k2 * dt / 2, e)
+    k4 = attitude_rhs(v=v_, obj=obj, t=t, qw=qw + k3 * dt)  # lw_right_part(qw + k3 * dt, e)
     qw = dt / 6 * (k1 + 2*k2 + 2*k3 + k4)
-    # q_anw = q_dot(qw[0:4]/np.linalg.norm(qw[0:4]), q4)
-    q_anw = q4 + qw[0:4]
-    q_anw /= np.linalg.norm(q_anw)
-    return q_anw[4 - a:4], qw[a:a + 3] + w
+
+    q_anw = q4 + np.quaternion(*qw[[0, 1, 2, 3]])
+    # q_anw /= np.linalg.norm(q_anw)
+    q_anw = q_anw.normalized()
+
+    w_anw = w + qw[[4, 5, 6]]
+
+    if isinstance(q, quaternion.quaternion):
+        return q_anw, w_anw
+    else:
+        return q_anw.vec, w_anw
 
 
 # >>>>>>>>>>>> Перевод между системами координат <<<<<<<<<<<<
@@ -374,7 +387,7 @@ class PhysicModel:
                 for v in ['r', 'q', 'v', 'w']:
                     tmp = {'r': [obj.r_irf[i_n], obj.r_orf[i_n]],
                            'v': [obj.v_irf[i_n], obj.v_orf[i_n]],
-                           'q': [obj.q[i_n][1:4]],
+                           'q': [obj.q[i_n].vec],
                            'w': [obj.w_irf[i_n], obj.w_orf[i_n]]}[v]
                     for i_fr, frame in enumerate(['irf', 'orf'] if v != 'q' else ['irf']):  # Кватернионы только в ИСК
                         for i_r, c in enumerate('xyz'):
@@ -388,7 +401,7 @@ class PhysicModel:
                     q_irf_estimation = self.k.get_estimation(i_f=i_n, v='q-3 irf')
                     r_orf = self.f.r_orf[i_n]
                     w_irf = self.f.w_irf[i_n]
-                    q_irf = self.f.q[i_n][1:4]
+                    q_irf = self.f.q[i_n].vec
 
                     w_orf, w_orf_estimation = [], []  # Чтобы PyCharm не ругался
                     if self.v.NAVIGATION_ANGLES:

@@ -31,16 +31,17 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                     if produce:
                         dr = obj2.r_orf[i_2] - obj1.r_orf[i_1]
                         p.record.loc[p.iter, f'{obj1.name}-{obj2.name} RealDistance {i_1} {i_2}'] = np.linalg.norm(dr)
-                        S_1 = quart2dcm(np.array(obj1.q[i_1])) @ get_U(obj1, i_1).T
-                        S_2 = quart2dcm(np.array(obj2.q[i_2])) @ get_U(obj2, i_2).T
+                        S_1 = quart2dcm(obj1.q[i_1]) @ get_U(obj1, i_1).T
+                        S_2 = quart2dcm(obj2.q[i_2]) @ get_U(obj2, i_2).T
                         distance_measured = np.linalg.norm(dr) + np.random.normal(0, noise)  # Шум нормальный!
                     else:
                         r1 = estimated_params[i_1 * j + 0: i_1 * j + 3] if obj1 == f else obj1.r_orf[i_1]
                         r2 = estimated_params[i_2 * j + 0: i_2 * j + 3]
                         dr = r2 - r1
                         if v.NAVIGATION_ANGLES:
-                            q1 = estimated_params[i_1 * j + 3: i_1 * j + 6] if obj1 == f else obj1.q[i_1]
-                            q2 = estimated_params[i_2 * j + 3: i_2 * j + 6]
+                            q1 = quaternion.from_vector_part(estimated_params[i_1 * j + 3: i_1 * j + 6]) \
+                                if obj1 == f else obj1.q[i_1]
+                            q2 = quaternion.from_vector_part(estimated_params[i_2 * j + 3: i_2 * j + 6])
                             S_1 = quart2dcm(q1) @ get_U(obj1, i_1).T
                             S_2 = quart2dcm(q2) @ get_U(obj2, i_2).T
                         distance_measured = np.linalg.norm(dr)

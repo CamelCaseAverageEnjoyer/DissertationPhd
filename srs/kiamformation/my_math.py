@@ -1,6 +1,7 @@
 """Небольшие функции"""
 from typing import Union
 import numpy as np
+import quaternion
 
 
 def get_antisymmetric_matrix(a):
@@ -23,48 +24,42 @@ def my_cross(a, b):
                      a[2] * b[0] - a[0] * b[2],
                      a[0] * b[1] - a[1] * b[0]])
 
-def vec2quat(v: Union[list, np.ndarray]) -> list:
-    """Перевод вектор-часть кватерниона в кватернион """
-    if len(v) != 3:
-        raise ValueError(f"Подаётся вектор длинны {len(v)}, требуется длинна 3!")
-    if np.linalg.norm(v) > 1:
-        return [0] + list(np.array(v)/np.linalg.norm(v))
+def vec2quat(v):
+    """Перевод вектора кватерниона в кватернион"""
+    if isinstance(v, np.ndarray):
+        return np.quaternion(np.sqrt(1 - np.linalg.norm(v)**2), *v)
     else:
-        return [np.sqrt(1 - np.linalg.norm(v)**2), v[0], v[1], v[2]]
+        from sympy import Matrix, sqrt
+        return Matrix([sqrt(1 - v.dot(v)), v[0], v[1], v[2]])
 
-def q_dot(L1, L2):
-    """Функция является кватернионным умножением; \n
-    Кватернион L1,L2 передаются векторами длины 4; \n
-    Возвращает кватернион L[0]..L[3]."""
-    return np.array([L1[0] * L2[0] - L1[1] * L2[1] - L1[2] * L2[2] - L1[3] * L2[3],
-                     L1[0] * L2[1] + L1[1] * L2[0] + L1[2] * L2[3] - L1[3] * L2[2],
-                     L1[0] * L2[2] + L1[2] * L2[0] + L1[3] * L2[1] - L1[1] * L2[3],
-                     L1[0] * L2[3] + L1[3] * L2[0] + L1[1] * L2[2] - L1[2] * L2[1]])
+def q_dot(q1, q2):
+    """Умножение кватернионов длины 4"""
+    if isinstance(q1, quaternion.quaternion):
+        return q1 * q2
+    else:
+        from sympy import Matrix
+        q1v = Matrix(q1[1:4])
+        q2v = Matrix(q2[1:4])
+        scalar = q1[0]*q2[0] - q1v.dot(q2v)
+        vector = q1v*q2[0] + q2v*q1[0] + q1v.cross(q2v)
+        return Matrix([scalar, vector[0], vector[1], vector[2]])
 
 def euler2rot_matrix(a: float, b: float, g: float) -> np.ndarray:
-    return np.array([[np.cos(a), -np.sin(a), 0], [np.sin(a), np.cos(a), 0], [0, 0, 1]]) @ \
-        np.array([[1, 0, 0], [0, np.cos(b), -np.sin(b)], [0, np.sin(b), np.cos(b)]]) @ \
-        np.array([[np.cos(g), -np.sin(g), 0], [np.sin(g), np.cos(g), 0], [0, 0, 1]])
+    return quaternion.as_rotation_matrix(quaternion.from_euler_angles(a, b, g))  # А где ты вообще нужен?
 
 def pol2dec(r, u, v):
     return np.array([r * np.cos(u) * np.cos(v), r * np.sin(u) * np.cos(v), r * np.sin(v)])
 
-def quart2dcm(L) -> np.ndarray:
-    """Функция ищет матрицу поворота из кватерниона поворота; \n
-    Кватернион L передаётся вектором длины 4; \n
-    Возвращает матрицу 3х3."""
-    w, x, y, z = L
-    A = np.eye(3)
-    A[0][0] = 1 - 2 * y ** 2 - 2 * z ** 2
-    A[0][1] = 2 * x * y + 2 * z * w
-    A[0][2] = 2 * x * z - 2 * y * w
-    A[1][0] = 2 * x * y - 2 * z * w
-    A[1][1] = 1 - 2 * x ** 2 - 2 * z ** 2
-    A[1][2] = 2 * y * z + 2 * x * w
-    A[2][0] = 2 * x * z + 2 * y * w
-    A[2][1] = 2 * y * z - 2 * x * w
-    A[2][2] = 1 - 2 * x ** 2 - 2 * y ** 2
-    return A
+def quart2dcm(q):
+    """Матрицу поворота из кватерниона поворота"""
+    if isinstance(q, quaternion.quaternion):
+        return quaternion.as_rotation_matrix(q)
+    else:
+        from sympy import Matrix
+        w, x, y, z = q
+        return Matrix([[1 - 2*y**2 - 2*z**2, 2*x*y + 2*z*w, 2*x*z - 2*y*w],
+                       [2*x*y - 2*z*w, 1 - 2*x**2 - 2*z**2, 2*y*z + 2*x*w],
+                       [2*x*z + 2*y*w, 2*y*z - 2*x*w, 1 - 2*x**2 - 2*y**2]])
 
 def clip(a: float, bot: float, top: float) -> float:
     if a < bot:

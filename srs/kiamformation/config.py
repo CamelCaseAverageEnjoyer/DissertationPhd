@@ -99,7 +99,7 @@ class Variables:
                           'KalmanSpinLimit': [True, 1e-2],  # Ограничение скорости вращения в прогнозе фильтра Калмана
                           'ClohessyWiltshireC1=0': True,  # Траектории без дрейфа (зануление C1, даже при аэродинамике)
                           'KalmanVelocityLimit': [True, 1e3],
-                          'KalmanPositionLimit': [True, 1e3]}
+                          'KalmanPositionLimit': [True, 1e4]}
 
         self.DISTORTION = 0.  # Искривление диаграммы направленности
         self.START_NAVIGATION_TOLERANCE = 0.9
@@ -150,7 +150,7 @@ class Variables:
         self.ECCENTRICITY = 0.0
         self.INCLINATION = 0  # В градусах
         self.EARTH_RADIUS = kiam.units('earth')['DistUnit'] * 1e3
-        self.HEIGHT = 400e3
+        self.HEIGHT = 600e3
         self.ORBIT_RADIUS = self.EARTH_RADIUS + self.HEIGHT
 
         # Параметры орбиты

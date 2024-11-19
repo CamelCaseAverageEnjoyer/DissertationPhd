@@ -191,7 +191,7 @@ class KalmanFilter:
             h_matrix(c_ant=v.N_ANTENNA_C, f_ant=v.N_ANTENNA_F, fn=f.n, cn=c.n, r_f=f.r_orf, r_c=c.r_orf,
                      angles_navigation=v.NAVIGATION_ANGLES, multy_antenna_send=v.MULTI_ANTENNA_SEND,
                      multy_antenna_take=v.MULTI_ANTENNA_TAKE, w_0=v.W_ORB, t=p.t,
-                     q_f=d['q-3 irf'], q_c=[c.q[i][1:4] for i in range(c.n)])
+                     q_f=d['q-3 irf'], q_c=[c.q[i].vec for i in range(c.n)])
 
         R = np.eye(z_len) * v.KALMAN_COEF['r']  # n + n(n-1)/2
         my_print(f"P_m: {P_m.shape}, H: {R.shape}, P_m: {R.shape}", if_print=p.iter == 1)
@@ -204,7 +204,7 @@ class KalmanFilter:
             tmp = raw_estimation_params[(0 + i) * j: (1 + i) * j]
             if v.SHAMANISM["KalmanQuaternionNormalize"] and v.NAVIGATION_ANGLES:
                 tmp2 = vec2quat(tmp[3:6])
-                tmp[3:6] = (tmp2 / np.linalg.norm(tmp2))[1:4]
+                tmp[3:6] = tmp2.normalized().vec
             if v.SHAMANISM["KalmanSpinLimit"][0] and \
                     np.linalg.norm(tmp[9:12]) > v.SHAMANISM["KalmanSpinLimit"][1]:
                 tmp[9:12] = tmp[9:12] / np.linalg.norm(tmp[9:12]) * v.SHAMANISM["KalmanSpinLimit"][1]
