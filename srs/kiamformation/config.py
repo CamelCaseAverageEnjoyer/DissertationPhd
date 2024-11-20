@@ -43,12 +43,16 @@ class Variables:
 
     def load_params(self, i: int = 0):
         """Подгрузка параметров из файла config_choose.csv"""
-        self.config_choose = pd.read_csv(self.path_config_data, sep=";")
-        self.config_choose = self.config_choose.astype(get_types_dict())
+        from os.path import isfile
+        if isfile(self.path_config_data):
+            self.config_choose = pd.read_csv(self.path_config_data, sep=";")
+            self.config_choose = self.config_choose.astype(get_types_dict())
 
-        self.set_saving_params(self.config_choose.iloc[i, :].to_list())
-        self.init_choice_params()
-        my_print(f"Загружены параметры: {self.DESCRIPTION}", color='m', if_print=self.IF_ANY_PRINT)
+            self.set_saving_params(self.config_choose.iloc[i, :].to_list())
+            self.init_choice_params()
+            my_print(f"Загружены параметры: {self.DESCRIPTION}", color='m', if_print=self.IF_ANY_PRINT)
+        else:
+            my_print(f"Параметры не могут быть загружены! Нет файла: {self.path_config_data}", color='r')
 
     def save_params(self, add_now_params: bool = True):
         """Сохранение параметров в файл config_choose.csv"""
@@ -150,7 +154,7 @@ class Variables:
         self.ECCENTRICITY = 0.0
         self.INCLINATION = 0  # В градусах
         self.EARTH_RADIUS = kiam.units('earth')['DistUnit'] * 1e3
-        self.HEIGHT = 600e3
+        self.HEIGHT = 400e3
         self.ORBIT_RADIUS = self.EARTH_RADIUS + self.HEIGHT
 
         # Параметры орбиты
@@ -194,6 +198,13 @@ class Variables:
         self.N_ANTENNA_C = self.N_ANTENNAS[self.GAIN_MODEL_C]
         self.N_ANTENNA_F = self.N_ANTENNAS[self.GAIN_MODEL_F]
         self.DEPLOYMENT = self.DEPLOYMENTS[self.DEPLOYMENT_N]
+
+    def spread(self, param: str, name: str):
+        _i = 'rvw'.index(param)
+        if name == "FemtoSat":
+            return np.random.uniform(-self.RVW_ChipSat_SPREAD[_i], self.RVW_ChipSat_SPREAD[_i], 3)
+        if name == "CubeSat":
+            return np.random.uniform(-self.RVW_CubeSat_SPREAD[_i], self.RVW_CubeSat_SPREAD[_i], 3)
 
 
 class Objects:

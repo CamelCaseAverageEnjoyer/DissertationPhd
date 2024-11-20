@@ -24,6 +24,14 @@ def my_cross(a, b):
                      a[2] * b[0] - a[0] * b[2],
                      a[0] * b[1] - a[1] * b[0]])
 
+def matrix2angle(M):
+    if isinstance(M, np.ndarray):
+        return np.cos(quaternion.np.angle_of_rotor(quaternion.from_rotation_matrix(M)))
+        # clip((np.trace(M) - 1) / 2, -1, 1)
+    else:
+        from sympy import Trace
+        return ((Trace(M) - 1) / 2).simplify()
+
 def vec2quat(v):
     """Перевод вектора кватерниона в кватернион"""
     if isinstance(v, np.ndarray):
@@ -43,6 +51,15 @@ def q_dot(q1, q2):
         scalar = q1[0]*q2[0] - q1v.dot(q2v)
         vector = q1v*q2[0] + q2v*q1[0] + q1v.cross(q2v)
         return Matrix([scalar, vector[0], vector[1], vector[2]])
+
+def get_q_Rodrigue_Hamilton(phi, r, symbol=False):
+    if symbol:
+        from sympy import cos, sin, var, Matrix
+        from symbolic import sympy_norm
+        rn = sympy_norm(r)
+        return Matrix([cos(phi/2), r[0]/rn*sin(phi/2), r[1]/rn*sin(phi/2), r[2]/rn*sin(phi/2)])
+    else:
+        return np.quaternion(np.cos(phi/2), *(r/np.linalg.norm(r)*np.sin(phi/2)))
 
 def euler2rot_matrix(a: float, b: float, g: float) -> np.ndarray:
     return quaternion.as_rotation_matrix(quaternion.from_euler_angles(a, b, g))  # А где ты вообще нужен?

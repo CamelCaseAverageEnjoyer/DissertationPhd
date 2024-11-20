@@ -5,35 +5,53 @@ from datetime import datetime
 from primary_info import *
 from gnc_systems import *
 from my_plot import *
+from symbolic import sympy_numpy_polymorphism
 import quaternion
 
 # >>>>>>>>>>>> Задание движения Хилла-Клохесси-Уилтшира <<<<<<<<<<<<
-def get_c_hkw(r: Union[list, np.ndarray], v: Union[list, np.ndarray], w: float) -> list:
+def get_c_hkw(r, v, w):
     """Возвращает константы C[0]..C[5] движения Хилла-Клохесси-Уилтштира"""
-    return [2*r[2] + v[0]/w,
-            v[2]/w,
-            -3*r[2] - 2*v[0]/w,
-            r[0] - 2*v[2]/w,
-            v[1]/w,
-            r[1]]
+    @sympy_numpy_polymorphism
+    def local_func(_r, _v, _w, **kwargs):
+        _ = kwargs
+        return [2*_r[2] + _v[0]/_w,
+                _v[2]/_w,
+                -3*_r[2] - 2*_v[0]/_w,
+                _r[0] - 2*_v[2]/_w,
+                _v[1]/_w,
+                _r[1]]
 
-def r_hkw(C: Union[list, np.ndarray], w: float, t: float) -> np.ndarray:
-    """Возвращает вектор координат в момент времени t; \n
+    return local_func(r, v, w, trigger_var=r, trigger_type=np.ndarray, trigger_out=np.array)
+
+def r_hkw(C, w, t):
+    """Возвращает радиус-вектор в ОСК в момент времени t; \n
     Уравнения движения Хилла-Клохесси-Уилтштира; \n
     Константы C передаются массивом C[0]..C[5]; \n
     Частота w, время t должны быть скалярными величинами."""
-    return np.array([-3*C[0]*w*t + 2*C[1]*np.cos(w*t) - 2*C[2]*np.sin(w*t) + C[3],
-                     C[5]*np.cos(w*t) + C[4]*np.sin(w*t),
-                     2*C[0] + C[2]*np.cos(w*t) + C[1]*np.sin(w*t)])
+    @sympy_numpy_polymorphism
+    def local_func(_C, _w, _t, **kwargs):
+        _sin, _cos = kwargs['sin'], kwargs['cos']
 
-def v_hkw(C: Union[list, np.ndarray], w: float, t: float) -> np.ndarray:
-    """Возвращает вектор скоростей в момент времени t; \n
+        return [-3 * _C[0] * _w * _t + 2 * _C[1] * _cos(_w * _t) - 2 * _C[2] * _sin(_w * _t) + _C[3],
+                _C[5] * _cos(_w * _t) + _C[4] * _sin(_w * _t),
+                2 * _C[0] + _C[2] * _cos(_w * _t) + _C[1] * _sin(_w * _t)]
+
+    return local_func(C, w, t, trigger_var=C, trigger_type=list, trigger_out=np.array)
+
+def v_hkw(C, w, t):
+    """Возвращает вектор скоростей в ОСК в момент времени t; \n
     Уравнения движения Хилла-Клохесси-Уилтштира; \n
     Константы C передаются массивом C[0]..C[5]; \n
     Частота w, время t должны быть скалярными величинами."""
-    return np.array([-3 * C[0] * w - 2 * w * C[1] * np.sin(w * t) - 2 * w * C[2] * np.cos(w * t),
-                     w * C[4] * np.cos(w * t) - w * C[5] * np.sin(w * t),
-                     -w * C[2] * np.sin(w * t) + w * C[1] * np.cos(w * t)])
+    @sympy_numpy_polymorphism
+    def local_func(_C, _w, _t, **kwargs):
+        _sin, _cos = kwargs['sin'], kwargs['cos']
+
+        return [-3 * _C[0] * _w - 2 * _w * _C[1] * _sin(_w * _t) - 2 * _w * _C[2] * _cos(_w * _t),
+                _w * _C[4] * _cos(_w * _t) - _w * _C[5] * _sin(_w * _t),
+                -w * _C[2] * _sin(_w * _t) + _w * _C[1] * _cos(_w * _t)]
+
+    return local_func(C, w, t, trigger_var=C, trigger_type=list, trigger_out=np.array)
 
 def get_rand_c(v: Variables) -> list:
     """(quaternion or quaternion_but_i_dont_give_a_fuck)"""  # Чего? Что это значит?
@@ -88,49 +106,51 @@ def get_atm_params(v: Variables, h: float, atm_model: str = None) -> tuple:
         rho = rho.value
     return rho, T, p
 
-def get_geopotential_acceleration(v_: Variables, r: Union[list, np.ndarray], v: Union[list, np.ndarray]) -> np.ndarray:
+def get_geopotential_acceleration(vrs: Variables, r, v, w, mu):
     """Возвращает ускорение КА от притяжения Земли.
     Внимание! При глобальном параметре DYNAMIC_MODEL='Clohessy-Wiltshire' возвращает ускорение в ОСК.
-    Иначе возвращает ускорение в ИСК.
-    :param v: Скорость КА. Внимание! Не путать с Variables!
-    :param r: Положение КА
-    :param v_: Переменная класса Variables. Внимание! Не путать со скоростью!"""
-    if 'hkw' in v_.SOLVER:
-        return np.array([-2 * v_.W_ORB * v[2],
-                         -v_.W_ORB ** 2 * r[1],
-                         2 * v_.W_ORB * v[0] + 3 * v_.W_ORB ** 2 * r[2]])
-    return v_.MU * np.array(r) / np.linalg.norm(r)**3
-
-def get_aero_drag_acceleration(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int,
-                               r: Union[list, np.ndarray], v: Union[list, np.ndarray]):
-    """Возвращает ускорение КА от сопротивления атмосферы.
-    Внимание! При глобальном параметре DYNAMIC_MODEL='Clohessy-Wiltshire' возвращает ускорение в ОСК.
     Иначе возвращает ускорение в ИСК."""
-    S = quart2dcm(obj.q[i])
-    cos_alpha = clip((np.trace(S) - 1) / 2, -1, 1)
-    # alpha = 180 / np.pi * np.arccos(cos_alpha)
-    rho = get_atm_params(v=v_, h=obj.r_orf[i][2] + v_.ORBIT_RADIUS - v_.EARTH_RADIUS)[0]
-    if obj.name == "CubeSat":
-        c_resist = 1.05
-        square = obj.size[0] * obj.size[1]
-    else:
-        c_resist = 1.17
-        square = obj.size[0] * obj.size[1] * abs(cos_alpha)
+    @sympy_numpy_polymorphism
+    def local_func(_vrs, _r, _v, _w, _mu, **kwargs):
+        _norm = kwargs['norm']
 
-    if 'hkw' in v_.SOLVER:
-        v_real = v + np.array([v_.V_ORB, 0, 0])
-        rho = get_atm_params(v=v_, h=r[2] + v_.ORBIT_RADIUS - v_.EARTH_RADIUS)[0]
-        return - v_real * np.linalg.norm(v_real) * c_resist * rho * square / 2 / obj.mass
+        if 'hkw' in _vrs.SOLVER:
+            return [-2 * _w * _v[2],
+                    -_w**2 * _r[1],
+                    2 * _w * _v[0] + 3 * _w**2 * _r[2]]
+        return _mu * _r / _norm(r) ** 3
 
-def get_full_acceleration(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int,
-                          r: Union[float, np.ndarray], v: Union[float, np.ndarray]) -> np.ndarray:
-    """Возвращает вектор силы в ОСК, принимает параметры в ОСК\n
-    square - площадь S для аэродинамики
-    c_resist - Cf для аэродинаммики"""
-    if 'hkw' in v_.SOLVER:
-        force = get_geopotential_acceleration(v_=v_, r=r, v=v)
-        if v_.DYNAMIC_MODEL['aero drag']:
-            force += get_aero_drag_acceleration(v_=v_, r=r, v=v, obj=obj, i=i)
+    return local_func(vrs, r, v, w, mu, trigger_var=r, trigger_type=np.ndarray, trigger_out=np.array)
+
+
+def get_aero_drag_acceleration(vrs: Variables, obj: Apparatus, i: int, r, v, rho=None):
+    """Возвращает ускорение КА от сопротивления атмосферы.
+    Внимание! При параметре vrs.SOLVER=hkw возвращает ускорение в ОСК, иначе в ИСК."""
+    @sympy_numpy_polymorphism
+    def local_func(_vrs, _obj, _i, _r, _v, _rho, **kwargs):
+        _norm = kwargs['norm']
+
+        S = quart2dcm(obj.q[i])
+        cos_alpha = matrix2angle(S) if obj.name == "FemtoSat" else 1
+        # rho = get_atm_params(v=vrs, h=obj.r_orf[i][2] + vrs.HEIGHT)[0]
+
+        if 'hkw' in vrs.SOLVER:
+            v_real = v + kwargs['out']([vrs.V_ORB, 0, 0])
+            _rho = get_atm_params(v=vrs, h=r[2] + vrs.HEIGHT)[0] if _rho is None else _rho
+            return - v_real * _norm(v_real) * obj.get_blown_surface(cos_alpha) * _rho / 2 / obj.mass
+
+        # Не дописал для общего не-ХКУ случая
+
+    return local_func(vrs, obj, i, r, v, rho, trigger_var=r, trigger_type=np.ndarray, trigger_out=np.array)
+
+def get_full_acceleration(vrs: Variables, obj: Apparatus, i: int, r, v, w=None, mu=None, rho=None):
+    """Возвращает вектор силы в ОСК, принимает параметры в ОСК"""
+    w = vrs.W_ORB if w is None else w
+    mu = vrs.MU if mu is None else mu
+    if 'hkw' in vrs.SOLVER:
+        force = get_geopotential_acceleration(vrs=vrs, r=r, v=v, w=w, mu=mu)
+        if vrs.DYNAMIC_MODEL['aero drag']:
+            force += get_aero_drag_acceleration(vrs=vrs, r=r, v=v, obj=obj, i=i, rho=rho)
         return force
 
 def rk4_translate(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: float = None, r=None, v=None) -> tuple:
@@ -141,7 +161,7 @@ def rk4_translate(v_: Variables, obj: Union[CubeSat, FemtoSat], i: int, dt: floa
         return np.array([rv1[3], rv1[4], rv1[5], a1[0], a1[1], a1[2]])
     r = obj.r_orf[i] if r is None else r
     v = obj.v_orf[i] if v is None else v
-    a = get_full_acceleration(v_=v_, obj=obj, i=i, r=r, v=v)
+    a = get_full_acceleration(vrs=v_, obj=obj, i=i, r=r, v=v)
 
     rv = np.append(r, v)
     k1 = rv_right_part(rv, a)

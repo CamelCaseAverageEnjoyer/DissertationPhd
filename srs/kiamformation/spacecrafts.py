@@ -60,6 +60,7 @@ class Apparatus:
         self.n = n
         self.mass = 1e10
         self.size = [1., 1., 1.]
+        self.c_resist = 0
         self.J = None
 
         # Индивидуальные параметры движения
@@ -81,6 +82,9 @@ class Apparatus:
         prm_good = [np.append(np.append(np.append(self.r_orf[i], self.q[i][1:4]), self.v_orf[i]), self.w_irf[i])
                     for i in range(self.n)]
         self.rv_orf_calc = [prm_good[i] for i in range(self.n)]'''
+
+    def get_blown_surface(self, cos_alpha):
+        return self.size[0] * self.size[1] * abs(cos_alpha) * self.c_resist
 
     def update_c(self, v):
         from dynamics import get_c_hkw
@@ -148,15 +152,16 @@ class CubeSat(Apparatus):
         self.size = cubesat_property[v.CUBESAT_MODEL]['dims']
         self.mass_center_error = cubesat_property[v.CUBESAT_MODEL]['mass_center_error']
         self.r_mass_center = np.array([np.random.uniform(-i, i) for i in self.mass_center_error])
+        self.c_resist = 1.05
         # Пока что J диагонален
         self.J = np.diag([self.size[1]**2 + self.size[2]**2,
                           self.size[0]**2 + self.size[2]**2,
                           self.size[0]**2 + self.size[1]**2]) * self.mass / 12
 
         # Индивидуальные параметры движения
-        self.r_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[0], v.RVW_CubeSat_SPREAD[0], 3) for _ in range(self.n)]
-        self.v_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[1], v.RVW_CubeSat_SPREAD[1], 3) for _ in range(self.n)]
-        self.w_orf = [np.random.uniform(-v.RVW_CubeSat_SPREAD[2], v.RVW_CubeSat_SPREAD[2], 3) for _ in range(self.n)]
+        self.r_orf = [v.spread('r', name=self.name) for _ in range(self.n)]
+        self.v_orf = [v.spread('v', name=self.name) for _ in range(self.n)]
+        self.w_orf = [v.spread('w', name=self.name) for _ in range(self.n)]
         # Инициализируется автоматически
         # self.q = [np.quaternion(1, 0, 0, 0) for _ in range(self.n)]
         self.q = [np.quaternion(*np.random.uniform(-1, 1, 4)) for _ in range(self.n)]
@@ -193,17 +198,15 @@ class FemtoSat(Apparatus):
         self.mass = chipsat_property[v.CHIPSAT_MODEL]['mass']
         self.mass_center_error = chipsat_property[v.CHIPSAT_MODEL]['mass_center_error']
         self.size = chipsat_property[v.CHIPSAT_MODEL]['dims']
+        self.c_resist = 1.17
         # Пока что J диагонален
         self.J = np.diag([self.size[1]**2, self.size[0]**2, self.size[0]**2 + self.size[1]**2]) * self.mass / 12
         self.power_signal_full = 0.01
         self.length_signal_full = 0.001
 
-        def spread(_i: int):
-            return np.random.uniform(-v.RVW_ChipSat_SPREAD[_i], v.RVW_ChipSat_SPREAD[_i], 3)
-
         # Индивидуальные параметры движения
-        self.deploy(v=v, c=c, i_c=0, spread=spread)
-        self.w_orf_ = [spread(2) for _ in range(self.n)]
+        self.deploy(v=v, c=c, i_c=0)
+        self.w_orf_ = [v.spread('w', name=self.name) for _ in range(self.n)]
         # Инициализируется автоматически
         self.r_irf, self.v_irf, self.w_irf, self.w_irf_ = [[np.zeros(3) for _ in range(self.n)] for _ in range(4)]
         self.q, self.q_ = [[np.quaternion(*np.random.uniform(-1, 1, 4)) for _ in range(self.n)] for _ in range(2)]
@@ -221,12 +224,14 @@ class FemtoSat(Apparatus):
         tol = 0 if v.START_NAVIGATION == v.NAVIGATIONS[2] else tol
 
         # Новый формат
-        self.apriori_params = {'r orf': [self.r_orf[i] * tol + spread(0) * (1 - tol) for i in range(self.n)],
-                               'v orf': [self.v_orf[i] * tol + spread(1) * (1 - tol) for i in range(self.n)],
+        self.apriori_params = {'r orf': [self.r_orf[i] * tol + v.spread('r', name=self.name) * (1 - tol)
+                                         for i in range(self.n)],
+                               'v orf': [self.v_orf[i] * tol + v.spread('v', name=self.name) * (1 - tol)
+                                         for i in range(self.n)],
                                'w irf': [self.w_irf[i] * tol + self.w_irf_[i] * (1 - tol) for i in range(self.n)],
                                'q-3 irf': [self.q[i].vec * tol + self.q_[i].vec * (1 - tol) for i in range(self.n)]}
 
-    def deploy(self, v: Variables, c: CubeSat, i_c: int, spread) -> None:
+    def deploy(self, v: Variables, c: CubeSat, i_c: int) -> None:
         """
         Функция отделения задаёт начальные условия для дочерних КА из материнских КА
         :param v: объект Variables
@@ -236,9 +241,9 @@ class FemtoSat(Apparatus):
         :return: {'r orf': ..., 'v orf': ..., 'q-3 irf': ..., 'w irf': ...}, где значения - list of np.ndarray
         """
         if v.DEPLOYMENT == v.DEPLOYMENTS[0]:  # No
-            self.r_orf = [spread(0) for _ in range(self.n)]
-            self.v_orf = [spread(1) for _ in range(self.n)]
-            self.w_orf = [spread(2) for _ in range(self.n)]
+            self.r_orf = [v.spread('r', name=self.name) for _ in range(self.n)]
+            self.v_orf = [v.spread('v', name=self.name) for _ in range(self.n)]
+            self.w_orf = [v.spread('w', name=self.name) for _ in range(self.n)]
         elif v.DEPLOYMENT == v.DEPLOYMENTS[1]:  # Specific
             r_before = c.r_orf[i_c]
             v_before = c.v_orf[i_c]
@@ -246,4 +251,4 @@ class FemtoSat(Apparatus):
             v_deploy = v.RVW_ChipSat_SPREAD[1]
             self.r_orf = [r_before.copy() for _ in range(self.n)]
             self.v_orf = [v_before + np.array([0, 0, v_deploy]) + np.random.uniform(-dv, dv, 3) for _ in range(self.n)]
-            self.w_orf = [spread(2) for _ in range(self.n)]
+            self.w_orf = [v.spread('w', name=self.name) for _ in range(self.n)]
