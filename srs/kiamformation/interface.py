@@ -136,9 +136,9 @@ class Window(QWidget):
         self.name_type_func[y][n] = [self.path + "air.png", "button", plot_atmosphere_models, (1, 1)]
         self.name_type_func[y][n+1] = ["Посмотреть модели\nатмосферы", "label", None, (1, 1)]
         y += 1
-        self.name_type_func[y][n] = [self.path + "animation.png", "button", animate_reference_frames, (1, 1)]
-        self.name_type_func[y][n+1] = ["Анимировать вращение\nвокруг Земли", "label", None, (1, 1)]
-        y += 1
+        # self.name_type_func[y][n] = [self.path + "animation.png", "button", animate_reference_frames, (1, 1)]
+        # self.name_type_func[y][n+1] = ["Анимировать вращение\nвокруг Земли", "label", None, (1, 1)]
+        # y += 1
         self.name_type_func[y][n] = [self.path + "save.png", "button", self.local_save_trajectories, (1, 1)]
         self.name_type_func[y][n+1] = ["Сохранить траектории", "label", None, (1, 1)]
         y += 1
@@ -273,9 +273,9 @@ class Window(QWidget):
 
         # >>>>>>>>>>>> Отрисовка <<<<<<<<<<<<
         # Диаграмма разложения сигналов
-        self.name_type_func[y_all+0][n_left+0] = [f"Разложения сигналов: {params['MULTI_ANTENNA_SEND']} -> "
-                                                  f"{params['MULTI_ANTENNA_TAKE']}", "label", None, (1, 3)]
-        self.name_type_func[y_all+1][n_left+0] = [self.path + "send0_take0.png", "image", None, (3, 3)]
+        # self.name_type_func[y_all+0][n_left+0] = [f"Разложения сигналов: {params['MULTI_ANTENNA_SEND']} -> "
+        #                                           f"{params['MULTI_ANTENNA_TAKE']}", "label", None, (1, 3)]
+        # self.name_type_func[y_all+1][n_left+0] = [self.path + "send0_take0.png", "image", None, (3, 3)]
 
         # Текст о долготе полёта
         self.name_type_func[y_all][n_left+3] = [self.o.time_message(params['TIME']), "label", None, (1, 4)]

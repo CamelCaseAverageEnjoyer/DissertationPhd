@@ -78,6 +78,7 @@ class Variables:
     def __init__(self):
         from kiam_astro import kiam
         from spacecrafts import Anchor
+        from my_math import deg2rad
 
         # >>>>>>>>>>>> Вручную настраиваемые параметры <<<<<<<<<<<<
         self.path_sources = "kiamformation/data/"
@@ -152,7 +153,7 @@ class Variables:
 
         # >>>>>>>>>>>> Константы <<<<<<<<<<<<
         self.ECCENTRICITY = 0.0
-        self.INCLINATION = 0  # В градусах
+        self.INCLINATION = deg2rad(0)  # В градусах
         self.EARTH_RADIUS = kiam.units('earth')['DistUnit'] * 1e3
         self.HEIGHT = 400e3
         self.ORBIT_RADIUS = self.EARTH_RADIUS + self.HEIGHT

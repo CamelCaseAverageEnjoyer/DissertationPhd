@@ -2,6 +2,7 @@
 from typing import Union
 import numpy as np
 import quaternion
+from symbolic import numerical_and_symbolic_polymorph
 
 
 def get_antisymmetric_matrix(a):
@@ -15,14 +16,21 @@ def deg2rad(a: float) -> float:
 def rad2deg(a: float) -> float:
     return a * 180 / np.pi
 
-def vec2unit(a: np.ndarray) -> np.ndarray:
-    return a / np.linalg.norm(a)
+def vec2unit(a):
+    if isinstance(a, np.ndarray):
+        return a / np.linalg.norm(a)
+    from sympy import Matrix
+    from symbolic import sympy_norm
+    if isinstance(a, Matrix):
+        return sympy_norm(a)
 
-def my_cross(a, b):
+@numerical_and_symbolic_polymorph(trigger_var=(0, 'a'), trigger_type=np.ndarray, trigger_out=np.array)
+def my_cross(a, b, **kwargs):
     """Функция векторного произведения"""
-    return np.array([a[1] * b[2] - a[2] * b[1],
-                     a[2] * b[0] - a[0] * b[2],
-                     a[0] * b[1] - a[1] * b[0]])
+    _ = kwargs
+    return [a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0]]
 
 def matrix2angle(M):
     if isinstance(M, np.ndarray):
@@ -35,7 +43,11 @@ def matrix2angle(M):
 def vec2quat(v):
     """Перевод вектора кватерниона в кватернион"""
     if isinstance(v, np.ndarray):
-        return np.quaternion(np.sqrt(1 - np.linalg.norm(v)**2), *v)
+        n = np.linalg.norm(v)
+        if n <= 1:
+            return np.quaternion(np.sqrt(1 - n**2), *v).normalized()
+        else:
+            return np.quaternion(*v).normalized()
     else:
         from sympy import Matrix, sqrt
         return Matrix([sqrt(1 - v.dot(v)), v[0], v[1], v[2]])
@@ -88,3 +100,14 @@ def clip(a: float, bot: float, top: float) -> float:
 def flatten(lst: Union[list, np.ndarray]) -> list:
     """Функция берёт 2D массив, делает 1D"""
     return [item for sublist in lst for item in sublist]
+
+def matrix_minor(a, i: int, j: int):
+    """Функция вычисляет детерминант минорной матрицы"""
+    if isinstance(a, np.ndarray):
+        return np.linalg.det(np.delete(np.delete(a, i, axis=0), j, axis=1))
+    else:
+        from sympy import Matrix, det
+        m = Matrix(a)
+        m.row_del(i)
+        m.col_del(j)
+        return det(m)

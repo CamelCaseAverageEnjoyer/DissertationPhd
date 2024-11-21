@@ -1,51 +1,48 @@
 """Функции, связанные с архитектурой КА"""
 from my_math import *
 from config import Variables
-from cosmetic import my_print
+from symbolic import numerical_and_symbolic_polymorph
 
 # >>>>>>>>>>>> Диаграмма направленности антенн связи <<<<<<<<<<<<
-def local_dipole(v: Variables, r: Union[list, np.ndarray], ind: str = 'x') -> float:
+@numerical_and_symbolic_polymorph(trigger_var=(1, 'r'), trigger_type=np.ndarray, trigger_out=lambda x: x,
+                                  not_trigger_out=lambda x: x)
+def local_dipole(v: Variables, r, ind: str = 'x', **kwargs):
     """Возвращает диаграмму направленности одной полуволновой антенны (бублик). Костыль: возвращается >= 0
     :param v: Объект класса Variables
     :param r: Радиус-вектор направления антенны
     :param ind: Координата направления антенны"""
-    if ind not in "xyz":
+    norm, cos, pi = kwargs['norm'], kwargs['cos'], kwargs['pi']
+    if ind not in ['x', 'y', 'z']:
         raise ValueError(f"Координата «{ind}» должна быть среди: [x, y, z]")
-    r_m = np.sqrt(r[0] ** 2 + r[1] ** 2 + r[2] ** 2)
-    cos_a = (r[0] * int(ind == 'x') + r[1] * int(ind == 'y') + r[2] * int(ind == 'z')) / r_m
-    sin_a = (np.sqrt(r[1] ** 2 + r[2] ** 2) * int(ind == 'x') +
-             np.sqrt(r[0] ** 2 + r[2] ** 2) * int(ind == 'y') +
-             np.sqrt(r[0] ** 2 + r[1] ** 2) * int(ind == 'z')) / r_m
-    aside = ((r[1] + r[2]) * int(ind == 'x') +
-             (r[0] + r[2]) * int(ind == 'y') +
-             r[2] * int(ind == 'z')) / r_m
-    tmp = np.cos(cos_a * np.pi / 2) / sin_a + v.DISTORTION * cos_a ** 2 + v.DISTORTION * aside
-    my_print(f"Внимание! Отрицательное усиление! G={tmp} (cos={cos_a}, sin={sin_a})", color="r",
-             if_print=tmp < 0 and v.IF_ANY_PRINT)
-    return clip(tmp, 0, 1e10)
+    r_antenna_brf = kwargs['vec_type']([int(ind == 'x'), int(ind == 'y'), int(ind == 'z')])
+    r_12 = r / norm(r)
 
-def get_gain(v: Variables, obj: any, r: Union[float, np.ndarray], if_take: bool = False, if_send: bool = False) -> list:
+    sin_theta = norm(my_cross(r_antenna_brf, r_12))
+    cos_theta = r_antenna_brf @ r_12
+
+    return cos(pi / 2 * cos_theta) / sin_theta  # v.DISTORTION не используется !!!!!
+
+def get_gain(v: Variables, obj, r, if_take: bool = False, if_send: bool = False):
     """Внимание! Всё переделано - теперь возвращается только список для повышения градуса полиморфизма,
     интуитивизма, индуизма, культуризма, конституционализма, шовинизма, каннибализма
     :param v: Объект класса Variables
-    :param obj: Переменная класса FemtoSat или CubeSat (any потому что не хочу ниже писать)
+    :param obj: Переменная класса Apparatus
     :param r: Направление сигнала в СК антенны
     :param if_take: Флаг на принятый сигнал
     :param if_send: Флаг на посланный сигнал"""
     # Памятка: GAIN_MODES = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid']
-    e = r / np.linalg.norm(r)
     if obj.gain_mode == v.GAIN_MODES[1]:
-        return [local_dipole(v, e, 'x')]
+        return [local_dipole(v, r, 'x')]
     if obj.gain_mode == v.GAIN_MODES[2]:
         if (if_take and v.MULTI_ANTENNA_TAKE) or (if_send and v.MULTI_ANTENNA_SEND):
-            return [local_dipole(v, e, 'x'), local_dipole(v, e, 'y')]
-        return [local_dipole(v, e, 'x') + local_dipole(v, e, 'y')]
+            return [local_dipole(v, r, 'x'), local_dipole(v, r, 'y')]
+        return [local_dipole(v, r, 'x') + local_dipole(v, r, 'y')]
     if obj.gain_mode == v.GAIN_MODES[3]:
         if (if_take and v.MULTI_ANTENNA_TAKE) or (if_send and v.MULTI_ANTENNA_SEND):
-            return [local_dipole(v, e, 'x'), local_dipole(v, e, 'y'), local_dipole(v, e, 'z')]
-        return [local_dipole(v, e, 'x') + local_dipole(v, e, 'y') + local_dipole(v, e, 'z')]
+            return [local_dipole(v, r, 'x'), local_dipole(v, r, 'y'), local_dipole(v, r, 'z')]
+        return [local_dipole(v, r, 'x') + local_dipole(v, r, 'y') + local_dipole(v, r, 'z')]
     if obj.gain_mode == v.GAIN_MODES[4]:
-        return [np.linalg.norm([e[0] * 1, e[1] * 0.7, e[2] * 0.8])]
+        return [np.linalg.norm([r[0] * 1, r[1] * 0.7, r[2] * 0.8])]
     return [1]
 
 

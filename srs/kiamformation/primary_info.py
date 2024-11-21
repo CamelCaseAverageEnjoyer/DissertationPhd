@@ -1,9 +1,13 @@
 """Комплекс первичной информации"""
 from spacecrafts import *
+from symbolic import numerical_and_symbolic_polymorph
 
 
+@numerical_and_symbolic_polymorph(trigger_var=(6, 'estimated_params'), trigger_type=(np.ndarray, list),
+                                  trigger_out=lambda x: x, not_trigger_out=lambda x: x)
 def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float = None, produce: bool = False,
-                           j: int = None, estimated_params: np.ndarray = None, p: any = None) -> Union[None, tuple]:
+                           j: int = None, estimated_params=np.array([]), p: any = None, t=None,
+                           **kwargs) -> Union[None, tuple]:
     """Функция обновляет для объектов CubeSat и FemtoSat параметры calc_dist при produce==True. Иначе:
     :param c: Класс кубсатов
     :param f: Класс чипсатов
@@ -13,14 +17,19 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
     :param j: Количество параметров на 1 дочерний КА
     :param estimated_params: в одну строку
     :param p: Класс PhysicModel (для флага produce)
+    :param t: Время (для символьного вычисления)
     :return: None если produce==True (проведение численного моделирования), иначе список измерений + пометки"""
+    norm, sqrt, mean = kwargs['norm'], kwargs['sqrt'], kwargs['mean']
     randy = np.random.uniform(-1, 1, 3)
     anw, notes = [], []
     S_1, S_2, dr, distance = None, None, None, None
+    print(f"1 t: {t}, {type(t)}")
+    t = p.t if t is None else t
+    print(f"2 t: {t}, {type(t)}")
 
     def get_U(obj, i):
         from dynamics import get_matrices
-        U, S, A, R_orb = get_matrices(v=v, t=p.t, obj=obj, n=i)
+        U, S, A, R_orb = get_matrices(v=v, t=t, obj=obj, n=i)
         return U
 
     for obj1 in [c, f]:
@@ -33,18 +42,17 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                         p.record.loc[p.iter, f'{obj1.name}-{obj2.name} RealDistance {i_1} {i_2}'] = np.linalg.norm(dr)
                         S_1 = quart2dcm(obj1.q[i_1]) @ get_U(obj1, i_1).T
                         S_2 = quart2dcm(obj2.q[i_2]) @ get_U(obj2, i_2).T
-                        distance_measured = np.linalg.norm(dr) + np.random.normal(0, noise)  # Шум нормальный!
+                        distance_measured = norm(dr) + np.random.normal(0, noise)  # Шум нормальный!
                     else:
                         r1 = estimated_params[i_1 * j + 0: i_1 * j + 3] if obj1 == f else obj1.r_orf[i_1]
                         r2 = estimated_params[i_2 * j + 0: i_2 * j + 3]
                         dr = r2 - r1
                         if v.NAVIGATION_ANGLES:
-                            q1 = quaternion.from_vector_part(estimated_params[i_1 * j + 3: i_1 * j + 6]) \
-                                if obj1 == f else obj1.q[i_1]
-                            q2 = quaternion.from_vector_part(estimated_params[i_2 * j + 3: i_2 * j + 6])
+                            q1 = vec2quat(estimated_params[i_1 * j + 3: i_1 * j + 6]) if obj1 == f else obj1.q[i_1]
+                            q2 = vec2quat(estimated_params[i_2 * j + 3: i_2 * j + 6])
                             S_1 = quart2dcm(q1) @ get_U(obj1, i_1).T
                             S_2 = quart2dcm(q2) @ get_U(obj2, i_2).T
-                        distance_measured = np.linalg.norm(dr)
+                        distance_measured = norm(dr)
 
                     # >>>>>>>>>>>> Расчёт G и сигнала <<<<<<<<<<<<
                     for direction in ["1->2", "2->1"]:
@@ -61,8 +69,8 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                             g_vec = [1] * (take_len if direction == "2->1" else send_len) * \
                                           (take_len if direction == "1->2" else send_len)
 
-                        estimates = [distance_measured / np.sqrt(gg) for gg in g_vec]
-                        est_dr = np.mean(estimates)
+                        estimates = [distance_measured / sqrt(gg) for gg in g_vec]
+                        est_dr = mean(estimates)
                         anw.extend(estimates)
 
                         # >>>>>>>>>>>> Запись <<<<<<<<<<<<
@@ -71,15 +79,19 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                         if produce:
                             p.record.loc[p.iter, f'{o_fr.name}-{o_to.name} EstimateDistance {i_fr} {i_to}'] = est_dr
                             p.record.loc[p.iter, f'{o_fr.name}-{o_to.name} ErrorEstimateDistance {i_fr} {i_to}'] = \
-                                abs(est_dr - np.linalg.norm(dr))
+                                abs(est_dr - norm(dr))
+                            p.record.loc[p.iter, f'{o_fr.name}-{o_to.name} ErrorEstimateDistance 1 {i_fr} {i_to}'] = \
+                                abs(np.min(estimates) - norm(dr))
+                            p.record.loc[p.iter, f'{o_fr.name}-{o_to.name} ErrorEstimateDistance 2 {i_fr} {i_to}'] = \
+                                abs(np.max(estimates) - norm(dr))
                         notes.extend([f"{'c' if o_fr == c else 'f'}{'c' if o_to == c else 'f'} {i_fr} {i_to} {j} {i}"
                                       f" {send_len} {take_len}" for i in range(take_len) for j in range(send_len)])
 
     if produce:
-        v.MEASURES_VECTOR = np.array(anw)
+        v.MEASURES_VECTOR = kwargs['vec_type'](anw)
         v.MEASURES_VECTOR_NOTES = notes
     else:
-        return np.array(anw), notes
+        return kwargs['vec_type'](anw), notes
 
 def measure_magnetic_field(c: CubeSat, f: FemtoSat, v: Variables, noise: float = 0.) -> None:
     """Функция обновляет для объектов CubeSat и FemtoSat параметры b_env"""
