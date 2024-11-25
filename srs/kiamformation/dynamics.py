@@ -189,6 +189,9 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], t: float, i: int,
     w_anw = w + qw[[4, 5, 6]]
     q_anw = (q4 + np.quaternion(*qw[[0, 1, 2, 3]])).normalized()
 
+    if q_anw.w < 0:
+        q_anw *= -1
+
     return (q_anw, w_anw) if isinstance(q, np.quaternion) else (q_anw.vec, w_anw)
 
 
@@ -199,7 +202,6 @@ def get_matrices(v: Variables, t, obj: Apparatus, n: int, first_init: bool = Fal
     Инициализируется в dymancis.py, используется в spacecrafts, dynamics"""
     atan, tan, sin, cos, norm, sqrt = \
         kwargs['atan'], kwargs['tan'], kwargs['sin'], kwargs['cos'], kwargs['norm'], kwargs['sqrt']
-    print(f"t: {t}, {type(t)}")
     E = t * v.W_ORB  # Эксцентрическая аномалия
     f = 2 * atan(sqrt((1 + v.ECCENTRICITY) / (1 - v.ECCENTRICITY)) * tan(E / 2))  # Истинная аномалия
     A = quart2dcm(obj.q[n])
@@ -312,14 +314,6 @@ class PhysicModel:
         self.iter += 1
         self.t = self.iter * self.v.dT
 
-        # Комплекс первичной информации
-        measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']), produce=True,
-                               p=self, estimated_params=[])
-        measure_magnetic_field(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
-
-        # Запись параметров
-        self.do_report()
-
         # Движение системы
         for j, obj in enumerate(self.spacecrafts_all):
             for i in range(obj.n):
@@ -353,12 +347,20 @@ class PhysicModel:
 
                 obj.w_orf[i] = i_o(v=self.v, a=obj.w_irf[i], U=U, vec_type='w')
 
+        # Комплекс первичной информации
+        measure_antennas_power(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']), produce=True,
+                               p=self, estimated_params=[])
+        measure_magnetic_field(c=self.c, f=self.f, v=self.v, noise=np.sqrt(self.v.KALMAN_COEF['r']))
+
         # Изменение режимов работы
         guidance(v=self.v, c=self.c, f=self.f, earth_turn=self.t * self.v.W_ORB / 2 / np.pi)
 
         # Навигация чипсатов
         if self.v.IF_NAVIGATION:
             navigate(k=self.k)
+
+        # Запись параметров
+        self.do_report()
 
     def do_report(self):
         i_t = self.iter

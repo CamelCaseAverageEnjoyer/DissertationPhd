@@ -19,8 +19,9 @@ def local_dipole(v: Variables, r, ind: str = 'x', **kwargs):
 
     sin_theta = norm(my_cross(r_antenna_brf, r_12))
     cos_theta = r_antenna_brf @ r_12
-
-    return cos(pi / 2 * cos_theta) / sin_theta  # v.DISTORTION не используется !!!!!
+    anw = cos(pi / 2 * cos_theta) / sin_theta  # v.DISTORTION не используется !!!!!
+    # print(anw)
+    return anw
 
 def get_gain(v: Variables, obj, r, if_take: bool = False, if_send: bool = False):
     """Внимание! Всё переделано - теперь возвращается только список для повышения градуса полиморфизма,
@@ -42,7 +43,8 @@ def get_gain(v: Variables, obj, r, if_take: bool = False, if_send: bool = False)
             return [local_dipole(v, r, 'x'), local_dipole(v, r, 'y'), local_dipole(v, r, 'z')]
         return [local_dipole(v, r, 'x') + local_dipole(v, r, 'y') + local_dipole(v, r, 'z')]
     if obj.gain_mode == v.GAIN_MODES[4]:
-        return [np.linalg.norm([r[0] * 1, r[1] * 0.7, r[2] * 0.8])]
+        e = r / np.linalg.norm(r)
+        return [np.linalg.norm([e[0] * 1, e[1] * 0.7, e[2] * 0.8])]
     return [1]
 
 
@@ -108,6 +110,8 @@ class Apparatus:
             if v.SHAMANISM["ClohessyWiltshireC1=0"]:
                 self.v_orf[i][0] = - 2 * self.r_orf[i][2] * v.W_ORB
             q[i] = q[i].normalized()
+            if q[i].w < 0:
+                q[i] *= -1
 
 
 class Anchor(Apparatus):

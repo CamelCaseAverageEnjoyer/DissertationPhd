@@ -116,7 +116,7 @@ class KalmanFilter:
 
     def params_dict2vec(self, d: dict, separate_spacecraft: bool = True):
         variables = ['r orf', 'q-3 irf', 'v orf', 'w irf'] if self.v.NAVIGATION_ANGLES else ['r orf', 'v orf']
-        if separate_spacecraft:  # Вроде как, нужен только этот вариант
+        if separate_spacecraft:
             return [np.array([d[v][i][j] for v in variables for j in range(3)]) for i in range(self.f.n)]
         else:
             return np.array([d[v][i][j] for i in range(self.f.n) for v in variables for j in range(3)])
@@ -172,16 +172,13 @@ class KalmanFilter:
 
         # Измерения согласно модели
         z_model, notes3 = measure_antennas_power(c=c, f=f, v=v, p=p, j=j, estimated_params=x_m)
-
-        # ZModel&RealDifference сейчас не относится к конкретным КА. Надо ли?
-        # for i_c in range(c.n):
-        #     for i_f in range(f.n):
         p.record.loc[p.iter, f'ZModel&RealDifference'] = np.abs(z_model - z_).mean()
         p.record.loc[p.iter, f'ZModel&RealDifference min'] = np.abs(z_model - z_).min()
         p.record.loc[p.iter, f'ZModel&RealDifference max'] = np.abs(z_model - z_).max()
         p.record.loc[p.iter, f'ZModel&RealDifference N'] = len(z_model)
         for i in range(len(z_model)):
             p.record.loc[p.iter, f'ZModel&RealDifference {i}'] = (z_model - z_)[i]
+        # my_print(f"{z_} & {z_model}", color='r', if_print=self.p.iter == 1)
 
         # Расчёт матриц
         Q_tilda = self.Phi @ self.D @ self.Q @ self.D.T @ self.Phi.T  # * self.v.dT  # nt_nt
@@ -240,6 +237,7 @@ class KalmanFilter:
                 f.write(f"# Параметр MULTI_ANTENNA_SEND {v.MULTI_ANTENNA_SEND}\n")
                 for j in range(z_len):
                     f.write(f"{v.MEASURES_VECTOR_NOTES[j]}\n")
+            my_print(f"P: {self.v.KALMAN_COEF['p']}, Q: {self.v.KALMAN_COEF['q']}", color='g')
             my_print(f"P-: {P_m.shape}, H.T: {H.T.shape}, H: {H.shape}, R: {R.shape}", color='g')
             my_print(f"x-: {np.matrix(x_m).shape}, K: {k_.shape}, z: {(z_ - z_model).shape}", color='g')
             my_print(f"estimation_params: {raw_estimation_params.shape}", color='g')
