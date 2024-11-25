@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from cosmetic import *
 
-
 def get_types_dict():
     """Костыль на тип данных параметров при загрузке и сохранении"""
     return {'CUBESAT_AMOUNT': 'int32', 'CHIPSAT_AMOUNT': 'int32', 'START_NAVIGATION_N': 'int32',
@@ -150,6 +149,7 @@ class Variables:
         self.IF_ANY_SHOW = False  # а ты к чему относишься?
         self.NO_LINE_FLAG = -10
         self.EARTH_FILE_NAME = ["earth1.jpg", "earth2.jpg", "earth3.webp"][2]
+        self.LANGUAGE = ['рус', 'eng'][1]
 
         # >>>>>>>>>>>> Константы <<<<<<<<<<<<
         self.ECCENTRICITY = 0.0

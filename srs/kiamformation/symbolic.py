@@ -33,7 +33,8 @@ def sympy_mean(a):
 def numerical_and_symbolic_polymorph(trigger_var, trigger_type, trigger_out, not_trigger_out=None):
     def actual_decorator(func):
         def wrapper(*args, **kwargs):
-            trigger = args[trigger_var[0]] if len(args) > 0 else kwargs[trigger_var[1]]
+            # print(f"args: {args} | kwargs: {kwargs}")
+            trigger = kwargs[trigger_var[1]] if trigger_var[1] in kwargs.keys() else args[trigger_var[0]]
             if isinstance(trigger, trigger_type):
                 from numpy import sin, cos, sqrt, tan, arctan as atan, append, pi, mean
                 from numpy.linalg import norm, inv

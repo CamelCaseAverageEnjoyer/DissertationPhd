@@ -197,14 +197,18 @@ def rk4_attitude(v_: Variables, obj: Union[CubeSat, FemtoSat], t: float, i: int,
 
 # >>>>>>>>>>>> Перевод между системами координат <<<<<<<<<<<<
 @numerical_and_symbolic_polymorph(trigger_var=(1, 't'), trigger_type=(float, int), trigger_out=lambda x: x)
-def get_matrices(v: Variables, t, obj: Apparatus, n: int, first_init: bool = False, **kwargs):
+def get_matrices(v: Variables, t, obj: Apparatus = None, n: int = None, first_init: bool = False, q=None, **kwargs):
     """Функция возвращает матрицы поворота.
     Инициализируется в dymancis.py, используется в spacecrafts, dynamics"""
+    q = obj.q[n] if q is None else q
     atan, tan, sin, cos, norm, sqrt = \
         kwargs['atan'], kwargs['tan'], kwargs['sin'], kwargs['cos'], kwargs['norm'], kwargs['sqrt']
     E = t * v.W_ORB  # Эксцентрическая аномалия
-    f = 2 * atan(sqrt((1 + v.ECCENTRICITY) / (1 - v.ECCENTRICITY)) * tan(E / 2))  # Истинная аномалия
-    A = quart2dcm(obj.q[n])
+    if v.ECCENTRICITY == 0:
+        f = E
+    else:
+        f = 2 * atan(sqrt((1 + v.ECCENTRICITY) / (1 - v.ECCENTRICITY)) * tan(E / 2))  # Истинная аномалия
+    A = quart2dcm(q)
     if 'hkw' in v.SOLVER or first_init:
         U = kwargs['vec_type']([[0, 1, 0],  # Поворот к экваториальной плоскости
                                 [0, 0, 1],

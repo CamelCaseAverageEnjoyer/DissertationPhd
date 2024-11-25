@@ -1,6 +1,6 @@
 '''
 Файл сгененрирован программой PycharmProjects/PythonCompendium/DissertationPhd/advanced dynamic.ipynb (Раздел: Генерация файла H)
-Копия файла из каталога PycharmProjects/PythonCompendium/DissertationPhd/storage/observability_mapping_partial_derivatives.py
+Копия файла из каталога PycharmProjects/PythonCompendium/DissertationPhd/storage/H_matrix.py
 '''
 from numpy import sqrt, sin, cos, pi
 import numpy as np

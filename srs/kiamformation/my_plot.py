@@ -8,8 +8,8 @@ from my_math import *
 from config import *
 
 
-FEMTO_RATE = 1e2
-CUBE_RATE = 1e2
+FEMTO_RATE = 3e1
+CUBE_RATE = 3e1
 TITLE_SIZE = 15  # 15
 CAPTION_SIZE = 13  # 13
 rcParams["savefig.directory"] = "/home/kodiak/Desktop"
@@ -21,34 +21,40 @@ def plot_distance(o):
     fig, ax = plt.subplots(3 if o.v.NAVIGATION_ANGLES else 2,
                            2 if o.v.NAVIGATION_ANGLES else 1, figsize=(20 if o.v.NAVIGATION_ANGLES else 8, 10))
     axes = ax[0] if o.v.NAVIGATION_ANGLES else ax
-    fig.suptitle(f"Неточности в навигации", fontsize=TITLE_SIZE)
+    title = {"рус": f"Неточности в навигации", "eng": f"Navigation Errors"}[o.v.LANGUAGE]
+    label_time = {"рус": f"Время, с", "eng": f"Time, s"}[o.v.LANGUAGE]
+    fig.suptitle(title, fontsize=TITLE_SIZE)
 
     m = 0
     x = o.p.record['t'].to_list()
 
     for i_c in range(o.c.n):
         for i_f in range(o.f.n):
-            labels = ["Ошибка дистанции (реальная)",
-                      "Ошибка дистанции (оцениваемая)",
-                      "Ошибка определения положения"] \
+            labels = {"рус": ["Ошибка дистанции (реальная)",
+                              "Ошибка дистанции, оцениваемая на борту",
+                              "Ошибка определения положения Δr"],
+                      "eng": ["Real distance error",
+                              "Estimated distance error",
+                              "Estimated position error Δr"]}[o.v.LANGUAGE] \
                 if i_f == 0 else [None for _ in range(100)]
-            y1 = o.p.record[f'{o.c.name}-{o.f.name} ErrorEstimateDistance {i_c} {i_f}'].to_list()
-            y11 = o.p.record[f'{o.c.name}-{o.f.name} ErrorEstimateDistance 1 {i_c} {i_f}'].to_list()
-            y12 = o.p.record[f'{o.c.name}-{o.f.name} ErrorEstimateDistance 2 {i_c} {i_f}'].to_list()
-            y2 = o.p.record[f'ZModel&RealDifference'].to_list()
-            y21 = o.p.record[f'ZModel&RealDifference min'].to_list()
-            y22 = o.p.record[f'ZModel&RealDifference max'].to_list()
+            # y1 = o.p.record[f'{o.c.name}-{o.f.name} ErrorEstimateDistance {i_c} {i_f}'].to_list()
+            # y11 = o.p.record[f'{o.c.name}-{o.f.name} ErrorEstimateDistance 1 {i_c} {i_f}'].to_list()
+            # y12 = o.p.record[f'{o.c.name}-{o.f.name} ErrorEstimateDistance 2 {i_c} {i_f}'].to_list()
+            for jj in range(int(o.p.record[f'ZModel&RealDifference N'][1])):
+                y2 = o.p.record[f'ZModel&RealDifference {jj}'].to_list()
+                axes[0].plot(x, y2, c=o.v.MY_COLORS[6], label=labels[1] if i_c == 0 and jj == 0 else None, lw=1)
+            # y21 = o.p.record[f'ZModel&RealDifference min'].to_list()
+            # y22 = o.p.record[f'ZModel&RealDifference max'].to_list()
             y3 = o.p.record[f'{o.f.name} KalmanPosError r {i_f}'].to_list()
             # axes[0].plot(x, y1, c=o.v.MY_COLORS[3], label=labels[0] if i_c == 0 else None)
             # axes[0].plot(x, y11, c=o.v.MY_COLORS[3], ls=":")
             # axes[0].plot(x, y12, c=o.v.MY_COLORS[3], ls=":")
-            axes[0].plot(x, y2, c=o.v.MY_COLORS[6], label=labels[1] if i_c == 0 else None)
-            axes[0].plot(x, y21, c=o.v.MY_COLORS[6], ls=":")
-            axes[0].plot(x, y22, c=o.v.MY_COLORS[6], ls=":")
+            # axes[0].plot(x, y21, c=o.v.MY_COLORS[6], ls=":")
+            # axes[0].plot(x, y22, c=o.v.MY_COLORS[6], ls=":")
             axes[0].plot(x, y3, c=o.v.MY_COLORS[2], label=labels[2] if i_c == 0 else None)
-            m = max(m, max(y1), max(y2), max(y3))
-    axes[0].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-    axes[0].set_ylabel(f"Ошибка, м", fontsize=CAPTION_SIZE)
+            m = max(m, max(y2), max(y3))
+    axes[0].set_xlabel(label_time, fontsize=CAPTION_SIZE)
+    axes[0].set_ylabel({"рус": f"Ошибка, м", "eng": f"Error, m"}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
     axes[0].legend(fontsize=CAPTION_SIZE)
     axes[0].grid(True)
     if m > 1e3:
@@ -59,16 +65,16 @@ def plot_distance(o):
         for j, c in enumerate('xyz'):
             y = o.p.record[f'{o.f.name} KalmanPosError {c} {i_f}'].to_list()
             axes[1].plot(x, y, c=o.v.MY_COLORS[j+3], label=labels[j] if i_f == 0 else None)
-    axes[1].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
-    axes[1].set_ylabel(f"Компоненты r, м", fontsize=CAPTION_SIZE)
+    axes[1].set_xlabel(label_time, fontsize=CAPTION_SIZE)
+    axes[1].set_ylabel({"рус": f"Δr компоненты, м", "eng": f"Δr components, m"}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
     axes[1].legend(fontsize=CAPTION_SIZE)
     axes[1].grid(True)
 
     if o.v.NAVIGATION_ANGLES:
         for i_f in range(o.f.n):
-            labels_q = ["Λˣ", "Λʸ", "Λᶻ"]
+            labels_q = ["λˣ", "λʸ", "λᶻ"]
             labels_w = ["ωˣ", "ωʸ", "ωᶻ"]
-            labels_dq = ["ΔΛˣ", "ΔΛʸ", "ΔΛᶻ"]
+            labels_dq = ["Δλˣ", "Δλʸ", "Δλᶻ"]
             labels_dw = ["Δωˣ", "Δωʸ", "Δωᶻ"]
             for j, c in enumerate('xyz'):
                 y1 = o.p.record[f'{o.f.name} KalmanQuatError {c} {i_f}'].to_list()
@@ -79,16 +85,20 @@ def plot_distance(o):
                 y4e = o.p.record[f'{o.f.name} KalmanSpinEstimation ORF {c} {i_f}'].to_list()
                 ax[1][0].plot(x, y1, c=o.v.MY_COLORS[j+3], label=labels_dq[j] if i_f == 0 else None)
                 ax[1][1].plot(x, y2, c=o.v.MY_COLORS[j+3], label=labels_dw[j] if i_f == 0 else None)
-                ax[2][0].plot(x, y3, c=o.v.MY_COLORS[j+3], label=labels_q[j] + "-реальное" if i_f == 0 else None)
-                ax[2][0].plot(x, y3e, ":", c=o.v.MY_COLORS[j+3], label=labels_q[j] + "-оценка" if i_f == 0 else None)
-                ax[2][1].plot(x, y4, c=o.v.MY_COLORS[j+3], label=labels_w[j] + "-реальное" if i_f == 0 else None)
-                ax[2][1].plot(x, y4e, ":", c=o.v.MY_COLORS[j+3], label=labels_w[j] + "-оценка" if i_f == 0 else None)
+                ax[2][0].plot(x, y3, c=o.v.MY_COLORS[j+3], label=labels_q[j] + " (real)" if i_f == 0 else None)
+                ax[2][0].plot(x, y3e, ":", c=o.v.MY_COLORS[j+3], label=labels_q[j] + " (est)" if i_f == 0 else None)
+                ax[2][1].plot(x, y4, c=o.v.MY_COLORS[j+3], label=labels_w[j] + " (real)" if i_f == 0 else None)
+                ax[2][1].plot(x, y4e, ":", c=o.v.MY_COLORS[j+3], label=labels_w[j] + " (est)" if i_f == 0 else None)
         for ii in [1, 2]:
-            ax[ii][0].set_ylabel(["Ошибки Λ", "Компоненты Λ"][ii-1], fontsize=CAPTION_SIZE)
-            ax[ii][1].set_ylabel(["Ошибки ω (ORF)", "Компоненты ω (ORF)"][ii-1], fontsize=CAPTION_SIZE)
+            ax[ii][0].set_ylabel({"рус": ["Ошибки λ", "Компоненты λ"][ii-1],
+                                  "eng": ["Quaternion estimation errors Δλ",
+                                          "Quaternion components λ"][ii-1]}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
+            ax[ii][1].set_ylabel({"рус": ["Ошибки ω (ORF)", "Компоненты ω (ORF)"][ii-1],
+                                  "eng": ["Angular velocity estimation errors Δω",
+                                          "Angular velocity components ω"][ii-1]}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
             for j in range(2):
                 ax[ii][j].legend(fontsize=CAPTION_SIZE)
-                ax[ii][j].set_xlabel("Время, с", fontsize=CAPTION_SIZE)
+                ax[ii][j].set_xlabel(label_time, fontsize=CAPTION_SIZE)
                 ax[ii][j].grid(True)
     plt.show()
 

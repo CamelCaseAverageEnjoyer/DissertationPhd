@@ -18,7 +18,7 @@ def local_dipole(v: Variables, r, ind: str = 'x', **kwargs):
     r_12 = r / norm(r)
 
     sin_theta = norm(my_cross(r_antenna_brf, r_12))
-    cos_theta = r_antenna_brf @ r_12
+    cos_theta = r_antenna_brf @ r_12.T
     anw = cos(pi / 2 * cos_theta) / sin_theta  # v.DISTORTION не используется !!!!!
     # print(anw)
     return anw

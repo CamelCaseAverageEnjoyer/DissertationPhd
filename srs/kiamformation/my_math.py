@@ -5,10 +5,11 @@ import quaternion
 from symbolic import numerical_and_symbolic_polymorph
 
 
-def get_antisymmetric_matrix(a):
-    return np.array([[0, -a[2], a[1]],
-                     [a[2], 0, -a[0]],
-                     [-a[1], a[0], 0]])
+@numerical_and_symbolic_polymorph(trigger_var=(0, 'a'), trigger_type=np.ndarray, trigger_out=np.array)
+def get_antisymmetric_matrix(a, **kwargs):
+    return [[0, -a[2], a[1]],
+            [a[2], 0, -a[0]],
+            [-a[1], a[0], 0]]
 
 def deg2rad(a: float) -> float:
     return a / 180 * np.pi
