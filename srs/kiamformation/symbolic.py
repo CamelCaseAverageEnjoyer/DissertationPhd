@@ -13,19 +13,26 @@ def get_vars(name: str, n: int, numb: bool = True):
 
 def get_func(name: str, n: int, numb: bool = True, t=None):
     """Генерит символьные функции"""
-    from sympy import Function
+    from sympy import Function, Matrix
 
     axis = ["x", "y", "z"] if n == 3 else [0, "x", "y", "z"]
 
-    return [Function(f"{name}_{i}" if numb else f"{name}_{axis[i]}", real=True)(t) for i in range(n)]
+    return Matrix([Function(f"{name}_{i}" if numb else f"{name}_{axis[i]}", real=True)(t) for i in range(n)])
 
 def sympy_norm(a):
     from sympy import sqrt
     return sqrt(a.dot(a))
 
-def sympy_append(a, b):
+"""def sympy_append(a, b):
     from sympy import Matrix, BlockMatrix
-    return Matrix(BlockMatrix([a.T, b.T]).T)
+    return Matrix(BlockMatrix([a.T, b.T]).T)"""
+
+def sympy_append(*args):
+    from sympy import Matrix, BlockMatrix
+    anw = []
+    for i in args:
+        anw.append(i.T)
+    return Matrix(BlockMatrix(anw).T)
 
 def sympy_mean(a):
     return sum(list(a)) / len(a)
@@ -40,6 +47,7 @@ def numerical_and_symbolic_polymorph(trigger_var, trigger_type, trigger_out, not
                 from numpy.linalg import norm, inv
                 out_type = trigger_out
                 vec_type = np.array
+                quat = lambda x: np.quaternion(*x)
             else:
                 from sympy import sin, cos, sqrt, Matrix, atan, tan, pi
                 norm = sympy_norm
@@ -48,6 +56,7 @@ def numerical_and_symbolic_polymorph(trigger_var, trigger_type, trigger_out, not
                 out_type = Matrix if not_trigger_out is None else not_trigger_out
                 vec_type = Matrix
                 inv = lambda x: x.inv()
+                quat = lambda x: Matrix([0, x[0], x[1], x[2]])
             kwargs['pi'] = pi
             kwargs['sin'] = sin
             kwargs['cos'] = cos
@@ -58,6 +67,7 @@ def numerical_and_symbolic_polymorph(trigger_var, trigger_type, trigger_out, not
             kwargs['atan'] = atan
             kwargs['append'] = append
             kwargs['mean'] = mean
+            kwargs['quat'] = quat
             kwargs['out_type'] = out_type
             kwargs['vec_type'] = vec_type
 

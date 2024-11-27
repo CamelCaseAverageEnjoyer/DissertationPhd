@@ -157,13 +157,14 @@ def get_torque(v: Variables, obj: Apparatus, q, w,  **kwargs):
 def attitude_rhs(v: Variables, obj: Apparatus, t: float, i: int, qw, **kwargs):
     """При численном моделировании qw передаётся 1 numpy.ndarray;
     При символьном вычислении qw должен быть типа tuple"""
-    inv, append = kwargs['inv'], kwargs['append']
+    inv, append, quat = kwargs['inv'], kwargs['append'], kwargs['quat']
 
     q, w = qw if isinstance(qw, tuple) else (np.quaternion(*qw[[0, 1, 2, 3]]), qw[[4, 5, 6]])
 
+    # U, S, A, R_orb = get_matrices(v=v, t=t, obj=obj, n=i)
+
     e = get_torque(v=v, obj=obj, q=q, w=w)
-    dq = 1 / 2 * q_dot(q, np.quaternion(*w))
-    # U, S, A, R_orb = get_matrices(v=_v, t=_t, obj=_obj, n=_i)
+    dq = 1 / 2 * q_dot(q, quat(w))
     # J = A.T @ obj.J @ A
     J = obj.J
     dw = - (inv(J) @ (my_cross(w, J @ w))) + e

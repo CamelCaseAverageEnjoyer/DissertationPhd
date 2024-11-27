@@ -17,5 +17,4 @@ from primary_info import *
 from spacecrafts import *
 from symbolic import *
 
-my_print(f"Инициализация проекта kiam-formation | Контекст: {__name__}", color="g")
-my_print(f"Используйте следующим способом: import kiamformation as kf", color="g")
+my_print(f"Инициализация проекта kiam-formation", color="g")

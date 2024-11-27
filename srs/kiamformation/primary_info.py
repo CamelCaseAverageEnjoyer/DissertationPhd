@@ -19,7 +19,7 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
     :param p: Класс PhysicModel (для флага produce)
     :param t: Время (для символьного вычисления)
     :return: None если produce==True (проведение численного моделирования), иначе список измерений + пометки"""
-    norm, sqrt, mean = kwargs['norm'], kwargs['sqrt'], kwargs['mean']
+    norm, sqrt, mean, vec_type = kwargs['norm'], kwargs['sqrt'], kwargs['mean'], kwargs['vec_type']
     randy = np.random.uniform(-1, 1, 3)
     anw, notes = [], []
     S_1, S_2, dr, distance = None, None, None, None
@@ -43,12 +43,13 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                         distance_measured = norm(dr) + np.random.normal(0, noise)  # Шум нормальный!
                         # print(f"produce: {produce}, q2={obj2.q[i_2]}\nS={S_2.flatten()}")
                     else:
-                        r1 = estimated_params[i_1 * j + 0: i_1 * j + 3] if obj1 == f else obj1.r_orf[i_1]
-                        r2 = estimated_params[i_2 * j + 0: i_2 * j + 3]
+                        r1 = vec_type(estimated_params[i_1 * j + 0: i_1 * j + 3]) if obj1 == f else obj1.r_orf[i_1]
+                        r2 = vec_type(estimated_params[i_2 * j + 0: i_2 * j + 3])
                         dr = r2 - r1
                         if v.NAVIGATION_ANGLES:
-                            q1 = vec2quat(estimated_params[i_1 * j + 3: i_1 * j + 6]) if obj1 == f else obj1.q[i_1]
-                            q2 = vec2quat(estimated_params[i_2 * j + 3: i_2 * j + 6])
+                            q1 = vec2quat(vec_type(estimated_params[i_1 * j + 3: i_1 * j + 6])) \
+                                if obj1 == f else obj1.q[i_1]
+                            q2 = vec2quat(vec_type(estimated_params[i_2 * j + 3: i_2 * j + 6]))
                             S_1 = quart2dcm(q1) @ get_U(obj1, i_1, t).T
                             S_2 = quart2dcm(q2) @ get_U(obj2, i_2, t).T
                         distance_measured = norm(dr)
@@ -65,7 +66,6 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                                           if_take=direction == "1->2", if_send=direction == "2->1")
                             g_vec = [G1[i] * G2[j] for i in range(take_len if direction == "2->1" else send_len)
                                                    for j in range(take_len if direction == "1->2" else send_len)]
-                            # print(f"produce: {produce}, G={G1} | {G2}")
                         else:
                             g_vec = [1] * (take_len if direction == "2->1" else send_len) * \
                                           (take_len if direction == "1->2" else send_len)

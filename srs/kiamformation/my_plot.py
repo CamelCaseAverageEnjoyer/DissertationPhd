@@ -18,7 +18,7 @@ rcParams["savefig.format"] = "jpg"
 # >>>>>>>>>>>> 2D графики <<<<<<<<<<<<
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
-    fig, ax = plt.subplots(3 if o.v.NAVIGATION_ANGLES else 2,
+    fig, ax = plt.subplots(2 if o.v.NAVIGATION_ANGLES else 2,  # 3 if o.v. ...
                            2 if o.v.NAVIGATION_ANGLES else 1, figsize=(20 if o.v.NAVIGATION_ANGLES else 8, 10))
     axes = ax[0] if o.v.NAVIGATION_ANGLES else ax
     title = {"рус": f"Неточности в навигации", "eng": f"Navigation Errors"}[o.v.LANGUAGE]
@@ -54,7 +54,7 @@ def plot_distance(o):
             axes[0].plot(x, y3, c=o.v.MY_COLORS[2], label=labels[2] if i_c == 0 else None)
             m = max(m, max(y2), max(y3))
     axes[0].set_xlabel(label_time, fontsize=CAPTION_SIZE)
-    axes[0].set_ylabel({"рус": f"Ошибка, м", "eng": f"Error, m"}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
+    axes[0].set_ylabel({"рус": f"Ошибка, м", "eng": f"Distance error, m"}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
     axes[0].legend(fontsize=CAPTION_SIZE)
     axes[0].grid(True)
     if m > 1e3:
@@ -66,7 +66,7 @@ def plot_distance(o):
             y = o.p.record[f'{o.f.name} KalmanPosError {c} {i_f}'].to_list()
             axes[1].plot(x, y, c=o.v.MY_COLORS[j+3], label=labels[j] if i_f == 0 else None)
     axes[1].set_xlabel(label_time, fontsize=CAPTION_SIZE)
-    axes[1].set_ylabel({"рус": f"Δr компоненты, м", "eng": f"Δr components, m"}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
+    axes[1].set_ylabel({"рус": f"Δr компоненты, м", "eng": f"Estimation error, m"}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
     axes[1].legend(fontsize=CAPTION_SIZE)
     axes[1].grid(True)
 
@@ -85,17 +85,17 @@ def plot_distance(o):
                 y4e = o.p.record[f'{o.f.name} KalmanSpinEstimation ORF {c} {i_f}'].to_list()
                 ax[1][0].plot(x, y1, c=o.v.MY_COLORS[j+3], label=labels_dq[j] if i_f == 0 else None)
                 ax[1][1].plot(x, y2, c=o.v.MY_COLORS[j+3], label=labels_dw[j] if i_f == 0 else None)
-                ax[2][0].plot(x, y3, c=o.v.MY_COLORS[j+3], label=labels_q[j] + " (real)" if i_f == 0 else None)
-                ax[2][0].plot(x, y3e, ":", c=o.v.MY_COLORS[j+3], label=labels_q[j] + " (est)" if i_f == 0 else None)
-                ax[2][1].plot(x, y4, c=o.v.MY_COLORS[j+3], label=labels_w[j] + " (real)" if i_f == 0 else None)
-                ax[2][1].plot(x, y4e, ":", c=o.v.MY_COLORS[j+3], label=labels_w[j] + " (est)" if i_f == 0 else None)
-        for ii in [1, 2]:
+                # ax[2][0].plot(x, y3, c=o.v.MY_COLORS[j+3], label=labels_q[j] + " (real)" if i_f == 0 else None)
+                # ax[2][0].plot(x, y3e, ":", c=o.v.MY_COLORS[j+3], label=labels_q[j] + " (est)" if i_f == 0 else None)
+                # ax[2][1].plot(x, y4, c=o.v.MY_COLORS[j+3], label=labels_w[j] + " (real)" if i_f == 0 else None)
+                # ax[2][1].plot(x, y4e, ":", c=o.v.MY_COLORS[j+3], label=labels_w[j] + " (est)" if i_f == 0 else None)
+        for ii in [1]:  # , 2
             ax[ii][0].set_ylabel({"рус": ["Ошибки λ", "Компоненты λ"][ii-1],
-                                  "eng": ["Quaternion estimation errors Δλ",
-                                          "Quaternion components λ"][ii-1]}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
+                                  "eng": ["Quaternion components errors",
+                                          "λ components"][ii-1]}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
             ax[ii][1].set_ylabel({"рус": ["Ошибки ω (ORF)", "Компоненты ω (ORF)"][ii-1],
-                                  "eng": ["Angular velocity estimation errors Δω",
-                                          "Angular velocity components ω"][ii-1]}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
+                                  "eng": ["Angular velocity errors, rad/s²",
+                                          "ω components"][ii-1]}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
             for j in range(2):
                 ax[ii][j].legend(fontsize=CAPTION_SIZE)
                 ax[ii][j].set_xlabel(label_time, fontsize=CAPTION_SIZE)
