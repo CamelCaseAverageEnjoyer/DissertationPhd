@@ -23,10 +23,6 @@ def sympy_norm(a):
     from sympy import sqrt
     return sqrt(a.dot(a))
 
-"""def sympy_append(a, b):
-    from sympy import Matrix, BlockMatrix
-    return Matrix(BlockMatrix([a.T, b.T]).T)"""
-
 def sympy_append(*args):
     from sympy import Matrix, BlockMatrix
     anw = []
@@ -48,6 +44,7 @@ def numerical_and_symbolic_polymorph(trigger_var, trigger_type, trigger_out, not
                 out_type = trigger_out
                 vec_type = np.array
                 quat = lambda x: np.quaternion(*x)
+                dot = lambda x, y: x @ y
             else:
                 from sympy import sin, cos, sqrt, Matrix, atan, tan, pi
                 norm = sympy_norm
@@ -57,6 +54,7 @@ def numerical_and_symbolic_polymorph(trigger_var, trigger_type, trigger_out, not
                 vec_type = Matrix
                 inv = lambda x: x.inv()
                 quat = lambda x: Matrix([0, x[0], x[1], x[2]])
+                dot = lambda x, y: (x.T @ y)[0]
             kwargs['pi'] = pi
             kwargs['sin'] = sin
             kwargs['cos'] = cos
@@ -68,6 +66,7 @@ def numerical_and_symbolic_polymorph(trigger_var, trigger_type, trigger_out, not
             kwargs['append'] = append
             kwargs['mean'] = mean
             kwargs['quat'] = quat
+            kwargs['dot'] = dot
             kwargs['out_type'] = out_type
             kwargs['vec_type'] = vec_type
 

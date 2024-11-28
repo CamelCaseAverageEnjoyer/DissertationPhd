@@ -11,16 +11,15 @@ def local_dipole(v: Variables, r, ind: str = 'x', **kwargs):
     :param v: Объект класса Variables
     :param r: Радиус-вектор направления антенны
     :param ind: Координата направления антенны"""
-    norm, cos, pi = kwargs['norm'], kwargs['cos'], kwargs['pi']
+    norm, cos, pi, dot = kwargs['norm'], kwargs['cos'], kwargs['pi'], kwargs['dot']
     if ind not in ['x', 'y', 'z']:
         raise ValueError(f"Координата «{ind}» должна быть среди: [x, y, z]")
     r_antenna_brf = kwargs['vec_type']([int(ind == 'x'), int(ind == 'y'), int(ind == 'z')])
     r_12 = r / norm(r)
 
     sin_theta = norm(my_cross(r_antenna_brf, r_12))
-    cos_theta = r_antenna_brf @ r_12.T
+    cos_theta = dot(r_antenna_brf, r_12)
     anw = cos(pi / 2 * cos_theta) / sin_theta  # v.DISTORTION не используется !!!!!
-    # print(anw)
     return anw
 
 def get_gain(v: Variables, obj, r, if_take: bool = False, if_send: bool = False):
@@ -162,10 +161,11 @@ class CubeSat(Apparatus):
         # Индивидуальные параметры движения
         self.r_orf = [v.spread('r', name=self.name) for _ in range(self.n)]
         self.v_orf = [v.spread('v', name=self.name) for _ in range(self.n)]
-        self.w_orf = [v.spread('w', name=self.name) for _ in range(self.n)]
+        self.w_orf = [np.zeros(3) for _ in range(self.n)]
+        # self.w_orf = [v.spread('w', name=self.name) for _ in range(self.n)]
         # Инициализируется автоматически
-        # self.q = [np.quaternion(1, 0, 0, 0) for _ in range(self.n)]
-        self.q = [np.quaternion(*np.random.uniform(-1, 1, 4)) for _ in range(self.n)]
+        self.q = [np.quaternion(1, 0, 0, 0) for _ in range(self.n)]
+        # self.q = [np.quaternion(*np.random.uniform(-1, 1, 4)) for _ in range(self.n)]
         self.init_correct_q_v(v=v)
         self.r_irf, self.v_irf, self.w_irf = [[np.zeros(3) for _ in range(self.n)] for _ in range(3)]
         self.update_irf_rv(v=v, t=0)
@@ -201,7 +201,9 @@ class FemtoSat(Apparatus):
         self.size = chipsat_property[v.CHIPSAT_MODEL]['dims']
         self.c_resist = 1.17
         # Пока что J диагонален
-        self.J = np.diag([self.size[1]**2, self.size[0]**2, self.size[0]**2 + self.size[1]**2]) * self.mass / 12
+        self.J = np.diag([self.size[1]**2,
+                          self.size[0]**2,
+                          self.size[0]**2 + self.size[1]**2]) * self.mass / 12
         self.power_signal_full = 0.01
         self.length_signal_full = 0.001
 

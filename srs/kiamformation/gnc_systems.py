@@ -144,8 +144,8 @@ class KalmanFilter:
             c_send_len = len(get_gain(v=v, obj=c, r=np.ones(3), if_send=True))
             f_take_len = len(get_gain(v=v, obj=f, r=np.ones(3), if_take=True))
             f_send_len = len(get_gain(v=v, obj=f, r=np.ones(3), if_send=True))
-            z_len = int(f.n * c.n * (c_take_len*f_send_len + c_send_len*f_take_len) +
-                        f.n * (f.n - 1) * f_take_len*f_send_len)
+            z_len = int((f.n * c.n * (c_take_len*f_send_len + c_send_len*f_take_len) +
+                         f.n * (f.n - 1) * f_take_len*f_send_len) // 2)
             my_print(f"Вектор измерений z_len: {z_len}     =     {f.n}*{c.n}*({c_take_len}*{f_send_len}+"
                      f"{c_send_len}*{f_take_len}) + {f.n}({f.n}-1){f_take_len}*{f_send_len}",
                      color='r', if_print=p.iter == 1 and v.IF_TEST_PRINT)
@@ -161,6 +161,7 @@ class KalmanFilter:
                                       'q-3 irf': [qw_m[i][0] for i in range(f.n)],
                                       'w irf': [qw_m[i][1] for i in range(f.n)]},
                                    separate_spacecraft=False)
+        d = self.params_vec2dict(params=x_m, separate_spacecraft = False)
 
         # Измерения с поправкой на угловой коэффициент усиления G (signal_rate)
         z_ = v.MEASURES_VECTOR
@@ -179,22 +180,27 @@ class KalmanFilter:
         # >>>>>>>>>>>> Этап коррекции <<<<<<<<<<<<
         # Расчёт матриц
         self.Phi = self.get_Phi(w=None, w0=None)
-        Q_tilda = self.Phi @ self.D @ self.Q @ self.D.T @ self.Phi.T   # self.v.dT  # nt_nt
-        P_m = self.Phi @ self.P @ self.Phi.T + Q_tilda  # nt_nt @ nt_nt @ nt_nt -> nt_nt
-        H, _, _, notesH = \
-            h_matrix(c_ant=v.N_ANTENNA_C, f_ant=v.N_ANTENNA_F, fn=f.n, cn=c.n, r_f=f.r_orf, r_c=c.r_orf,
+        Q_tilda = self.Phi @ self.D @ self.Q @ self.D.T @ self.Phi.T * v.dT
+        P_m = self.Phi @ self.P @ self.Phi.T + Q_tilda
+        H, _, notesH = \
+            h_matrix(c_ant=v.N_ANTENNA_C, f_ant=v.N_ANTENNA_F, fn=f.n, cn=c.n, r_f=d['r orf'], r_c=c.r_orf,
                      angles_navigation=v.NAVIGATION_ANGLES, multy_antenna_send=v.MULTI_ANTENNA_SEND,
                      multy_antenna_take=v.MULTI_ANTENNA_TAKE, w_0=v.W_ORB, t=p.t,
                      q_f=d['q-3 irf'], q_c=[c.q[i].vec for i in range(c.n)])
+        # my_print(f"H (t = {p.t}) = \n{H}\n", color='r')
 
-        R = np.eye(z_len) * v.KALMAN_COEF['r']  # n + n(n-1)/2
-        my_print(f"P_m: {P_m.shape}, H: {R.shape}, P_m: {R.shape}", if_print=p.iter == 1)
-        k_ = P_m @ H.T @ np.linalg.inv(H @ P_m @ H.T + R)  # nt_nt @ nt_lt @ l_l -> nt_l
+        R = np.eye(z_len) * v.KALMAN_COEF['r']
+        k_ = P_m @ H.T @ np.linalg.inv(H @ P_m @ H.T + R)
         self.P = (np.eye(j * f.n) - k_ @ H) @ P_m
+        # print(f"P = \n{self.P}\n\n")
         raw_estimation_params = np.array(np.matrix(x_m) + k_ @ (z_ - z_model))[0]
-        # raw_estimation_params = x_m
+        # raw_estimation_params = x_m  # Дл тестов: выключить коррекцию
+        # raw_estimation_params[0:3] = x_m[0:3]  # r
+        # raw_estimation_params[6:9] = x_m[6:9]  # v
+        raw_estimation_params[3:6] = x_m[3:6]  # q
+        raw_estimation_params[9:12] = x_m[9:12]  # w
 
-        # >>>>>>>>>>>> Запись <<<<<<<<<<<<
+        # >>>>>>>>>>>> Обновление оценки <<<<<<<<<<<<
         for i in range(f.n):
             tmp = raw_estimation_params[(0 + i) * j: (1 + i) * j]
             if v.SHAMANISM["KalmanQuaternionNormalize"] and v.NAVIGATION_ANGLES:
@@ -213,6 +219,7 @@ class KalmanFilter:
 
         # Запись и отображение
         if p.iter == 1:
+            my_print(f"P_m: {P_m.shape}, H: {R.shape}, P_m: {R.shape}")
             my_print(f"R-notes: {notes1}", color='y')
             my_print(f"Длина длин: {len(z_)}", color='r', if_print=v.IF_TEST_PRINT)
             my_print(f"M-notes: {notes3}", color='y')

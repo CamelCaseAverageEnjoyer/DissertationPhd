@@ -40,8 +40,6 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                         p.record.loc[p.iter, f'{obj1.name}-{obj2.name} RealDistance {i_1} {i_2}'] = np.linalg.norm(dr)
                         S_1 = quart2dcm(obj1.q[i_1]) @ get_U(obj1, i_1, t).T
                         S_2 = quart2dcm(obj2.q[i_2]) @ get_U(obj2, i_2, t).T
-                        distance_measured = norm(dr) + np.random.normal(0, noise)  # Шум нормальный!
-                        # print(f"produce: {produce}, q2={obj2.q[i_2]}\nS={S_2.flatten()}")
                     else:
                         r1 = vec_type(estimated_params[i_1 * j + 0: i_1 * j + 3]) if obj1 == f else obj1.r_orf[i_1]
                         r2 = vec_type(estimated_params[i_2 * j + 0: i_2 * j + 3])
@@ -52,11 +50,10 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                             q2 = vec2quat(vec_type(estimated_params[i_2 * j + 3: i_2 * j + 6]))
                             S_1 = quart2dcm(q1) @ get_U(obj1, i_1, t).T
                             S_2 = quart2dcm(q2) @ get_U(obj2, i_2, t).T
-                        distance_measured = norm(dr)
-                        # print(f"produce: {produce}, q2={q2}\nS={S_2.flatten()}")
+                    distance_measured = norm(dr)
 
                     # >>>>>>>>>>>> Расчёт G и сигнала <<<<<<<<<<<<
-                    for direction in ["1->2", "2->1"]:
+                    for direction in ["1->2"]:  # , "2->1"]:
                         take_len = len(get_gain(v=v, obj=obj2 if direction == "1->2" else obj1, r=randy, if_take=True))
                         send_len = len(get_gain(v=v, obj=obj2 if direction == "2->1" else obj1, r=randy, if_send=True))
                         if produce or v.NAVIGATION_ANGLES:
@@ -64,13 +61,15 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                                           if_take=direction == "2->1", if_send=direction == "1->2")
                             G2 = get_gain(v=v, obj=obj2, r=S_2 @ dr,
                                           if_take=direction == "1->2", if_send=direction == "2->1")
-                            g_vec = [G1[i] * G2[j] for i in range(take_len if direction == "2->1" else send_len)
-                                                   for j in range(take_len if direction == "1->2" else send_len)]
+                            # g_vec = [G1[i] * G2[j] for i in range(take_len if direction == "2->1" else send_len)
+                            #                        for j in range(take_len if direction == "1->2" else send_len)]
+                            g_vec = [g1 * g2 for g1 in G1 for g2 in G2]
                         else:
                             g_vec = [1] * (take_len if direction == "2->1" else send_len) * \
                                           (take_len if direction == "1->2" else send_len)
 
-                        estimates = [distance_measured / sqrt(gg) for gg in g_vec]
+                        local_noise = lambda: np.random.normal(0, noise) if produce else 0
+                        estimates = [(distance_measured + local_noise()) / sqrt(gg) for gg in g_vec]
                         est_dr = mean(estimates)
                         anw.extend(estimates)
 

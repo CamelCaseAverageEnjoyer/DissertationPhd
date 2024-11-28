@@ -391,7 +391,6 @@ class Window(QWidget):
         # Вывод результатов
         tmp = np.array(self.o.p.record[f'{self.o.f.name} KalmanPosError r {0}'].to_list())  # Для чипсата id=0
         print(f"Математическое ожидание ошибки: {tmp.mean():.2f} м, Среднее отклонение ошибки: {tmp.std():.2f} м")
-        talk_decision(cnd=self.o.v.IF_TALK)
         if self.o.v.IF_NAVIGATION:
             plot_distance(self.o)  # Бессмысленно выводить график линий оценок, если оценок нет
 

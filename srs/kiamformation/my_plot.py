@@ -18,7 +18,7 @@ rcParams["savefig.format"] = "jpg"
 # >>>>>>>>>>>> 2D графики <<<<<<<<<<<<
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
-    fig, ax = plt.subplots(2 if o.v.NAVIGATION_ANGLES else 2,  # 3 if o.v. ...
+    fig, ax = plt.subplots(3 if o.v.NAVIGATION_ANGLES else 2,  # 3 if o.v. ...
                            2 if o.v.NAVIGATION_ANGLES else 1, figsize=(20 if o.v.NAVIGATION_ANGLES else 8, 10))
     axes = ax[0] if o.v.NAVIGATION_ANGLES else ax
     title = {"рус": f"Неточности в навигации", "eng": f"Navigation Errors"}[o.v.LANGUAGE]
@@ -85,11 +85,11 @@ def plot_distance(o):
                 y4e = o.p.record[f'{o.f.name} KalmanSpinEstimation ORF {c} {i_f}'].to_list()
                 ax[1][0].plot(x, y1, c=o.v.MY_COLORS[j+3], label=labels_dq[j] if i_f == 0 else None)
                 ax[1][1].plot(x, y2, c=o.v.MY_COLORS[j+3], label=labels_dw[j] if i_f == 0 else None)
-                # ax[2][0].plot(x, y3, c=o.v.MY_COLORS[j+3], label=labels_q[j] + " (real)" if i_f == 0 else None)
-                # ax[2][0].plot(x, y3e, ":", c=o.v.MY_COLORS[j+3], label=labels_q[j] + " (est)" if i_f == 0 else None)
-                # ax[2][1].plot(x, y4, c=o.v.MY_COLORS[j+3], label=labels_w[j] + " (real)" if i_f == 0 else None)
-                # ax[2][1].plot(x, y4e, ":", c=o.v.MY_COLORS[j+3], label=labels_w[j] + " (est)" if i_f == 0 else None)
-        for ii in [1]:  # , 2
+                ax[2][0].plot(x, y3, c=o.v.MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
+                ax[2][0].plot(x, y3e, ":", c=o.v.MY_COLORS[j+3])
+                ax[2][1].plot(x, y4, c=o.v.MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
+                ax[2][1].plot(x, y4e, ":", c=o.v.MY_COLORS[j+3])
+        for ii in [1, 2]:  # , 2
             ax[ii][0].set_ylabel({"рус": ["Ошибки λ", "Компоненты λ"][ii-1],
                                   "eng": ["Quaternion components errors",
                                           "λ components"][ii-1]}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)

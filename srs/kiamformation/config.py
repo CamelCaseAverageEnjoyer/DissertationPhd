@@ -100,10 +100,10 @@ class Variables:
         self.RVW_ChipSat_SPREAD = [1e2, 1e-1, 1e-4]
         self.KALMAN_COEF = {'q': [1e-15]*2, 'p': [1e-8]*4, 'r': 1e-1}
         self.SHAMANISM = {'KalmanQuaternionNormalize': True,   # Нормировка кватернионов в фильтре Калмана
-                          'KalmanSpinLimit': [True, 1e-2],  # Ограничение скорости вращения в прогнозе фильтра Калмана
+                          'KalmanSpinLimit': [False, 1e-2],  # Ограничение скорости вращения в прогнозе фильтра Калмана
                           'ClohessyWiltshireC1=0': True,  # Траектории без дрейфа (зануление C1, даже при аэродинамике)
-                          'KalmanVelocityLimit': [True, 1e3],
-                          'KalmanPositionLimit': [True, 1e4]}
+                          'KalmanVelocityLimit': [False, 1e3],
+                          'KalmanPositionLimit': [False, 1e4]}
 
         self.DISTORTION = 0.  # Искривление диаграммы направленности
         self.START_NAVIGATION_TOLERANCE = 0.9
