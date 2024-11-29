@@ -1,7 +1,7 @@
 import numpy as np
 
 from spacecrafts import *
-from data.H_matrix import *
+from H_matrix import *
 from symbolic import numerical_and_symbolic_polymorph
 from cosmetic import *
 
@@ -161,7 +161,7 @@ class KalmanFilter:
                                       'q-3 irf': [qw_m[i][0] for i in range(f.n)],
                                       'w irf': [qw_m[i][1] for i in range(f.n)]},
                                    separate_spacecraft=False)
-        d = self.params_vec2dict(params=x_m, separate_spacecraft = False)
+        d = self.params_vec2dict(params=x_m, separate_spacecraft=False)
 
         # Измерения с поправкой на угловой коэффициент усиления G (signal_rate)
         z_ = v.MEASURES_VECTOR
@@ -182,10 +182,7 @@ class KalmanFilter:
         self.Phi = self.get_Phi(w=None, w0=None)
         Q_tilda = self.Phi @ self.D @ self.Q @ self.D.T @ self.Phi.T * v.dT
         P_m = self.Phi @ self.P @ self.Phi.T + Q_tilda
-        H, _, notesH = \
-            h_matrix(c_ant=v.N_ANTENNA_C, f_ant=v.N_ANTENNA_F, fn=f.n, cn=c.n, r_f=d['r orf'], r_c=c.r_orf,
-                     angles_navigation=v.NAVIGATION_ANGLES, multy_antenna_send=v.MULTI_ANTENNA_SEND,
-                     multy_antenna_take=v.MULTI_ANTENNA_TAKE, w_0=v.W_ORB, t=p.t,
+        H = h_matrix(t=p.t, v=v, f=f, c=c, r_f=d['r orf'], r_c=c.r_orf,
                      q_f=d['q-3 irf'], q_c=[c.q[i].vec for i in range(c.n)])
         # my_print(f"H (t = {p.t}) = \n{H}\n", color='r')
 

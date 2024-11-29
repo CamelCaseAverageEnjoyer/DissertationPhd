@@ -1,14 +1,16 @@
 import sys
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QPixmap, QIcon
-from PyQt5.QtWidgets import QWidget, QGridLayout, QPushButton, QLabel, QApplication, QLineEdit, QCheckBox, QComboBox, \
+from PyQt5.QtWidgets import QWidget, QGridLayout, QPushButton, QLabel, QApplication, QLineEdit, QCheckBox, \
+    QComboBox, \
     QInputDialog, QFileDialog
-from my_plot import *
 from simulation import save_simulation_trajectories, load_simulation_trajectories
+from my_plot import *
 
 ICON_SIZE = 70
 
 class Window(QWidget):
+
     def __init__(self, o):
         super().__init__()
         self.o = o

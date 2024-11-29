@@ -75,7 +75,7 @@ class Variables:
         self.save_params(add_now_params=False)
 
     def __init__(self):
-        from kiam_astro import kiam
+        # from kiam_astro import kiam
         from spacecrafts import Anchor
         from my_math import deg2rad
 
@@ -154,7 +154,7 @@ class Variables:
         # >>>>>>>>>>>> Константы <<<<<<<<<<<<
         self.ECCENTRICITY = 0.0
         self.INCLINATION = deg2rad(0)  # В градусах
-        self.EARTH_RADIUS = kiam.units('earth')['DistUnit'] * 1e3
+        self.EARTH_RADIUS = 6371e3  # kiam.units('earth')['DistUnit'] * 1e3
         self.HEIGHT = 400e3
         self.ORBIT_RADIUS = self.EARTH_RADIUS + self.HEIGHT
 
@@ -169,8 +169,10 @@ class Variables:
         self.J2 = 1.082 * 1e-3
 
         self.MY_SEC_IN_TURN = 2 * np.pi / self.W_ORB
-        self.SEC_IN_TURN = 24*3600*kiam.units('earth')['TimeUnit']*2*np.pi
-        self.SEC_IN_RAD = 24*3600*kiam.units('earth')['TimeUnit']
+        TimeUnit = 0.009322440916154166  # kiam.units('earth')['TimeUnit']
+        self.SEC_IN_TURN = 24*3600*TimeUnit*2*np.pi
+        self.SEC_IN_RAD = 24*3600*TimeUnit
+
 
         # >>>>>>>>>>>> Изменяемые параметры по ходу работы кода <<<<<<<<<<<<
         self.MEASURES_VECTOR = None
