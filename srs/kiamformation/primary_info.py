@@ -61,8 +61,6 @@ def measure_antennas_power(c: CubeSat, f: FemtoSat, v: Variables, noise: float =
                                           if_take=direction == "2->1", if_send=direction == "1->2")
                             G2 = get_gain(v=v, obj=obj2, r=S_2 @ dr,
                                           if_take=direction == "1->2", if_send=direction == "2->1")
-                            # g_vec = [G1[i] * G2[j] for i in range(take_len if direction == "2->1" else send_len)
-                            #                        for j in range(take_len if direction == "1->2" else send_len)]
                             g_vec = [g1 * g2 for g1 in G1 for g2 in G2]
                         else:
                             g_vec = [1] * (take_len if direction == "2->1" else send_len) * \

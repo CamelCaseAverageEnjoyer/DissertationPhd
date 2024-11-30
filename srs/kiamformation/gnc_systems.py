@@ -184,7 +184,7 @@ class KalmanFilter:
         P_m = self.Phi @ self.P @ self.Phi.T + Q_tilda
         H = h_matrix(t=p.t, v=v, f=f, c=c, r_f=d['r orf'], r_c=c.r_orf,
                      q_f=d['q-3 irf'], q_c=[c.q[i].vec for i in range(c.n)])
-        # my_print(f"H (t = {p.t}) = \n{H}\n", color='r')
+        # my_print(f"H (t = {p.t}) (shape={H.shape}) = \n{H}\n", color='r')
 
         R = np.eye(z_len) * v.KALMAN_COEF['r']
         k_ = P_m @ H.T @ np.linalg.inv(H @ P_m @ H.T + R)
@@ -194,8 +194,8 @@ class KalmanFilter:
         # raw_estimation_params = x_m  # Дл тестов: выключить коррекцию
         # raw_estimation_params[0:3] = x_m[0:3]  # r
         # raw_estimation_params[6:9] = x_m[6:9]  # v
-        raw_estimation_params[3:6] = x_m[3:6]  # q
-        raw_estimation_params[9:12] = x_m[9:12]  # w
+        # raw_estimation_params[3:6] = x_m[3:6]  # q
+        # raw_estimation_params[9:12] = x_m[9:12]  # w
 
         # >>>>>>>>>>>> Обновление оценки <<<<<<<<<<<<
         for i in range(f.n):
@@ -221,7 +221,7 @@ class KalmanFilter:
             my_print(f"Длина длин: {len(z_)}", color='r', if_print=v.IF_TEST_PRINT)
             my_print(f"M-notes: {notes3}", color='y')
             my_print(f"Длина модельных длин: {len(z_model)}", color='r', if_print=v.IF_TEST_PRINT)
-            my_print(f"H-notes: {notesH}", color='y')
+            # my_print(f"H-notes: {notesH}", color='y')
             with open("kiamformation/data/measures_vector_notes_last.txt", "w") as f:
                 f.write("# Рассчитано в PyCharm\n# Параметры: {rel} {N_1} {N_2} {i_1} {i_2} {send_len} {take_len}\n")
                 f.write(f"# Параметр CUBESAT_AMOUNT {v.CUBESAT_AMOUNT}\n")

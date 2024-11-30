@@ -14,15 +14,18 @@ def local_dipole(v: Variables, r, ind: str = 'x', **kwargs):
     norm, cos, pi, dot = kwargs['norm'], kwargs['cos'], kwargs['pi'], kwargs['dot']
     if ind not in ['x', 'y', 'z']:
         raise ValueError(f"Координата «{ind}» должна быть среди: [x, y, z]")
-    r_antenna_brf = kwargs['vec_type']([int(ind == 'x'), int(ind == 'y'), int(ind == 'z')])
+    r_antenna_brf = kwargs['vec_type']([int(ind == 'x'), int(ind == 'y'), int(ind == 'z')]) * 1.
     r_12 = r / norm(r)
+
+    # v.DISTORTION = 0.1
+    # r_12 += np.array([0.03, 0.05, 0])
+    # r_12 = r / norm(r)
 
     sin_theta = norm(my_cross(r_antenna_brf, r_12))
     cos_theta = dot(r_antenna_brf, r_12)
-    anw = cos(pi / 2 * cos_theta) / sin_theta  # v.DISTORTION не используется !!!!!
-    return anw
+    return cos(pi / 2 * cos_theta) / sin_theta  # v.DISTORTION не используется !!!!!
 
-def get_gain(v: Variables, obj, r, if_take: bool = False, if_send: bool = False):
+def get_gain(v: Variables, obj, r, if_take: bool = False, if_send: bool = False, multake=None, mulsend=None, gm=None):
     """Внимание! Всё переделано - теперь возвращается только список для повышения градуса полиморфизма,
     интуитивизма, индуизма, культуризма, конституционализма, шовинизма, каннибализма
     :param v: Объект класса Variables
@@ -31,17 +34,21 @@ def get_gain(v: Variables, obj, r, if_take: bool = False, if_send: bool = False)
     :param if_take: Флаг на принятый сигнал
     :param if_send: Флаг на посланный сигнал"""
     # Памятка: GAIN_MODES = ['isotropic', '1 antenna', '2 antennas', '3 antennas', 'ellipsoid']
-    if obj.gain_mode == v.GAIN_MODES[1]:
+    multake = v.MULTI_ANTENNA_TAKE if multake is None else multake
+    mulsend = v.MULTI_ANTENNA_SEND if mulsend is None else mulsend
+    gm = obj.gain_mode if gm is None else gm
+
+    if gm == v.GAIN_MODES[1]:
         return [local_dipole(v, r, 'x')]
-    if obj.gain_mode == v.GAIN_MODES[2]:
-        if (if_take and v.MULTI_ANTENNA_TAKE) or (if_send and v.MULTI_ANTENNA_SEND):
+    if gm == v.GAIN_MODES[2]:
+        if (if_take and multake) or (if_send and mulsend):
             return [local_dipole(v, r, 'x'), local_dipole(v, r, 'y')]
         return [local_dipole(v, r, 'x') + local_dipole(v, r, 'y')]
-    if obj.gain_mode == v.GAIN_MODES[3]:
-        if (if_take and v.MULTI_ANTENNA_TAKE) or (if_send and v.MULTI_ANTENNA_SEND):
+    if gm == v.GAIN_MODES[3]:
+        if (if_take and multake) or (if_send and mulsend):
             return [local_dipole(v, r, 'x'), local_dipole(v, r, 'y'), local_dipole(v, r, 'z')]
         return [local_dipole(v, r, 'x') + local_dipole(v, r, 'y') + local_dipole(v, r, 'z')]
-    if obj.gain_mode == v.GAIN_MODES[4]:
+    if gm == v.GAIN_MODES[4]:
         e = r / np.linalg.norm(r)
         return [np.linalg.norm([e[0] * 1, e[1] * 0.7, e[2] * 0.8])]
     return [1]

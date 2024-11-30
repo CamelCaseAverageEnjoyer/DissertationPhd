@@ -4,12 +4,11 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
-from my_math import *
 from config import *
 
 
-FEMTO_RATE = 3e1
-CUBE_RATE = 3e1
+FEMTO_RATE = 1/3  # 5e2
+CUBE_RATE = 1/3  # 5e2
 TITLE_SIZE = 15  # 15
 CAPTION_SIZE = 13  # 13
 rcParams["savefig.directory"] = "/home/kodiak/Desktop"
@@ -18,7 +17,7 @@ rcParams["savefig.format"] = "jpg"
 # >>>>>>>>>>>> 2D графики <<<<<<<<<<<<
 def plot_distance(o):
     global TITLE_SIZE, CAPTION_SIZE
-    fig, ax = plt.subplots(3 if o.v.NAVIGATION_ANGLES else 2,  # 3 if o.v. ...
+    fig, ax = plt.subplots(2 if o.v.NAVIGATION_ANGLES else 2,  # 3 if o.v. ...
                            2 if o.v.NAVIGATION_ANGLES else 1, figsize=(20 if o.v.NAVIGATION_ANGLES else 8, 10))
     axes = ax[0] if o.v.NAVIGATION_ANGLES else ax
     title = {"рус": f"Неточности в навигации", "eng": f"Navigation Errors"}[o.v.LANGUAGE]
@@ -85,11 +84,11 @@ def plot_distance(o):
                 y4e = o.p.record[f'{o.f.name} KalmanSpinEstimation ORF {c} {i_f}'].to_list()
                 ax[1][0].plot(x, y1, c=o.v.MY_COLORS[j+3], label=labels_dq[j] if i_f == 0 else None)
                 ax[1][1].plot(x, y2, c=o.v.MY_COLORS[j+3], label=labels_dw[j] if i_f == 0 else None)
-                ax[2][0].plot(x, y3, c=o.v.MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
-                ax[2][0].plot(x, y3e, ":", c=o.v.MY_COLORS[j+3])
-                ax[2][1].plot(x, y4, c=o.v.MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
-                ax[2][1].plot(x, y4e, ":", c=o.v.MY_COLORS[j+3])
-        for ii in [1, 2]:  # , 2
+                # ax[2][0].plot(x, y3, c=o.v.MY_COLORS[j+3], label=labels_q[j] if i_f == 0 else None)
+                # ax[2][0].plot(x, y3e, ":", c=o.v.MY_COLORS[j+3])
+                # ax[2][1].plot(x, y4, c=o.v.MY_COLORS[j+3], label=labels_w[j] if i_f == 0 else None)
+                # ax[2][1].plot(x, y4e, ":", c=o.v.MY_COLORS[j+3])
+        for ii in [1]:  # , 2
             ax[ii][0].set_ylabel({"рус": ["Ошибки λ", "Компоненты λ"][ii-1],
                                   "eng": ["Quaternion components errors",
                                           "λ components"][ii-1]}[o.v.LANGUAGE], fontsize=CAPTION_SIZE)
@@ -126,7 +125,7 @@ def plot_atmosphere_models(n: int = 100):
 
 
 # >>>>>>>>>>>> 3D отображение в ОСК <<<<<<<<<<<<
-def show_chipsat(o, j, clr, opacity, reference_frame: str, return_go: bool = True, ax=None) -> list:
+def show_chipsat(o, j, clr, opacity, reference_frame: str, return_go: bool = True, ax=None, xyz=None) -> list:
     """
     Функция отображения чипсата (просто пластина)
     :param o: Objects
@@ -138,6 +137,7 @@ def show_chipsat(o, j, clr, opacity, reference_frame: str, return_go: bool = Tru
     :param ax:
     :return:
     """
+    from dynamics import get_matrices
     global FEMTO_RATE
     rate = FEMTO_RATE if reference_frame != "BRF" else 2 / min(o.f.size)
     x, y, z = ([], [], [0 for _ in range(4)])
@@ -145,13 +145,18 @@ def show_chipsat(o, j, clr, opacity, reference_frame: str, return_go: bool = Tru
         for y_shift in [-o.f.size[1] * rate, o.f.size[1] * rate]:
             x += [x_shift]
             y += [y_shift]
-    A = quart2dcm(o.f.q[j])
+    U, S, A, _ = get_matrices(v=o.v, t=o.p.t, obj=o.f, n=j)
+
     if reference_frame != "BRF":
         for i in range(4):
-            r = A.T @ np.array([x[i], y[i], z[i]])  # НЕВЕРНО, что тут A.T !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            x[i] = r[0] + o.f.r_orf[j][0] if reference_frame == "ORF" else r[0] + o.f.r_irf[j][0]
-            y[i] = r[1] + o.f.r_orf[j][1] if reference_frame == "ORF" else r[1] + o.f.r_irf[j][1]
-            z[i] = r[2] + o.f.r_orf[j][2] if reference_frame == "ORF" else r[2] + o.f.r_irf[j][2]
+            r = S.T @ np.array([x[i], y[i], z[i]])
+            if reference_frame == 'ORF' and xyz is not None:
+                r[0] *= xyz[0]
+                r[1] *= xyz[1]
+                r[2] *= xyz[2]
+            x[i] = r[0] + o.p.record[f'{o.f.name} r x {reference_frame.lower()} {j}'].to_list()[-1]
+            y[i] = r[1] + o.p.record[f'{o.f.name} r y {reference_frame.lower()} {j}'].to_list()[-1]
+            z[i] = r[2] + o.p.record[f'{o.f.name} r z {reference_frame.lower()} {j}'].to_list()[-1]
         r_real, r_estimation = [], []
         for c in "xyz":
             r_real.append(o.p.record[f'{o.f.name} r {c} {reference_frame.lower()} {j}'].to_list())
@@ -164,7 +169,8 @@ def show_chipsat(o, j, clr, opacity, reference_frame: str, return_go: bool = Tru
             [y[0], y[2], y[3], y[1], y[0]],
             [z[0], z[2], z[3], z[1], z[0]], c='gray', linewidth=3)
 
-def show_cubesat(o, j, reference_frame: str) -> list:
+def show_cubesat(o, j, reference_frame: str, xyz=None) -> list:
+    from dynamics import get_matrices
     global CUBE_RATE
     total_cubes = 30
     r = [[[] for _ in range(total_cubes)] for _ in range(3)]
@@ -220,13 +226,18 @@ def show_cubesat(o, j, reference_frame: str) -> list:
                 r[ind1][tmp] += [shift[ind1][sequence[m][0]]]
                 r[ind2][tmp] += [shift[ind2][sequence[m][1]]]
 
-    A = quart2dcm(o.c.q[j])
+    U, S, A, _ = get_matrices(v=o.v, t=o.p.t, obj=o.c, n=j)
+    # A = quart2dcm(o.c.q[j])
     for k in range(total_cubes):
         for i in range(4):
-            r1 = A.T @ np.array([r[0][k][i], r[1][k][i], r[2][k][i]])  # При IRF нет поворота. А и хрен с ним
-            r[0][k][i] = r1[0] + o.c.r_orf[j][0] if reference_frame == "ORF" else r1[0] + o.c.r_irf[j][0]
-            r[1][k][i] = r1[1] + o.c.r_orf[j][1] if reference_frame == "ORF" else r1[1] + o.c.r_irf[j][1]
-            r[2][k][i] = r1[2] + o.c.r_orf[j][2] if reference_frame == "ORF" else r1[2] + o.c.r_irf[j][2]
+            r1 = S.T @ np.array([r[0][k][i], r[1][k][i], r[2][k][i]])  # При IRF нет поворота. А и хрен с ним
+            if reference_frame == 'ORF' and xyz is not None:
+                r1[0] *= xyz[0]
+                r1[1] *= xyz[1]
+                r1[2] *= xyz[2]
+            r[0][k][i] = r1[0] + o.p.record[f'{o.c.name} r x {reference_frame.lower()} {j}'].to_list()[-1]
+            r[1][k][i] = r1[1] + o.p.record[f'{o.c.name} r y {reference_frame.lower()} {j}'].to_list()[-1]
+            r[2][k][i] = r1[2] + o.p.record[f'{o.c.name} r z {reference_frame.lower()} {j}'].to_list()[-1]
     anw = []
     for i in range(total_cubes):
         color = 'yellow' if i < 6 else 'gray'
@@ -420,11 +431,26 @@ def animate_reference_frames(resolution: int = 3, n: int = 5):
 
 # >>>>>>>>>>>> Конечная ассамблея <<<<<<<<<<<<
 def show_chipsats_and_cubesats(o, reference_frame: str, clr: str = 'lightpink', opacity: float = 1):
+    xyz_max = [-1e4] * 3
+    xyz_min = [1e4] * 3
+    xyz = np.zeros(3)
+    for j, c in enumerate("xyz"):
+        for i in range(o.f.n):
+            for l in [o.p.record[f'{o.f.name} r {c} {reference_frame.lower()} {i}'].to_list(),
+                      o.p.record[f'{o.f.name} KalmanPosEstimation {c} {i}'].to_list()]:
+                xyz_max[j] = max(xyz_max[j], max(l))
+                xyz_min[j] = min(xyz_min[j], min(l))
+        for i in range(o.c.n):
+            l = o.p.record[f'{o.c.name} r {c} {reference_frame.lower()} {i}'].to_list()
+            xyz_max[j] = max(xyz_max[j], max(l))
+            xyz_min[j] = min(xyz_min[j], min(l))
+        xyz[j] = xyz_max[j] - xyz_min[j]
+    # xyz /= np.max(xyz)
     data = []
     for i in range(o.f.n):
-        data += show_chipsat(o, i, clr, opacity, reference_frame)
+        data += show_chipsat(o, i, clr, opacity, reference_frame, xyz=xyz)
     for i in range(o.c.n):
-        data += show_cubesat(o, i, reference_frame)
+        data += show_cubesat(o, i, reference_frame, xyz=xyz)
     return data
 
 def plot_all(o, save: bool = False, count: int = None):

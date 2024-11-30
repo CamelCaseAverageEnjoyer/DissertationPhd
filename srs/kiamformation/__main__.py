@@ -7,6 +7,7 @@ simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 if __name__ == '__main__':
     # Инициализация объектов
     o = init()
+    np.set_printoptions(linewidth=300)
 
     # Интерфейс
     app, window = interface_window(o=o)
